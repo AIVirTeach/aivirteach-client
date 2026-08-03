@@ -15,8 +15,8 @@ async function request(path) {
 }
 
 for (const [path, expected] of [
-  ["/login", "Learn by doing, with AI beside you."],
-  ["/dashboard", "Python for Data Science"],
+  ["/login", "Turn AI Learners into AI Builders"],
+  ["/dashboard", "Build an Agent using n8n"],
   ["/analysis", "Learning Analytics"],
   ["/workspace", "Filter the DataFrame"],
 ]) {
@@ -26,3 +26,13 @@ for (const [path, expected] of [
     assert.match(await response.text(), new RegExp(expected));
   });
 }
+
+test("serves a typed demo learner profile", async () => {
+  const response = await request("/api/mock/profile");
+  assert.equal(response.status, 200);
+  const profile = await response.json();
+  assert.equal(profile.name, "Alex Chen");
+  assert.equal(profile.plan, "Premium");
+  assert.equal(profile.course.progress, 65);
+  assert.ok(profile.recentActivity.length >= 3);
+});

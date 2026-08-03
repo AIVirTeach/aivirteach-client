@@ -2,60 +2,75 @@
 
 import { useState } from "react";
 import { Sidebar } from "../components/Sidebar";
+import { useMockProfile } from "../hooks/useMockProfile";
 
-const metrics = [
-  { icon: "◷", label: "Total Practice Time", value: "45h", delta: "↗ 12%", tone: "teal" },
-  { icon: "✓", label: "Tasks Completed", value: "120", delta: "↗ 8%", tone: "amber" },
-  { icon: "◎", label: "Command Accuracy", value: "92%", delta: "↗ 3%", tone: "sand" },
-];
-
-const skills = [
-  { label: "Conceptual", value: 85, tone: "teal" },
-  { label: "Practical", value: 70, tone: "amber" },
-  { label: "Problem Solving", value: 92, tone: "sand" },
-];
+const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 export default function AnalysisPage() {
   const [range, setRange] = useState<"30" | "all">("30");
+  const [insightExpanded, setInsightExpanded] = useState(false);
+  const { profile } = useMockProfile();
+  const practiceMinutes = range === "all" ? profile.stats.practiceMinutes : profile.stats.last30PracticeMinutes;
+  const practiceHours = Math.round(practiceMinutes / 6) / 10;
+  const tasksCompleted = range === "all" ? profile.stats.tasksCompleted : profile.stats.last30TasksCompleted;
+  const maxWeeklyHours = Math.max(4, Math.ceil(Math.max(...profile.weeklyHours)));
+  const metrics = [
+    { icon: "◷", label: range === "all" ? "Total Practice Time" : "Practice Time", value: `${practiceHours}h`, delta: `↗ ${profile.analytics.practiceTrend}%`, tone: "teal" },
+    { icon: "✓", label: "Tasks Completed", value: String(tasksCompleted), delta: `↗ ${profile.analytics.taskTrend}%`, tone: "amber" },
+    { icon: "◎", label: "Weekly Goal", value: `${profile.stats.weeklyGoalPercent}%`, delta: profile.stats.weeklyGoalPercent === 100 ? "Complete" : `↗ ${profile.analytics.goalTrend}%`, tone: "sand" },
+  ];
+
   return (
     <div className="app-shell">
       <Sidebar active="analysis" />
       <main className="analysis page-content">
         <header className="analysis-head">
-          <div><p className="eyebrow">PERSONAL INSIGHTS</p><h1>Learning Analytics</h1><p>Track your mastery and cognitive progression.</p></div>
+          <div><h1>Learning Analytics</h1><p>Track your mastery and learning progression.</p></div>
           <div className="range-toggle" aria-label="Analytics date range">
             <button className={range === "30" ? "active" : ""} onClick={() => setRange("30")}>Last 30 Days</button>
             <button className={range === "all" ? "active" : ""} onClick={() => setRange("all")}>All Time</button>
           </div>
         </header>
+
         <section className="metric-grid">
           {metrics.map((metric) => (
             <article className="metric-card" key={metric.label}>
               <div className="metric-top"><span className={`metric-icon ${metric.tone}`}>{metric.icon}</span><span className="delta">{metric.delta}</span></div>
               <span className="metric-label">{metric.label}</span><strong>{metric.value}</strong>
-              {metric.label === "Command Accuracy" && <div className="progress-track slim"><span style={{ width: "92%" }} /></div>}
+              {metric.label === "Weekly Goal" && <div className="progress-track slim"><span style={{ width: `${profile.stats.weeklyGoalPercent}%` }} /></div>}
             </article>
           ))}
         </section>
+
         <section className="analytics-layout">
           <article className="chart-card">
             <h2>Weekly Learning Hours</h2>
-            <div className="line-chart" aria-label="Weekly learning hours: week 1 eight hours, week 2 twelve hours, week 3 ten hours, week 4 fifteen hours">
-              <div className="chart-grid"><span>15</span><span>10</span><span>5</span><span>0</span></div>
-              <div className="chart-plot">
-                <span className="chart-area" />
-                <i className="segment s1" /><i className="segment s2" /><i className="segment s3" />
-                <b className="point p1" /><b className="point p2" /><b className="point p3" /><b className="point p4" />
+            <div className="weekly-chart" role="img" aria-label={`Learning hours from Monday to Sunday: ${profile.weeklyHours.join(", ")} hours`}>
+              <div className="weekly-chart-scale" aria-hidden="true"><span>{maxWeeklyHours}h</span><span>{maxWeeklyHours / 2}h</span><span>0h</span></div>
+              <div className="weekly-chart-plot">
+                <div className="weekly-chart-lines" aria-hidden="true"><i /><i /><i /></div>
+                {profile.weeklyHours.map((hours, index) => (
+                  <div className="weekly-bar-column" key={days[index]} title={`${days[index]}: ${hours} hours`}>
+                    <span className="weekly-bar-value">{hours || "–"}</span>
+                    <i className="weekly-bar" style={{ height: `${Math.max(hours ? 5 : 0, hours / maxWeeklyHours * 100)}%` }} />
+                    <strong>{days[index]}</strong>
+                  </div>
+                ))}
               </div>
-              <div className="chart-labels"><span>Week 1</span><span>Week 2</span><span>Week 3</span><span>Week 4</span></div>
             </div>
           </article>
+
           <aside className="analytics-side">
-            <article className="insight-card"><div className="insight-title"><span>●</span><h2>AI Insight</h2></div><p>&ldquo;Your command accuracy has improved by 15% this week. Great job focusing on the terminal tasks!&rdquo;</p><button type="button">View detail &nbsp;→</button></article>
-            <article className="mastery-card"><h2>Skill Mastery</h2>{skills.map((skill) => <div className="skill-row" key={skill.label}><div><span>{skill.label}</span><strong>{skill.value}%</strong></div><div className="progress-track slim"><span className={skill.tone} style={{ width: `${skill.value}%` }} /></div></div>)}</article>
+            <article className="insight-card">
+              <div className="insight-title"><span>●</span><h2>AI Insight</h2></div>
+              <p>&ldquo;{profile.analytics.insight}&rdquo;{insightExpanded && <small className="insight-detail">{profile.analytics.insightDetail}</small>}</p>
+              <button type="button" onClick={() => setInsightExpanded((value) => !value)}>{insightExpanded ? "Hide detail" : "View detail"} &nbsp;→</button>
+            </article>
+            <article className="mastery-card"><h2>Skill Mastery</h2>{profile.skills.map((skill, index) => <div className="skill-row" key={skill.name}><div><span>{skill.name}</span><strong>{skill.value}%</strong></div><div className="progress-track slim"><span className={index === 1 ? "amber" : index === 2 ? "sand" : "teal"} style={{ width: `${skill.value}%` }} /></div></div>)}</article>
           </aside>
         </section>
-        <section className="achievements"><h2>Recent Achievements</h2><div className="achievement-row"><article><span>⌁</span><div><strong>Terminal Navigator</strong><small>Completed 20 command tasks</small></div></article><article><span>✓</span><div><strong>Data Wrangler</strong><small>Mastered Pandas filtering</small></div></article><article><span>★</span><div><strong>Five Day Focus</strong><small>Maintained your learning streak</small></div></article></div></section>
+
+        <section className="achievements"><h2>Recent Achievements</h2><div className="achievement-row">{profile.achievements.map((achievement) => <article className={achievement.unlocked ? "" : "locked"} key={achievement.title}><span>{achievement.icon}</span><div><strong>{achievement.title}</strong><small>{achievement.subtitle}</small></div></article>)}</div></section>
       </main>
     </div>
   );
