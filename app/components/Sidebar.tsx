@@ -1,9 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useLayoutEffect, useState } from "react";
-import { useMockProfile } from "../hooks/useMockProfile";
-import { Avatar } from "./Avatar";
+import { useLayoutEffect, useSyncExternalStore } from "react";
+import { AccountMenu } from "./AccountMenu";
 import { BrandLogo } from "./BrandLogo";
 
 type SidebarProps = { active: "dashboard" | "courses" | "workspace" | "analysis" | "settings" };
@@ -16,26 +15,36 @@ const items = [
   { id: "settings", label: "Settings", href: "/settings", icon: "⚙" },
 ] as const;
 
+const sidebarStorageKey = "aivir-sidebar-collapsed";
+const sidebarChangeEvent = "aivirteach:sidebar-collapsed";
 let cachedSidebarCollapsed: boolean | null = null;
 
+function subscribeToSidebar(callback: () => void) {
+  window.addEventListener("storage", callback);
+  window.addEventListener(sidebarChangeEvent, callback);
+  return () => {
+    window.removeEventListener("storage", callback);
+    window.removeEventListener(sidebarChangeEvent, callback);
+  };
+}
+
+function getSidebarSnapshot() {
+  cachedSidebarCollapsed ??= window.localStorage.getItem(sidebarStorageKey) === "true";
+  return cachedSidebarCollapsed;
+}
+
 export function Sidebar({ active }: SidebarProps) {
-  const { profile } = useMockProfile();
-  const [collapsed, setCollapsed] = useState(() => cachedSidebarCollapsed ?? false);
+  const collapsed = useSyncExternalStore(subscribeToSidebar, getSidebarSnapshot, () => false);
 
   useLayoutEffect(() => {
-    if (cachedSidebarCollapsed === null) cachedSidebarCollapsed = window.localStorage.getItem("aivir-sidebar-collapsed") === "true";
-    setCollapsed(cachedSidebarCollapsed);
     const savedTheme = window.localStorage.getItem("aivir-theme") === "dark" ? "dark" : "light";
     document.documentElement.dataset.theme = savedTheme;
   }, []);
 
   function toggleSidebar() {
-    setCollapsed((value) => {
-      const nextValue = !value;
-      cachedSidebarCollapsed = nextValue;
-      window.localStorage.setItem("aivir-sidebar-collapsed", String(nextValue));
-      return nextValue;
-    });
+    cachedSidebarCollapsed = !collapsed;
+    window.localStorage.setItem(sidebarStorageKey, String(cachedSidebarCollapsed));
+    window.dispatchEvent(new Event(sidebarChangeEvent));
   }
 
   return (
@@ -44,17 +53,6 @@ export function Sidebar({ active }: SidebarProps) {
         <BrandLogo className="sidebar-brand-logo" />
         <button className="sidebar-collapse-toggle" type="button" onClick={toggleSidebar} aria-label={collapsed ? "Expand navigation" : "Collapse navigation"} aria-expanded={!collapsed}><span aria-hidden="true" /></button>
       </header>
-
-      <section className="sidebar-profile-section" aria-label="Learner profile">
-        <Link className="profile-block profile-trigger" href="/settings/profile" aria-label={collapsed ? `${profile.name} profile` : undefined}>
-          <Avatar size="large" name={profile.name} src={profile.avatar} />
-          <span className="profile-summary">
-            <strong>{profile.name}</strong>
-            <span>{profile.plan} Learner</span>
-            <em>Level {profile.level}</em>
-          </span>
-        </Link>
-      </section>
 
       <section className="sidebar-content-section" aria-label="Navigation">
         <nav className="side-nav" aria-label="Primary navigation">
@@ -67,6 +65,10 @@ export function Sidebar({ active }: SidebarProps) {
             </Link>
           ))}
         </nav>
+      </section>
+
+      <section className="sidebar-profile-section" aria-label="Learner profile">
+        <AccountMenu placement="sidebar" collapsed={collapsed} />
       </section>
     </aside>
   );

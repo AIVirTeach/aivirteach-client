@@ -5,12 +5,12 @@ import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { BrandLogo } from "../components/BrandLogo";
 import { ThemeToggle } from "../components/ThemeToggle";
-import { useMockProfile } from "../hooks/useMockProfile";
+import { useLearnerProfile } from "../hooks/useLearnerProfile";
 import { mockLearners } from "../lib/mock-profile";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { selectMockProfile } = useMockProfile();
+  const { selectDemoProfile } = useLearnerProfile();
   const [selectedProfileId, setSelectedProfileId] = useState("learner_advanced");
   const [submitting, setSubmitting] = useState(false);
   const selectedProfile = mockLearners.find((learner) => learner.id === selectedProfileId) ?? mockLearners[1];
@@ -18,8 +18,7 @@ export default function LoginPage() {
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSubmitting(true);
-    selectMockProfile(selectedProfileId);
-    await new Promise((resolve) => window.setTimeout(resolve, 450));
+    await selectDemoProfile(selectedProfileId);
     router.push("/dashboard");
   }
 

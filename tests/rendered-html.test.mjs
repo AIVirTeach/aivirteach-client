@@ -18,7 +18,9 @@ for (const [path, expected] of [
   ["/login", "Turn AI Learners into AI Builders"],
   ["/dashboard", "Build an Agent using n8n"],
   ["/analysis", "Learning Analytics"],
-  ["/workspace", "Filter the DataFrame"],
+  ["/courses", "Choose what to learn next"],
+  ["/courses/welcome", "Preparing your course"],
+  ["/workspace", "Opening Learning Lab"],
 ]) {
   test(`renders ${path}`, async () => {
     const response = await request(path);
@@ -27,12 +29,7 @@ for (const [path, expected] of [
   });
 }
 
-test("serves a typed demo learner profile", async () => {
+test("does not expose the retired frontend mock profile API", async () => {
   const response = await request("/api/mock/profile");
-  assert.equal(response.status, 200);
-  const profile = await response.json();
-  assert.equal(profile.name, "Alex Chen");
-  assert.equal(profile.plan, "Premium");
-  assert.equal(profile.course.progress, 65);
-  assert.ok(profile.recentActivity.length >= 3);
+  assert.equal(response.status, 404);
 });

@@ -1,18 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 import { Sidebar } from "../components/Sidebar";
-import { useMockProfile } from "../hooks/useMockProfile";
+import { useLearnerProfile } from "../hooks/useLearnerProfile";
 import { activateCourse, courseCatalog } from "../lib/courses";
 
 export default function DashboardPage() {
-  const { profile, loading, recordPractice } = useMockProfile();
+  const { profile, loading, error, recordPractice, markNotificationsRead } = useLearnerProfile();
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notificationsRead, setNotificationsRead] = useState(false);
   const [highlightUnread, setHighlightUnread] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchFeedback, setSearchFeedback] = useState("");
+  const notificationRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!searchFeedback) return;
@@ -20,9 +21,23 @@ export default function DashboardPage() {
     return () => window.clearTimeout(timer);
   }, [searchFeedback]);
 
+  useEffect(() => {
+    if (!notificationsOpen) return;
+
+    function dismissNotifications(event: PointerEvent) {
+      if (!notificationRef.current?.contains(event.target as Node)) {
+        setNotificationsOpen(false);
+        setHighlightUnread(false);
+      }
+    }
+
+    document.addEventListener("pointerdown", dismissNotifications);
+    return () => document.removeEventListener("pointerdown", dismissNotifications);
+  }, [notificationsOpen]);
+
   const firstName = profile.name.split(" ")[0];
   const isAllClear = profile.accountType === "all-clear";
-  const currentCatalogCourse = profile.accountType === "beginner" ? courseCatalog[2] : courseCatalog[0];
+  const currentCatalogCourse = courseCatalog.find((course) => course.title === profile.course.title) ?? (profile.accountType === "beginner" ? courseCatalog[2] : courseCatalog[0]);
   const practiceHours = Math.round(profile.stats.practiceMinutes / 60);
   const stats = [
     { icon: "streak", value: `${profile.stats.streakDays} Days`, label: "Current Streak", tone: "amber" },
@@ -52,6 +67,7 @@ export default function DashboardPage() {
 
     setHighlightUnread(!notificationsRead && profile.notifications.length > 0);
     setNotificationsRead(true);
+    void markNotificationsRead();
     setNotificationsOpen(true);
   }
 
@@ -64,13 +80,14 @@ export default function DashboardPage() {
     <div className="app-shell dashboard-shell">
       <Sidebar active="dashboard" />
       <main className={`dashboard page-content ${loading ? "data-loading" : ""}`}>
+        {error && <p className="auth-error" role="alert">Backend unavailable: {error}</p>}
         <header className="dashboard-toolbar">
           <form className="search-box" role="search" onSubmit={submitSearch}>
             <input aria-label="Search courses and skills" placeholder="Search..." value={searchQuery} onChange={(event) => { setSearchQuery(event.target.value); setSearchFeedback(""); }} />
             <button className="search-button" type="submit" aria-label="Search"><span className="search-glyph" aria-hidden="true" /></button>
             {searchFeedback && <output className="search-feedback" aria-live="polite">{searchFeedback}</output>}
           </form>
-          <div className="notification-wrap">
+          <div className="notification-wrap" ref={notificationRef}>
             <button className="notification-button" aria-label={notificationsRead ? "Notifications" : "Notifications, new items"} aria-expanded={notificationsOpen} onClick={toggleNotifications}><span className="bell-icon" aria-hidden="true" />{!notificationsRead && <span className="notification-dot" />}</button>
             {notificationsOpen && <section className="notification-popover"><header><strong>Notifications</strong><button onClick={closeNotifications} aria-label="Close notifications">×</button></header>{profile.notifications.map((notification) => <p className={highlightUnread ? "unread" : ""} key={notification}>{highlightUnread && <span className="new-label">New</span>}{notification}</p>)}</section>}
           </div>
@@ -86,7 +103,7 @@ export default function DashboardPage() {
             <p>{profile.course.module}</p>
             <div className="course-progress-label"><strong>{profile.course.progress}% Completed</strong></div>
             <div className="progress-track"><span style={{ width: `${profile.course.progress}%` }} /></div>
-            <Link className="primary-button resume-button" href={isAllClear ? "/courses" : "/workspace"} onClick={() => { if (!isAllClear) { activateCourse(currentCatalogCourse.id); recordPractice(15); } }}>{isAllClear ? "Explore Courses" : "Resume Session"} <span>→</span></Link>
+          <Link className="primary-button resume-button" href={isAllClear ? "/courses" : "/workspace"} onClick={() => { if (!isAllClear) { activateCourse(currentCatalogCourse.id); void recordPractice(15); } }}>{isAllClear ? "Explore Courses" : "Resume Session"} <span>→</span></Link>
           </article>
           <div className="stat-stack">
             {stats.map((stat) => <article className="stat-card" key={stat.label}><span className={`stat-icon ${stat.tone}`} aria-hidden="true"><i className={`stat-glyph ${stat.icon}`} /></span><div><strong>{stat.value}</strong><span>{stat.label}</span></div></article>)}

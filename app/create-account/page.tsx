@@ -5,11 +5,11 @@ import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { BrandLogo } from "../components/BrandLogo";
 import { ThemeToggle } from "../components/ThemeToggle";
-import { useMockProfile } from "../hooks/useMockProfile";
+import { useLearnerProfile } from "../hooks/useLearnerProfile";
 
 export default function CreateAccountPage() {
   const router = useRouter();
-  const { createAccount } = useMockProfile();
+  const { createAccount } = useLearnerProfile();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
@@ -26,9 +26,13 @@ export default function CreateAccountPage() {
 
     setError("");
     setSubmitting(true);
-    createAccount(String(form.get("name") ?? ""), String(form.get("email") ?? ""));
-    await new Promise((resolve) => window.setTimeout(resolve, 500));
-    router.push("/dashboard");
+    try {
+      await createAccount(String(form.get("name") ?? ""), String(form.get("email") ?? ""));
+      router.push("/dashboard");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not create the account.");
+      setSubmitting(false);
+    }
   }
 
   return (

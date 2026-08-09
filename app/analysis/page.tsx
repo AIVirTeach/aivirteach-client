@@ -2,14 +2,14 @@
 
 import { useState } from "react";
 import { Sidebar } from "../components/Sidebar";
-import { useMockProfile } from "../hooks/useMockProfile";
+import { useLearnerProfile } from "../hooks/useLearnerProfile";
 
 const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 export default function AnalysisPage() {
   const [range, setRange] = useState<"30" | "all">("30");
   const [insightExpanded, setInsightExpanded] = useState(false);
-  const { profile } = useMockProfile();
+  const { profile } = useLearnerProfile();
   const practiceMinutes = range === "all" ? profile.stats.practiceMinutes : profile.stats.last30PracticeMinutes;
   const practiceHours = Math.round(practiceMinutes / 6) / 10;
   const tasksCompleted = range === "all" ? profile.stats.tasksCompleted : profile.stats.last30TasksCompleted;

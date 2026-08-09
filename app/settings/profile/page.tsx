@@ -5,24 +5,32 @@ import { useRouter } from "next/navigation";
 import { type FormEvent, useState } from "react";
 import { Avatar } from "../../components/Avatar";
 import { Sidebar } from "../../components/Sidebar";
-import { useMockProfile } from "../../hooks/useMockProfile";
+import { useLearnerProfile } from "../../hooks/useLearnerProfile";
 
 export default function ProfileSettingsPage() {
   const router = useRouter();
-  const { profile, updateIdentity, resetProfile } = useMockProfile();
+  const { profile, updateIdentity, resetProfile } = useLearnerProfile();
   const [status, setStatus] = useState("");
   const memberSince = new Date(`${profile.joinedAt}T00:00:00`).toLocaleDateString("en-MY", { month: "long", year: "numeric" });
 
-  function saveProfile(event: FormEvent<HTMLFormElement>) {
+  async function saveProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    updateIdentity(String(form.get("name") ?? ""), String(form.get("role") ?? ""));
-    setStatus("Profile saved.");
+    try {
+      await updateIdentity(String(form.get("name") ?? ""), String(form.get("role") ?? ""));
+      setStatus("Profile saved.");
+    } catch (caught) {
+      setStatus(caught instanceof Error ? caught.message : "Profile could not be saved.");
+    }
   }
 
-  function resetDemoProfile() {
-    resetProfile();
-    setStatus("Demo profile reset.");
+  async function resetDemoProfile() {
+    try {
+      await resetProfile();
+      setStatus("Demo profile reset.");
+    } catch (caught) {
+      setStatus(caught instanceof Error ? caught.message : "Profile could not be reset.");
+    }
   }
 
   return (
