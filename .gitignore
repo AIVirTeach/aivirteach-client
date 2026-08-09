@@ -44,3 +44,9 @@ next-env.d.ts
 /pnpm-lock.yaml
 /dev-server.log
 /dev-server-error.log
+
+# TypeScript build cache
+*.tsbuildinfo
+
+# Local development logs
+/dev-server*.log

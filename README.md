@@ -11,6 +11,8 @@ npm run dev
 
 Open `http://localhost:3001`. The port is fixed in `vite.config.ts`.
 
+The NestJS backend must also be running at `http://localhost:4000/api/v1`. Override that URL with `NEXT_PUBLIC_API_BASE_URL` when needed.
+
 ## Application entry points
 
 - `app/layout.tsx` — root HTML layout, metadata, favicon, and global stylesheet.
@@ -33,10 +35,10 @@ Open `http://localhost:3001`. The port is fixed in `vite.config.ts`.
 - `app/globals.css` — colors, spacing, layouts, dark mode, and responsive styles.
 - `app/components/Sidebar.tsx` — shared navigation and collapse behavior.
 - `app/components/Avatar.tsx` — reusable avatar rendering.
-- `app/hooks/useMockProfile.ts` — mock profile state and interactions.
+- `app/hooks/useLearnerProfile.ts` — backend learner state and mutations.
+- `app/lib/api.ts` — typed NestJS API client and demo-user header selection.
 - `app/lib/mock-profile.ts` — default demo data shown in the UI.
 - `app/lib/courses.ts` — course catalog and active-course storage helpers.
-- `app/api/mock/profile/route.ts` — mock profile API endpoint.
 - `public/` — logos, icons, chart images, and other browser assets.
 
 ## Usually leave these alone
