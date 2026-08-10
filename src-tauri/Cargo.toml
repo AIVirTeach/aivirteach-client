@@ -1,0 +1,24 @@
+[package]
+name = "aivirteach-client"
+version = "0.2.0"
+description = "AIVirTeach Linux xrdp student client for Windows"
+authors = ["AIVirTeach"]
+edition = "2021"
+
+[lib]
+name = "aivirteach_client_lib"
+crate-type = ["rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[features]
+custom-protocol = ["tauri/custom-protocol"]
+
+[dependencies]
+anyhow = "1"
+ironrdp = { version = "0.17", features = ["client", "input", "native-tls", "qoi", "qoiz"] }
+keyring = { version = "4.1", default-features = false, features = ["v1", "windows-native-keyring-store"] }
+serde = { version = "1", features = ["derive"] }
+tauri = { version = "2", features = [] }
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "time"] }
