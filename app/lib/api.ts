@@ -59,6 +59,56 @@ export type ApiCourse = {
   durationMinutes: number;
   lessonCount: number;
   published: boolean;
+  coverAssetId?: string;
+};
+
+export type ApiCourseLessonSummary = {
+  id: string;
+  position: number;
+  title: string;
+  estimatedMinutes: number;
+  objectives: string[];
+  activity: { type: string; prompt: string; completionType: string };
+};
+
+export type ApiCourseModule = {
+  id: string;
+  position: number;
+  title: string;
+  description: string;
+  estimatedMinutes: number;
+  lessons: ApiCourseLessonSummary[];
+};
+
+export type ApiCourseDetail = ApiCourse & {
+  slug: string;
+  version: number;
+  shortTitle: string;
+  language: string;
+  tags: string[];
+  outcomes: string[];
+  requirements: string[];
+  modules: ApiCourseModule[];
+};
+
+export type ApiLesson = {
+  courseId: string;
+  module: { id: string; title: string; position: number };
+  lesson: ApiCourseLessonSummary;
+  markdown: string;
+  assessment: null | { id: string; type: string; question: string; options?: string[]; criteria?: string[] };
+  navigation: { previousLessonId: string | null; nextLessonId: string | null; index: number; total: number };
+};
+
+export type ApiCourseWelcome = {
+  schemaVersion: number;
+  courseId: string;
+  title: string;
+  overviewAssetId: string;
+  overviewAsset: { id: string; alt: string };
+  overview: { heading: string; paragraphs: string[] };
+  howItWorks: { heading: string; steps: Array<{ number: string; title: string; description: string }> };
+  finalOutcome: { heading: string; description: string };
 };
 
 export type ApiEnrollment = {
@@ -127,8 +177,13 @@ export const api = {
   notifications: () => request<ApiNotification[]>("/notifications"),
   markAllNotificationsRead: () => request<{ updated: number; readAt: string }>("/notifications/read-all", { method: "POST" }),
   courses: () => request<ApiCourse[]>("/courses"),
+  course: (courseId: string) => request<ApiCourseDetail>("/courses/" + encodeURIComponent(courseId)),
+  courseWelcome: (courseId: string) => request<ApiCourseWelcome>("/courses/" + encodeURIComponent(courseId) + "/welcome"),
+  lesson: (courseId: string, lessonId: string) => request<ApiLesson>("/courses/" + encodeURIComponent(courseId) + "/lessons/" + encodeURIComponent(lessonId)),
   enrollments: () => request<ApiEnrollment[]>("/me/enrollments"),
   enroll: (courseId: string) => request<ApiEnrollment>("/courses/" + encodeURIComponent(courseId) + "/enroll", { method: "POST" }),
+  restartCourse: (courseId: string) => request<ApiEnrollment>("/courses/" + encodeURIComponent(courseId) + "/restart", { method: "POST" }),
+  submitAssessment: (courseId: string, lessonId: string, answer: unknown) => request<{ correct: boolean; explanation: string }>("/courses/" + encodeURIComponent(courseId) + "/lessons/" + encodeURIComponent(lessonId) + "/assessment", { method: "POST", body: JSON.stringify({ answer }) }),
   updateProfile: (input: { name?: string; role?: string; timezone?: string }) => request<ApiLearner>("/me", { method: "PATCH", body: JSON.stringify(input) }),
   createDemoUser: (input: { name: string; email: string }) => request<ApiLearner>("/demo/users", { method: "POST", body: JSON.stringify(input) }),
   resetProfile: () => request<ApiLearner>("/me/reset", { method: "POST" }),
@@ -137,3 +192,7 @@ export const api = {
   chatMessages: (threadId: string) => request<ApiChatMessage[]>("/chat/threads/" + encodeURIComponent(threadId) + "/messages"),
   sendChatMessage: (threadId: string, text: string) => request<{ studentMessage: ApiChatMessage; tutorMessage: ApiChatMessage }>("/chat/threads/" + encodeURIComponent(threadId) + "/messages", { method: "POST", body: JSON.stringify({ text }) }),
 };
+
+export function courseAssetUrl(courseId: string, assetId: string) {
+  return `${API_BASE_URL}/courses/${encodeURIComponent(courseId)}/assets/${encodeURIComponent(assetId)}`;
+}

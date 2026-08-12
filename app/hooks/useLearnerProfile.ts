@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, setDemoUserId, type ApiDashboard, type ApiNotification } from "../lib/api";
 import { beginnerLearner, cloneMockLearner, getMockLearner, mockLearners, type DemoLearner } from "../lib/mock-profile";
+import { clearActiveCourse } from "../lib/courses";
 
 const eventName = "aivirteach:learner-profile";
 let cachedLearnerProfile: DemoLearner | null = null;
@@ -104,6 +105,7 @@ export function useLearnerProfile() {
   const createAccount = useCallback(async (name: string, email: string) => {
     const learner = await api.createDemoUser({ name, email });
     setDemoUserId(learner.id);
+    clearActiveCourse();
     await refresh();
   }, [refresh]);
 

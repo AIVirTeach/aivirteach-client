@@ -13,6 +13,8 @@ Open `http://localhost:3001`. The port is fixed in `vite.config.ts`.
 
 The NestJS backend must also be running at `http://localhost:4000/api/v1`. Override that URL with `NEXT_PUBLIC_API_BASE_URL` when needed.
 
+Set `NEXT_PUBLIC_LEARNING_VM_URL` to the browser-accessible VM or remote desktop URL shown in the center of the Learning Lab. Without it, the Learning Lab displays its awaiting-connection state while course instructions remain available in the resizable left sidebar.
+
 ## Application entry points
 
 - `app/layout.tsx` — root HTML layout, metadata, favicon, and global stylesheet.

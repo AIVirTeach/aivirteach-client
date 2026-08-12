@@ -7,6 +7,7 @@ export type DemoCourse = {
   duration: string;
   lessons: number;
   tone: "blue" | "violet" | "cyan" | "indigo";
+  coverAssetId?: string;
 };
 
 export const activeCourseStorageKey = "aivirteach.activeCourse.v1";
@@ -56,6 +57,14 @@ export const courseCatalog: DemoCourse[] = [
 
 export function activateCourse(courseId: string) {
   window.localStorage.setItem(activeCourseStorageKey, courseId);
+}
+
+export function clearActiveCourse(courseId?: string) {
+  window.localStorage.removeItem(activeCourseStorageKey);
+  if (courseId) {
+    window.localStorage.removeItem(`aivirteach.course.lesson.${courseId}`);
+    window.localStorage.removeItem(`aivirteach.lab.activeSeconds.${courseId}`);
+  }
 }
 
 export function readActiveCourse() {

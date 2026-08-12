@@ -2,54 +2,84 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { api } from "../../lib/api";
-import { activateCourse, readActiveCourse, type DemoCourse } from "../../lib/courses";
+import { api, courseAssetUrl, type ApiCourseDetail, type ApiCourseWelcome } from "../../lib/api";
+import { activateCourse } from "../../lib/courses";
 
 const welcomeVideoUrl = process.env.NEXT_PUBLIC_COURSE_WELCOME_VIDEO_URL;
-const milestones = ["Learn the essential concepts", "Build the core project", "Test and improve your work", "Complete the final challenge"];
 
 export default function CourseWelcomePage() {
   const router = useRouter();
-  const [course, setCourse] = useState<DemoCourse | null>(null);
+  const [course, setCourse] = useState<ApiCourseDetail | null>(null);
+  const [welcome, setWelcome] = useState<ApiCourseWelcome | null>(null);
+  const [step, setStep] = useState<1 | 2>(1);
   const [checked, setChecked] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    api.enrollments().then((enrollments) => {
+    let active = true;
+    api.enrollments().then(async (enrollments) => {
       const activeCourseId = enrollments.find((enrollment) => enrollment.active)?.courseId;
-      if (activeCourseId) activateCourse(activeCourseId);
-      setCourse(readActiveCourse());
-    }).catch(() => setCourse(readActiveCourse())).finally(() => setChecked(true));
+      if (!activeCourseId) return;
+      const [courseData, welcomeData] = await Promise.all([api.course(activeCourseId), api.courseWelcome(activeCourseId)]);
+      if (!active) return;
+      activateCourse(activeCourseId);
+      setCourse(courseData);
+      setWelcome(welcomeData);
+    }).catch((caught) => {
+      if (active) setError(caught instanceof Error ? caught.message : "Could not prepare this course.");
+    }).finally(() => { if (active) setChecked(true); });
+    return () => { active = false; };
   }, []);
 
   return (
     <main className="course-welcome-page">
       {!checked ? (
         <p className="course-welcome-loading" role="status">Preparing your course...</p>
-      ) : course ? (
+      ) : course && welcome ? (
         <section className="course-welcome-window" aria-label={`${course.title} welcome`}>
-          <div className="course-welcome-grid">
-            <section className="course-welcome-video" aria-labelledby="welcome-video-title">
-              <h1 id="welcome-video-title">How to use the Learning Lab</h1>
+          <header className="course-welcome-progress">
+            <span>{step} of 2</span>
+            <div aria-hidden="true"><i className="active" /><i className={step === 2 ? "active" : ""} /></div>
+          </header>
+
+          {step === 1 ? (
+            <div className="course-welcome-grid course-overview-step">
+              <figure className="course-welcome-image">
+                <img src={courseAssetUrl(course.id, welcome.overviewAsset.id)} alt={welcome.overviewAsset.alt} />
+              </figure>
+              <section className="course-overview-copy" aria-labelledby="course-overview-title">
+                <p>{course.category}</p>
+                <h1 id="course-overview-title">{welcome.overview.heading}</h1>
+                <div className="course-overview-paragraphs">{welcome.overview.paragraphs.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}</div>
+                <section className="course-how-it-works" aria-labelledby="how-it-works-title">
+                  <h2 id="how-it-works-title">{welcome.howItWorks.heading}</h2>
+                  <ol>{welcome.howItWorks.steps.map((item) => <li key={item.number}><span>{item.number}</span><div><strong>{item.title}</strong><p>{item.description}</p></div></li>)}</ol>
+                </section>
+                <section className="course-final-outcome"><strong>{welcome.finalOutcome.heading}</strong><p>{welcome.finalOutcome.description}</p></section>
+              </section>
+            </div>
+          ) : (
+            <div className="course-how-to-step">
+              <header><p>LEARNING LAB</p><h1>How to use the VM and course interface</h1><span>Watch this short walkthrough before opening your workspace.</span></header>
               <div className="course-video-frame">
                 {welcomeVideoUrl ? (
                   <video controls preload="metadata"><source src={welcomeVideoUrl} />Your browser does not support embedded video.</video>
                 ) : (
-                  <div className="course-video-placeholder" role="img" aria-label="How to use the Learning Lab video coming soon"><span aria-hidden="true" /><strong>How-to video</strong><small>Video coming soon</small></div>
+                  <div className="course-video-placeholder" role="img" aria-label="Learning Lab walkthrough video coming soon"><span aria-hidden="true" /><strong>VM and interface walkthrough</strong><small>Video coming soon</small></div>
                 )}
               </div>
-            </section>
-            <section className="course-welcome-summary" aria-labelledby="course-summary-title">
-              <p>{course.category}</p>
-              <h2 id="course-summary-title">{course.title}</h2>
-              <ol>{milestones.map((milestone, index) => <li key={milestone}><span>{String(index + 1).padStart(2, "0")}</span><strong>{milestone}</strong></li>)}</ol>
-            </section>
-          </div>
-          <button className="primary-button course-welcome-enter" type="button" onClick={() => router.push("/workspace")}>Let&apos;s Go!</button>
+            </div>
+          )}
+
+          <footer className="course-welcome-actions">
+            {step === 2 && <button type="button" onClick={() => setStep(1)}>Back</button>}
+            {step === 1 ? <button className="primary-button" type="button" onClick={() => setStep(2)}>Next</button> : <button className="primary-button" type="button" onClick={() => router.push("/workspace")}>Let&apos;s go</button>}
+          </footer>
         </section>
       ) : (
         <section className="course-required-card">
           <h1>No active course</h1>
-          <p>Choose a course before entering the Learning Lab.</p>
+          <p>{error || "Choose a course before entering the Learning Lab."}</p>
           <button className="primary-button" type="button" onClick={() => router.replace("/courses")}>Browse courses</button>
         </section>
       )}

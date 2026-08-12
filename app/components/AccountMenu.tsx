@@ -5,9 +5,9 @@ import { useEffect, useRef, useState } from "react";
 import { useLearnerProfile } from "../hooks/useLearnerProfile";
 import { Avatar } from "./Avatar";
 
-type AccountMenuProps = { placement: "sidebar" | "lab"; collapsed?: boolean };
+type AccountMenuProps = { placement: "sidebar" | "lab"; collapsed?: boolean; onVmEnv?: () => void };
 
-export function AccountMenu({ placement, collapsed = false }: AccountMenuProps) {
+export function AccountMenu({ placement, collapsed = false, onVmEnv }: AccountMenuProps) {
   const { profile, loading } = useLearnerProfile();
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -43,8 +43,13 @@ export function AccountMenu({ placement, collapsed = false }: AccountMenuProps) 
     <div className={`account-menu account-menu-${placement}`} ref={containerRef}>
       {open && (
         <div className="account-dropdown" role="menu" aria-label="Account menu">
-          <Link href="/settings/profile" role="menuitem" onClick={() => setOpen(false)}>Profile Settings</Link>
-          {placement === "lab" ? <Link className="account-menu-exit" href="/courses" role="menuitem">Exit Learning Lab</Link> : <Link href="/login" role="menuitem">Sign out</Link>}
+          {placement === "lab" ? <>
+            <button type="button" role="menuitem" onClick={() => { setOpen(false); onVmEnv?.(); }}>VM Env</button>
+            <Link className="account-menu-exit" href="/courses" role="menuitem">Exit Learning Lab</Link>
+          </> : <>
+            <Link href="/settings/profile" role="menuitem" onClick={() => setOpen(false)}>Profile Settings</Link>
+            <Link href="/login" role="menuitem">Sign out</Link>
+          </>}
         </div>
       )}
       <button className="profile-block profile-trigger account-menu-trigger" type="button" onClick={() => setOpen((value) => !value)} aria-expanded={open} aria-haspopup="menu" aria-label={collapsed ? `${profile.name} account menu` : undefined}>

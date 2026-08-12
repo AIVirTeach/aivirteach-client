@@ -28,7 +28,7 @@ export default function CreateAccountPage() {
     setSubmitting(true);
     try {
       await createAccount(String(form.get("name") ?? ""), String(form.get("email") ?? ""));
-      router.push("/dashboard");
+      router.push("/courses");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not create the account.");
       setSubmitting(false);
