@@ -1,5 +1,47 @@
-const API_BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000/api/v1").replace(/\/$/, "");
+import { API_BASE_URL, backendConfig } from "./config";
+
 const demoUserStorageKey = "aivirteach.demoUserId.v1";
+const authStorageKey = "aivirteach.auth.v1";
+
+export type AuthUser = { userId: string; email: string };
+export type AuthSession = { accessToken: string; refreshToken: string; expiresAt: number };
+type TokenPair = { accessToken: string; refreshToken: string; expiresIn: number };
+
+function readSession(): AuthSession | null {
+  if (typeof window === "undefined") return null;
+  const value = window.sessionStorage.getItem(authStorageKey) ?? window.localStorage.getItem(authStorageKey);
+  if (!value) return null;
+  try {
+    return JSON.parse(value) as AuthSession;
+  } catch {
+    window.sessionStorage.removeItem(authStorageKey);
+    window.localStorage.removeItem(authStorageKey);
+    return null;
+  }
+}
+
+function saveSession(tokens: TokenPair, persistent?: boolean) {
+  const currentPersistent = window.localStorage.getItem(authStorageKey) !== null;
+  const storage = (persistent ?? currentPersistent) ? window.localStorage : window.sessionStorage;
+  const otherStorage = storage === window.localStorage ? window.sessionStorage : window.localStorage;
+  const session: AuthSession = {
+    accessToken: tokens.accessToken,
+    refreshToken: tokens.refreshToken,
+    expiresAt: Date.now() + tokens.expiresIn * 1000,
+  };
+  otherStorage.removeItem(authStorageKey);
+  storage.setItem(authStorageKey, JSON.stringify(session));
+}
+
+export function clearAuthSession() {
+  if (typeof window === "undefined") return;
+  window.sessionStorage.removeItem(authStorageKey);
+  window.localStorage.removeItem(authStorageKey);
+}
+
+export function hasAuthSession() {
+  return backendConfig.mode === "local" || readSession() !== null;
+}
 
 export function getDemoUserId() {
   if (typeof window === "undefined") return "learner_advanced";
@@ -16,22 +58,73 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+async function responseError(response: Response) {
+  const body = await response.json().catch(() => null) as { error?: string; message?: string | string[] } | null;
+  const message = Array.isArray(body?.message) ? body.message.join(", ") : body?.message;
+  return new ApiError(response.status, message ?? body?.error ?? "Backend request failed");
+}
+
+async function publicRequest<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(API_BASE_URL + path, {
     ...init,
     cache: "no-store",
     headers: {
       "Content-Type": "application/json",
+      ...init?.headers,
+    },
+  });
+
+  if (!response.ok) throw await responseError(response);
+  if (response.status === 204) return undefined as T;
+
+  return response.json() as Promise<T>;
+}
+
+let refreshPromise: Promise<AuthSession> | null = null;
+
+async function refreshSession() {
+  refreshPromise ??= (async () => {
+    const current = readSession();
+    if (!current) throw new ApiError(401, "Please log in to continue.");
+    try {
+      const tokens = await publicRequest<TokenPair>("/auth/refresh", {
+        method: "POST",
+        body: JSON.stringify({ refreshToken: current.refreshToken }),
+      });
+      saveSession(tokens);
+      return readSession()!;
+    } catch (error) {
+      clearAuthSession();
+      throw error;
+    } finally {
+      refreshPromise = null;
+    }
+  })();
+  return refreshPromise;
+}
+
+async function request<T>(path: string, init?: RequestInit, retry = true): Promise<T> {
+  let session = backendConfig.mode === "remote" ? readSession() : null;
+  if (backendConfig.mode === "remote" && !session) throw new ApiError(401, "Please log in to continue.");
+  if (session && session.expiresAt <= Date.now() + 15_000) session = await refreshSession();
+
+  const response = await fetch(API_BASE_URL + path, {
+    ...init,
+    cache: "no-store",
+    headers: {
+      "Content-Type": "application/json",
+      ...(session ? { Authorization: `Bearer ${session.accessToken}` } : {}),
       "X-Demo-User-Id": getDemoUserId(),
       ...init?.headers,
     },
   });
 
-  if (!response.ok) {
-    const body = await response.json().catch(() => null) as { message?: string | string[] } | null;
-    const message = Array.isArray(body?.message) ? body.message.join(", ") : body?.message;
-    throw new ApiError(response.status, message ?? "Backend request failed");
+  if (backendConfig.mode === "remote" && response.status === 401 && retry) {
+    await refreshSession();
+    return request<T>(path, init, false);
   }
+  if (!response.ok) throw await responseError(response);
+  if (response.status === 204) return undefined as T;
 
   return response.json() as Promise<T>;
 }
@@ -104,8 +197,8 @@ export type ApiCourseWelcome = {
   schemaVersion: number;
   courseId: string;
   title: string;
-  overviewAssetId: string;
-  overviewAsset: { id: string; alt: string };
+  overviewAssetId?: string;
+  overviewAsset: { id: string; alt: string } | null;
   overview: { heading: string; paragraphs: string[] };
   howItWorks: { heading: string; steps: Array<{ number: string; title: string; description: string }> };
   finalOutcome: { heading: string; description: string };
@@ -165,14 +258,50 @@ export type ApiChatMessage = {
 
 export type ApiHealth = {
   status: string;
-  service: string;
-  version: string;
-  storage: string;
-  timestamp: string;
+  database: "up" | "down";
 };
 
 export const api = {
-  health: () => request<ApiHealth>("/health"),
+  health: () => publicRequest<ApiHealth>("/health"),
+  login: async (email: string, password: string, persistent = false) => {
+    if (backendConfig.mode === "local") {
+      const localUsers: Record<string, string> = {
+        "maya.beginner@example.edu": "learner_beginner",
+        "alex.chen@example.edu": "learner_advanced",
+        "jordan.complete@example.edu": "learner_all_clear",
+      };
+      setDemoUserId(localUsers[email.toLowerCase()] ?? "learner_advanced");
+      const learner = await request<ApiLearner>("/me");
+      return { userId: learner.id, email: learner.email };
+    }
+    const tokens = await publicRequest<TokenPair>("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) });
+    saveSession(tokens, persistent);
+    return request<AuthUser>("/auth/me");
+  },
+  acceptInvitation: async (token: string, password: string, persistent = true) => {
+    const tokens = await publicRequest<TokenPair>("/auth/invitations/accept", { method: "POST", body: JSON.stringify({ token, password }) });
+    saveSession(tokens, persistent);
+    return request<AuthUser>("/auth/me");
+  },
+  me: async () => {
+    if (backendConfig.mode === "local") {
+      const learner = await request<ApiLearner>("/me");
+      return { userId: learner.id, email: learner.email };
+    }
+    return request<AuthUser>("/auth/me");
+  },
+  logout: async () => {
+    if (backendConfig.mode === "local") {
+      clearAuthSession();
+      return;
+    }
+    const session = readSession();
+    try {
+      if (session) await publicRequest<void>("/auth/logout", { method: "POST", body: JSON.stringify({ refreshToken: session.refreshToken }) });
+    } finally {
+      clearAuthSession();
+    }
+  },
   dashboard: () => request<ApiDashboard>("/dashboard"),
   notifications: () => request<ApiNotification[]>("/notifications"),
   markAllNotificationsRead: () => request<{ updated: number; readAt: string }>("/notifications/read-all", { method: "POST" }),

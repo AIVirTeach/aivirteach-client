@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { api, setDemoUserId, type ApiDashboard, type ApiNotification } from "../lib/api";
+import { api, ApiError, setDemoUserId, type ApiDashboard, type ApiNotification, type AuthUser } from "../lib/api";
 import { beginnerLearner, cloneMockLearner, getMockLearner, mockLearners, type DemoLearner } from "../lib/mock-profile";
 import { clearActiveCourse } from "../lib/courses";
 
@@ -55,6 +55,13 @@ function mapBackendProfile(data: ApiDashboard, notifications: ApiNotification[])
   };
 }
 
+function mapAuthProfile(user: AuthUser): DemoLearner {
+  const fallback = profileTemplate(user.userId);
+  const emailName = user.email.split("@")[0].replace(/[._-]+/g, " ").trim();
+  const name = emailName.replace(/\b\w/g, (letter) => letter.toUpperCase()) || fallback.name;
+  return { ...fallback, id: user.userId, accountType: "beginner", name, email: user.email };
+}
+
 export function useLearnerProfile() {
   const [profile, setProfile] = useState<DemoLearner>(() => cachedLearnerProfile ?? profileTemplate("learner_advanced"));
   const [loading, setLoading] = useState(() => cachedLearnerProfile === null);
@@ -68,10 +75,20 @@ export function useLearnerProfile() {
 
   const refresh = useCallback(async () => {
     try {
-      const [dashboard, notifications] = await Promise.all([api.dashboard(), api.notifications()]);
-      publish(mapBackendProfile(dashboard, notifications));
+      const user = await api.me();
+      try {
+        const [dashboard, notifications] = await Promise.all([api.dashboard(), api.notifications()]);
+        publish(mapBackendProfile(dashboard, notifications));
+      } catch (caught) {
+        // The deployed control plane currently exposes auth but not learning-data routes.
+        if (!(caught instanceof ApiError) || caught.status !== 404) throw caught;
+        publish(mapAuthProfile(user));
+      }
       setError(null);
     } catch (caught) {
+      if (caught instanceof ApiError && caught.status === 401) {
+        window.location.replace("/login");
+      }
       setError(caught instanceof Error ? caught.message : "Cannot reach the AIVirTeach backend");
     } finally {
       setLoading(false);

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { Sidebar } from "../components/Sidebar";
 import { useLearnerProfile } from "../hooks/useLearnerProfile";
@@ -26,9 +27,12 @@ export default function AnalysisPage() {
       <main className="analysis page-content">
         <header className="analysis-head">
           <div><h1>Learning Analytics</h1><p>Track your mastery and learning progression.</p></div>
-          <div className="range-toggle" aria-label="Analytics date range">
-            <button className={range === "30" ? "active" : ""} onClick={() => setRange("30")}>Last 30 Days</button>
-            <button className={range === "all" ? "active" : ""} onClick={() => setRange("all")}>All Time</button>
+          <div className="analysis-head-actions">
+            <Link className="analysis-v2-link" href="/analysis/v2">View v2</Link>
+            <div className="range-toggle" aria-label="Analytics date range">
+              <button className={range === "30" ? "active" : ""} onClick={() => setRange("30")}>Last 30 Days</button>
+              <button className={range === "all" ? "active" : ""} onClick={() => setRange("all")}>All Time</button>
+            </div>
           </div>
         </header>
 

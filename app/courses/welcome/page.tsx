@@ -14,7 +14,6 @@ export default function CourseWelcomePage() {
   const [step, setStep] = useState<1 | 2>(1);
   const [checked, setChecked] = useState(false);
   const [error, setError] = useState("");
-
   useEffect(() => {
     let active = true;
     api.enrollments().then(async (enrollments) => {
@@ -44,9 +43,9 @@ export default function CourseWelcomePage() {
 
           {step === 1 ? (
             <div className="course-welcome-grid course-overview-step">
-              <figure className="course-welcome-image">
+              {welcome.overviewAsset && <figure className="course-welcome-image">
                 <img src={courseAssetUrl(course.id, welcome.overviewAsset.id)} alt={welcome.overviewAsset.alt} />
-              </figure>
+              </figure>}
               <section className="course-overview-copy" aria-labelledby="course-overview-title">
                 <p>{course.category}</p>
                 <h1 id="course-overview-title">{welcome.overview.heading}</h1>

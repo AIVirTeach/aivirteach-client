@@ -59,7 +59,7 @@ export function Sidebar({ active }: SidebarProps) {
           {items.map((item) => (
             <Link key={item.id} href={item.href} className={active === item.id ? "active" : ""} title={collapsed ? item.label : undefined}>
               <span className={`nav-icon ${item.id === "analysis" ? "progress-nav-icon" : ""} ${item.id === "workspace" ? "learning-lab-nav-icon" : ""}`} aria-hidden="true">
-                {item.id === "analysis" ? <i><b /><b /><b /></i> : item.id === "workspace" ? <i className="lab-code-icon"><b /><b /></i> : item.icon}
+                {item.id === "dashboard" ? <i className="home-nav-icon" /> : item.id === "analysis" ? <i><b /><b /><b /></i> : item.id === "workspace" ? <i className="lab-code-icon"><b /><b /></i> : item.icon}
               </span>
               <span className="nav-label">{item.label}</span>
             </Link>

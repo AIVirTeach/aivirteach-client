@@ -6,6 +6,7 @@ import { type FormEvent, useState } from "react";
 import { Avatar } from "../../components/Avatar";
 import { Sidebar } from "../../components/Sidebar";
 import { useLearnerProfile } from "../../hooks/useLearnerProfile";
+import { api } from "../../lib/api";
 
 export default function ProfileSettingsPage() {
   const router = useRouter();
@@ -62,7 +63,7 @@ export default function ProfileSettingsPage() {
             <div className="profile-form-actions">
               <button className="primary-button" type="submit">Save profile</button>
               <button className="profile-reset-button" type="button" onClick={resetDemoProfile}>Reset demo data</button>
-              <button className="profile-logout-button" type="button" onClick={() => router.replace("/login")}>Log out</button>
+              <button className="profile-logout-button" type="button" onClick={() => void api.logout().finally(() => router.replace("/login"))}>Log out</button>
             </div>
             {status && <p className="profile-save-status" role="status">{status}</p>}
           </form>

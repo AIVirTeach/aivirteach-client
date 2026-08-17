@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useLayoutEffect, useState } from "react";
 import { Sidebar } from "../components/Sidebar";
+import { api } from "../lib/api";
 
 type Theme = "light" | "dark";
 
@@ -21,6 +22,10 @@ export default function SettingsPage() {
     setTheme(nextTheme);
     document.documentElement.dataset.theme = nextTheme;
     window.localStorage.setItem("aivir-theme", nextTheme);
+  }
+
+  function logOut() {
+    void api.logout().finally(() => router.replace("/login"));
   }
 
   return (
@@ -64,7 +69,7 @@ export default function SettingsPage() {
 
           <article className="settings-card logout-settings-card">
             <div><span className="settings-card-icon logout-setting-icon" aria-hidden="true" /><div><h2>Log out</h2><p>Return to the sign-in screen. Your demo progress and preferences will stay saved.</p></div></div>
-            <button className="logout-button" type="button" onClick={() => router.replace("/login")}>Log out</button>
+            <button className="logout-button" type="button" onClick={logOut}>Log out</button>
           </article>
         </section>
       </main>

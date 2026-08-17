@@ -1,13 +1,16 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useLearnerProfile } from "../hooks/useLearnerProfile";
+import { api } from "../lib/api";
 import { Avatar } from "./Avatar";
 
 type AccountMenuProps = { placement: "sidebar" | "lab"; collapsed?: boolean; onVmEnv?: () => void };
 
 export function AccountMenu({ placement, collapsed = false, onVmEnv }: AccountMenuProps) {
+  const router = useRouter();
   const { profile, loading } = useLearnerProfile();
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -48,7 +51,7 @@ export function AccountMenu({ placement, collapsed = false, onVmEnv }: AccountMe
             <Link className="account-menu-exit" href="/courses" role="menuitem">Exit Learning Lab</Link>
           </> : <>
             <Link href="/settings/profile" role="menuitem" onClick={() => setOpen(false)}>Profile Settings</Link>
-            <Link href="/login" role="menuitem">Sign out</Link>
+            <button type="button" role="menuitem" onClick={() => void api.logout().finally(() => router.replace("/login"))}>Sign out</button>
           </>}
         </div>
       )}

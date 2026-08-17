@@ -109,10 +109,6 @@ export default function DashboardPage() {
             {stats.map((stat) => <article className="stat-card" key={stat.label}><span className={`stat-icon ${stat.tone}`} aria-hidden="true"><i className={`stat-glyph ${stat.icon}`} /></span><div><strong>{stat.value}</strong><span>{stat.label}</span></div></article>)}
           </div>
         </section>
-        <section className="activity-section">
-          <header><div><span className="eyebrow">YOUR MOMENTUM</span><h2>Recent activity</h2></div><Link href="/analysis">View progress →</Link></header>
-          <div className="activity-list">{profile.recentActivity.slice(0, 3).map((activity) => <article key={activity.id}><span className={`activity-mark ${activity.kind}`}>{activity.kind === "lesson" ? "✓" : activity.kind === "practice" ? "⌁" : "★"}</span><div><strong>{activity.title}</strong><small>{activity.detail}</small></div><time>{activity.occurredAt}</time></article>)}</div>
-        </section>
       </main>
     </div>
   );

@@ -11,7 +11,19 @@ npm run dev
 
 Open `http://localhost:3001`. The port is fixed in `vite.config.ts`.
 
-The NestJS backend must also be running at `http://localhost:4000/api/v1`. Override that URL with `NEXT_PUBLIC_API_BASE_URL` when needed.
+Backend selection is controlled by one value in the ignored `.env.local`:
+
+```dotenv
+NEXT_PUBLIC_BACKEND_MODE=local
+```
+
+Use `local` for `http://localhost:4000/api/v1`, or change it to `remote` for `https://aivirteach-server.vercel.app/api/v1`. Restart `npm run dev` after changing it. The URLs can be customized with `NEXT_PUBLIC_LOCAL_API_BASE_URL` and `NEXT_PUBLIC_REMOTE_API_BASE_URL`; `.env.example` contains the complete configuration.
+
+Local mode uses the demo-account picker and `X-Demo-User-Id` contract. Remote mode uses invitation-based JWT login, refresh-token rotation, account activation, and logout.
+
+The deployed control plane currently exposes health and invitation-based JWT authentication. Login, access-token refresh, account activation, and logout are connected. Dashboard, courses, progress, and chat routes are not yet exposed by that server, so authenticated users see the frontend's local demo learning data for those areas until the matching APIs are deployed.
+
+The server allows the frontend development origin `http://localhost:3001` through CORS. If you change the local frontend port, add that origin to the backend's `CORS_ORIGINS` setting.
 
 Set `NEXT_PUBLIC_LEARNING_VM_URL` to the browser-accessible VM or remote desktop URL shown in the center of the Learning Lab. Without it, the Learning Lab displays its awaiting-connection state while course instructions remain available in the resizable left sidebar.
 
