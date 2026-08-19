@@ -4,7 +4,8 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Sidebar } from "../components/Sidebar";
 import { api, courseAssetUrl, type ApiCourse } from "../lib/api";
-import { activateCourse, clearActiveCourse, type DemoCourse } from "../lib/courses";
+import { activateCourse, clearActiveCourse, mockPythonCourse, readActiveCourse, type DemoCourse } from "../lib/courses";
+import { resetMockCourseProgress, startMockCourse } from "../lib/mock-course";
 
 export default function CoursesPage() {
   const router = useRouter();
@@ -27,8 +28,13 @@ export default function CoursesPage() {
   }, []);
 
   useEffect(() => {
+    const locallyActiveCourse = readActiveCourse();
     Promise.all([api.courses(), api.enrollments()]).then(([courseData, enrollments]) => {
-      setCourses(courseData.map(toDemoCourse));
+      setCourses([...courseData.filter((course) => course.id !== mockPythonCourse.id).map(toDemoCourse), mockPythonCourse]);
+      if (locallyActiveCourse?.localOnly) {
+        setActiveCourseId(locallyActiveCourse.id);
+        return;
+      }
       const activeEnrollment = enrollments.find((enrollment) => enrollment.active);
       if (activeEnrollment) {
         activateCourse(activeEnrollment.courseId);
@@ -37,7 +43,11 @@ export default function CoursesPage() {
         clearActiveCourse();
         setActiveCourseId(null);
       }
-    }).catch((caught) => setError(caught instanceof Error ? caught.message : "Could not load courses."));
+    }).catch((caught) => {
+      setCourses([mockPythonCourse]);
+      if (locallyActiveCourse?.localOnly) setActiveCourseId(locallyActiveCourse.id);
+      setError(caught instanceof Error ? `${caught.message} The browser course is still available.` : "Could not load server courses. The browser course is still available.");
+    });
   }, []);
 
   useEffect(() => {
@@ -88,7 +98,7 @@ export default function CoursesPage() {
   function selectCourse(course: DemoCourse) {
     if (activeCourseId === course.id) {
       activateCourse(course.id);
-      router.push("/workspace");
+      router.push(course.localOnly ? "/courses/python-basics" : "/workspace");
       return;
     }
     setPendingCourse(course);
@@ -97,6 +107,14 @@ export default function CoursesPage() {
   async function confirmStartCourse() {
     if (!pendingCourse) return;
     setStarting(true);
+    if (pendingCourse.localOnly) {
+      startMockCourse();
+      activateCourse(pendingCourse.id);
+      setActiveCourseId(pendingCourse.id);
+      setPendingCourse(null);
+      router.push("/courses/python-basics");
+      return;
+    }
     try {
       await api.enroll(pendingCourse.id);
       activateCourse(pendingCourse.id);
@@ -114,6 +132,14 @@ export default function CoursesPage() {
     if (!restartCourseTarget) return;
     setRestarting(true);
     setError("");
+    if (restartCourseTarget.localOnly) {
+      resetMockCourseProgress();
+      clearActiveCourse(restartCourseTarget.id);
+      setActiveCourseId(null);
+      setRestartCourseTarget(null);
+      setRestarting(false);
+      return;
+    }
     try {
       await api.restartCourse(restartCourseTarget.id);
       clearActiveCourse(restartCourseTarget.id);
@@ -166,7 +192,7 @@ export default function CoursesPage() {
                 ) : <div className={"catalog-art " + course.tone} aria-hidden="true"><span /></div>}
                 <div className="catalog-copy">
                   <div className="catalog-course-info">
-                    <div className="catalog-label-row"><span>{course.category}</span></div>
+                    <div className="catalog-label-row"><span>{course.category}</span>{course.localOnly && <strong>Browser demo</strong>}</div>
                     <h2>{course.title}</h2>
                     <div className="catalog-meta"><span>{course.level}</span><span>{course.duration}</span><span>{course.lessons} lessons</span></div>
                   </div>
@@ -186,7 +212,7 @@ export default function CoursesPage() {
           <section className="course-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="course-confirm-title" aria-describedby="course-confirm-description">
             <span className="course-confirm-mark" aria-hidden="true">!</span>
             <h2 id="course-confirm-title">Start {pendingCourse.title}?</h2>
-            <p id="course-confirm-description">Starting a new course will pause your current course. Its Learning Lab may be terminated after 3 days, and you may need to restart that lab from the beginning.</p>
+            <p id="course-confirm-description">{pendingCourse.localOnly ? "This short practice course runs entirely in your browser. Progress and learning analytics are saved only on this device." : "Starting a new course will pause your current course. Its Learning Lab may be terminated after 3 days, and you may need to restart that lab from the beginning."}</p>
             <div className="course-confirm-actions">
               <button type="button" onClick={() => setPendingCourse(null)} disabled={starting}>Cancel</button>
               <button className="primary-button" type="button" onClick={() => void confirmStartCourse()} disabled={starting} ref={confirmButtonRef}>{starting ? "Starting..." : "Start new course"}</button>
@@ -199,7 +225,7 @@ export default function CoursesPage() {
           <section className="course-confirm-dialog course-restart-dialog" role="dialog" aria-modal="true" aria-labelledby="course-restart-title" aria-describedby="course-restart-description">
             <span className="course-confirm-mark restart" aria-hidden="true">!</span>
             <h2 id="course-restart-title">Restart {restartCourseTarget.title}?</h2>
-            <p id="course-restart-description">This resets your saved progress and returns the course to the catalog. You will need to select Start course when you are ready to begin again.</p>
+            <p id="course-restart-description">{restartCourseTarget.localOnly ? "This removes the Python course progress, answers, and learning time saved in this browser." : "This resets your saved progress and returns the course to the catalog. You will need to select Start course when you are ready to begin again."}</p>
             <div className="course-confirm-actions">
               <button type="button" onClick={() => setRestartCourseTarget(null)} disabled={restarting}>Cancel</button>
               <button className="restart-confirm-button" type="button" onClick={() => void confirmRestartCourse()} disabled={restarting} ref={restartConfirmButtonRef}>{restarting ? "Restarting..." : "Restart course"}</button>

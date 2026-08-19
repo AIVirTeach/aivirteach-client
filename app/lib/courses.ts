@@ -8,6 +8,7 @@ export type DemoCourse = {
   lessons: number;
   tone: "blue" | "violet" | "cyan" | "indigo";
   coverAssetId?: string;
+  localOnly?: boolean;
 };
 
 export const activeCourseStorageKey = "aivirteach.activeCourse.v1";
@@ -33,7 +34,20 @@ export const courseCatalog: DemoCourse[] = [
     lessons: 11,
     tone: "indigo",
   },
+  {
+    id: "python-basics-browser-lab",
+    title: "Python Basics: Browser Lab",
+    category: "Python Programming",
+    description: "Learn syntax, variables, decisions, and functions in four short browser-based lessons.",
+    level: "Beginner",
+    duration: "20 minutes",
+    lessons: 4,
+    tone: "cyan",
+    localOnly: true,
+  },
 ];
+
+export const mockPythonCourse = courseCatalog.find((course) => course.localOnly)!;
 
 export function activateCourse(courseId: string) {
   window.localStorage.setItem(activeCourseStorageKey, courseId);
