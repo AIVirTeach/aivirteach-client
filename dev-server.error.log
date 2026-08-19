@@ -1,0 +1,63 @@
+[31mfailed to load config from D:\maic challenge AI digital teacher\frontend\vite.config.ts[39m
+Error: Build failed with 7 errors:
+
+[plugin externalize-deps]
+Error: spawn EPERM
+    at ChildProcess.spawn (node:internal/child_process:458:11)
+    at spawn (node:child_process:813:9)
+    at Object.execFile (node:child_process:349:17)
+    at exec (node:child_process:236:25)
+    at optimizeSafeRealPathSync (file:///D:/maic%20challenge%20AI%20digital%20teacher/frontend/node_modules/.pnpm/vite@8.0.13_@types+node@22._3a599438a16dcc3beec4b13d52d1c508/node_modules/vite/dist/node/chunks/node.js:1947:2)
+    at windowsSafeRealPathSync (file:///D:/maic%20challenge%20AI%20digital%20teacher/frontend/node_modules/.pnpm/vite@8.0.13_@types+node@22._3a599438a16dcc3beec4b13d52d1c508/node_modules/vite/dist/node/chunks/node.js:1933:3)
+    at getRealPath (file:///D:/maic%20challenge%20AI%20digital%20teacher/frontend/node_modules/.pnpm/vite@8.0.13_@types+node@22._3a599438a16dcc3beec4b13d52d1c508/node_modules/vite/dist/node/chunks/node.js:32564:36)
+    at tryResolveRealFileOrType (file:///D:/maic%20challenge%20AI%20digital%20teacher/frontend/node_modules/.pnpm/vite@8.0.13_@types+node@22._3a599438a16dcc3beec4b13d52d1c508/node_modules/vite/dist/node/chunks/node.js:32558:9)
+    at tryCleanFsResolve (file:///D:/maic%20challenge%20AI%20digital%20teacher/frontend/node_modules/.pnpm/vite@8.0.13_@types+node@22._3a599438a16dcc3beec4b13d52d1c508/node_modules/vite/dist/node/chunks/node.js:32307:21)
+    at tryFsResolve (file:///D:/maic%20challenge%20AI%20digital%20teacher/frontend/node_modules/.pnpm/vite@8.0.13_@types+node@22._3a599438a16dcc3beec4b13d52d1c508/node_modules/vite/dist/node/chunks/node.js:32300:14)
+[plugin externalize-deps]
+Error: Failed to resolve entry for package "react-dom". The package may have incorrect main/module/exports specified in its package.json: spawn EPERM
+    at packageEntryFailure (file:///D:/maic%20challenge%20AI%20digital%20teacher/frontend/node_modules/.pnpm/vite@8.0.13_@types+node@22._3a599438a16dcc3beec4b13d52d1c508/node_modules/vite/dist/node/chunks/node.js:32476:30)
+    at resolvePackageEntry (file:///D:/maic%20challenge%20AI%20digital%20teacher/frontend/node_modules/.pnpm/vite@8.0.13_@types+node@22._3a599438a16dcc3beec4b13d52d1c508/node_modules/vite/dist/node/chunks/node.js:32471:3)
+    at tryNodeResolve (file:///D:/maic%20challenge%20AI%20digital%20teacher/frontend/node_modules/.pnpm/vite@8.0.13_@types+node@22._3a599438a16dcc3beec4b13d52d1c508/node_modules/vite/dist/node/chunks/node.js:32372:70)
+    at nodeResolveWithVite (file:///D:/maic%20challenge%20AI%20digital%20teacher/frontend/node_modules/.pnpm/vite@8.0.13_@types+node@22._3a599438a16dcc3beec4b13d52d1c508/node_modules/vite/dist/node/chunks/node.js:32581:9)
+    at PluginContextImpl.handler (file:///D:/maic%20challenge%20AI%20digital%20teacher/frontend/node_modules/.pnpm/vite@8.0.13_@types+node@22._3a599438a16dcc3beec4b13d52d1c508/node_modules/vite/dist/node/chunks/node.js:34792:18)
+    at plugin (file:///D:/maic%20challenge%20AI%20digital%20teacher/frontend/node_modules/.pnpm/rolldown@1.0.1/node_modules/rolldown/dist/shared/bindingify-input-options-BnfFBV6b.mjs:1092:30)
+    at plugin.<computed> (file:///D:/maic%20challenge%20AI%20digital%20teacher/frontend/node_modules/.pnpm/rolldown@1.0.1/node_modules/rolldown/dist/shared/bindingify-input-options-BnfFBV6b.mjs:1625:18)
+[plugin externalize-deps]
+Error: Failed to resolve entry for package "react-dom". The package may have incorrect main/module/exports specified in its package.json: spawn EPERM
+    at packageEntryFailure (file:///D:/maic%20challenge%20AI%20digital%20teacher/frontend/node_modules/.pnpm/vite@8.0.13_@types+node@22._3a599438a16dcc3beec4b13d52d1c508/node_modules/vite/dist/node/chunks/node.js:32476:30)
+    at resolvePackageEntry (file:///D:/maic%20challenge%20AI%20digital%20teacher/frontend/node_modules/.pnpm/vite@8.0.13_@types+node@22._3a599438a16dcc3beec4b13d52d1c508/node_modules/vite/dist/node/chunks/node.js:32471:3)
+    at tryNodeResolve (file:///D:/maic%20challenge%20AI%20digital%20teacher/frontend/node_modules/.pnpm/vite@8.0.13_@types+node@22._3a599438a16dcc3beec4b13d52d1c508/node_modules/vite/dist/node/chunks/node.js:32372:70)
+    at nodeResolveWithVite (file:///D:/maic%20challenge%20AI%20digital%20teacher/frontend/node_modules/.pnpm/vite@8.0.13_@types+node@22._3a599438a16dcc3beec4b13d52d1c508/node_modules/vite/dist/node/chunks/node.js:32581:9)
+    at PluginContextImpl.handler (file:///D:/maic%20challenge%20AI%20digital%20teacher/frontend/node_modules/.pnpm/vite@8.0.13_@types+node@22._3a599438a16dcc3beec4b13d52d1c508/node_modules/vite/dist/node/chunks/node.js:34792:18)
+    at plugin (file:///D:/maic%20challenge%20AI%20digital%20teacher/frontend/node_modules/.pnpm/rolldown@1.0.1/node_modules/rolldown/dist/shared/bindingify-input-options-BnfFBV6b.mjs:1092:30)
+    at plugin.<computed> (file:///D:/maic%20challenge%20AI%20digital%20teacher/frontend/node_modules/.pnpm/rolldown@1.0.1/node_modules/rolldown/dist/shared/bindingify-input-options-BnfFBV6b.mjs:1625:18)
+[plugin externalize-deps]
+Error: Failed to resolve entry for package "react-dom". The package may have incorrect main/module/exports specified in its package.json: spawn EPERM
+    at packageEntryFailure (file:///D:/maic%20challenge%20AI%20digital%20teacher/frontend/node_modules/.pnpm/vite@8.0.13_@types+node@22._3a599438a16dcc3beec4b13d52d1c508/node_modules/vite/dist/node/chunks/node.js:32476:30)
+    at resolvePackageEntry (file:///D:/maic%20challenge%20AI%20digital%20teacher/frontend/node_modules/.pnpm/vite@8.0.13_@types+node@22._3a599438a16dcc3beec4b13d52d1c508/node_modules/vite/dist/node/chunks/node.js:32471:3)
+    at tryNodeResolve (file:///D:/maic%20challenge%20AI%20digital%20teacher/frontend/node_modules/.pnpm/vite@8.0.13_@types+node@22._3a599438a16dcc3beec4b13d52d1c508/node_modules/vite/dist/node/chunks/node.js:32372:70)
+    at nodeResolveWithVite (file:///D:/maic%20challenge%20AI%20digital%20teacher/frontend/node_modules/.pnpm/vite@8.0.13_@types+node@22._3a599438a16dcc3beec4b13d52d1c508/node_modules/vite/dist/node/chunks/node.js:32581:9)
+    at PluginContextImpl.handler (file:///D:/maic%20challenge%20AI%20digital%20teacher/frontend/node_modules/.pnpm/vite@8.0.13_@types+node@22._3a599438a16dcc3beec4b13d52d1c508/node_modules/vite/dist/node/chunks/node.js:34792:18)
+    at plugin (file:///D:/maic%20challenge%20AI%20digital%20teacher/frontend/node_modules/.pnpm/rolldown@1.0.1/node_modules/rolldown/dist/shared/bindingify-input-options-BnfFBV6b.mjs:1092:30)
+    at plugin.<computed> (file:///D:/maic%20challenge%20AI%20digital%20teacher/frontend/node_modules/.pnpm/rolldown@1.0.1/node_modules/rolldown/dist/shared/bindingify-input-options-BnfFBV6b.mjs:1625:18)
+[plugin externalize-deps]
+Error: Failed to resolve entry for package "react-dom". The package may have incorrect main/module/exports specified in its package.json: spawn EPERM
+    at packageEntryFailure (file:///D:/maic%20challenge%20AI%20digital%20teacher/frontend/node_modules/.pnpm/vite@8.0.13_@types+node@22._3a599438a16dcc3beec4b13d52d1c508/node_modules/vite/dist/node/chunks/node.js:32476:30)
+    at resolvePackageEntry (file:///D:/maic%20challenge%20AI%20digital%20teacher/frontend/node_modules/.pnpm/vite@8.0.13_@types+node@22._3a599438a16dcc3beec4b13d52d1c508/node_modules/vite/dist/node/chunks/node.js:32471:3)
+    at tryNodeResolve (file:///D:/maic%20challenge%20AI%20digital%20teacher/frontend/node_modules/.pnpm/vite@8.0.13_@types+node@22._3a599438a16dcc3beec4b13d52d1c508/node_modules/vite/dist/node/chunks/node.js:32372:70)
+    at nodeResolveWithVite (file:///D:/maic%20challenge%20AI%20digital%20teacher/frontend/node_modules/.pnpm/vite@8.0.13_@types+node@22._3a599438a16dcc3beec4b13d52d1c508/node_modules/vite/dist/node/chunks/node.js:32581:9)
+    at PluginContextImpl.handler (file:///D:/maic%20challenge%20AI%20digital%20teacher/frontend/node_modules/.pnpm/vite@8.0.13_@types+node@22._3a599438a16dcc3beec4b13d52d1c508/node_modules/vite/dist/node/chunks/node.js:34792:18)
+    at plugin (file:///D:/maic%20challenge%20AI%20digital%20teacher/frontend/node_modules/.pnpm/rolldown@1.0.1/node_modules/rolldown/dist/shared/bindingify-input-options-BnfFBV6b.mjs:1092:30)
+    at plugin.<computed> (file:///D:/maic%20challenge%20AI%20digital%20teacher/frontend/node_modules/.pnpm/rolldown@1.0.1/node_modules/rolldown/dist/shared/bindingify-input-options-BnfFBV6b.mjs:1625:18)
+...
+    at aggregateBindingErrorsIntoJsError (file:///D:/maic%20challenge%20AI%20digital%20teacher/frontend/node_modules/.pnpm/rolldown@1.0.1/node_modules/rolldown/dist/shared/error-CkdMJ9ps.mjs:48:18)
+    at unwrapBindingResult (file:///D:/maic%20challenge%20AI%20digital%20teacher/frontend/node_modules/.pnpm/rolldown@1.0.1/node_modules/rolldown/dist/shared/error-CkdMJ9ps.mjs:18:128)
+    at #build (file:///D:/maic%20challenge%20AI%20digital%20teacher/frontend/node_modules/.pnpm/rolldown@1.0.1/node_modules/rolldown/dist/shared/rolldown-build-BVD3dIdE.mjs:3275:34)
+    at async bundleConfigFile (file:///D:/maic%20challenge%20AI%20digital%20teacher/frontend/node_modules/.pnpm/vite@8.0.13_@types+node@22._3a599438a16dcc3beec4b13d52d1c508/node_modules/vite/dist/node/chunks/node.js:34842:17)
+    at async bundleAndLoadConfigFile (file:///D:/maic%20challenge%20AI%20digital%20teacher/frontend/node_modules/.pnpm/vite@8.0.13_@types+node@22._3a599438a16dcc3beec4b13d52d1c508/node_modules/vite/dist/node/chunks/node.js:34750:18)
+    at async loadConfigFromFile (file:///D:/maic%20challenge%20AI%20digital%20teacher/frontend/node_modules/.pnpm/vite@8.0.13_@types+node@22._3a599438a16dcc3beec4b13d52d1c508/node_modules/vite/dist/node/chunks/node.js:34719:42)
+    at async resolveConfig (file:///D:/maic%20challenge%20AI%20digital%20teacher/frontend/node_modules/.pnpm/vite@8.0.13_@types+node@22._3a599438a16dcc3beec4b13d52d1c508/node_modules/vite/dist/node/chunks/node.js:34345:22)
+    at async _createServer (file:///D:/maic%20challenge%20AI%20digital%20teacher/frontend/node_modules/.pnpm/vite@8.0.13_@types+node@22._3a599438a16dcc3beec4b13d52d1c508/node_modules/vite/dist/node/chunks/node.js:26080:65)
+    at async dev (file:///D:/maic%20challenge%20AI%20digital%20teacher/frontend/node_modules/.pnpm/vinext@0.0.50_@vitejs+plugi_6e29d3c1e221dce46ffd79bec19b99c1/node_modules/vinext/dist/cli.js:183:17) {
+  errors: [Getter/Setter]
+}
