@@ -194,7 +194,7 @@ export default function CoursesPage() {
                   <div className="catalog-course-info">
                     <div className="catalog-label-row"><span>{course.category}</span>{course.localOnly && <strong>Browser demo</strong>}</div>
                     <h2>{course.title}</h2>
-                    <div className="catalog-meta"><span>{course.level}</span><span>{course.duration}</span><span>{course.lessons} lessons</span></div>
+                    <div className="catalog-meta"><span>{course.level}</span><span>{course.duration}</span></div>
                   </div>
                   <div className="catalog-actions">
                     {isActive && <button className="restart-course-button" type="button" onClick={() => setRestartCourseTarget(course)}>Restart course</button>}
