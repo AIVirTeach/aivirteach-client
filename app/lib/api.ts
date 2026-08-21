@@ -256,9 +256,27 @@ export type ApiChatMessage = {
   createdAt: string;
 };
 
+export type ApiChatTurn = {
+  studentMessage: ApiChatMessage;
+  tutorMessage: ApiChatMessage;
+};
+
+export type ApiSendChatMessageInput = {
+  text: string;
+  courseId: string;
+  lessonId: string;
+};
+
 export type ApiHealth = {
   status: string;
   database: "up" | "down";
+};
+
+export type ApiLabSession = {
+  state: "starting" | "ready" | string;
+  embedUrl?: string;
+  expiresAt?: number;
+  retryAfterMs?: number;
 };
 
 export const api = {
@@ -319,7 +337,8 @@ export const api = {
   recordPractice: (minutes: number) => request("/practice-sessions", { method: "POST", body: JSON.stringify({ minutes }) }),
   completeLesson: (lessonId: string) => request("/lessons/" + encodeURIComponent(lessonId) + "/complete", { method: "POST" }),
   chatMessages: (threadId: string) => request<ApiChatMessage[]>("/chat/threads/" + encodeURIComponent(threadId) + "/messages"),
-  sendChatMessage: (threadId: string, text: string) => request<{ studentMessage: ApiChatMessage; tutorMessage: ApiChatMessage }>("/chat/threads/" + encodeURIComponent(threadId) + "/messages", { method: "POST", body: JSON.stringify({ text }) }),
+  sendChatMessage: (threadId: string, input: ApiSendChatMessageInput) => request<ApiChatTurn>("/chat/threads/" + encodeURIComponent(threadId) + "/messages", { method: "POST", body: JSON.stringify(input) }),
+  createLabSession: () => request<ApiLabSession>("/me/lab/session", { method: "POST" }),
 };
 
 export function courseAssetUrl(courseId: string, assetId: string) {

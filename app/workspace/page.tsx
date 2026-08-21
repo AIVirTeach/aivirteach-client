@@ -7,23 +7,30 @@ import { BrandLogo } from "../components/BrandLogo";
 import { CourseLessonContent } from "../components/CourseLessonContent";
 import { Sidebar } from "../components/Sidebar";
 import { api, type ApiCourseDetail, type ApiEnrollment, type ApiLesson } from "../lib/api";
+import { courseChatThreadId, createChatMessageInput, mergeChatMessages, toChatViewMessage, type ChatViewMessage } from "../lib/chat";
 
-type Message = { role: "tutor" | "student"; text: string };
-
-const initialMessages: Message[] = [
-  { role: "tutor", text: "I am ready to help with this course step. Tell me what you are trying to do or where the result differs from the lesson." },
-];
-
-const vmUrl = process.env.NEXT_PUBLIC_LEARNING_VM_URL;
 const courseRailWidthStorageKey = "aivirteach.lab.courseRailWidth.v1";
 const minCourseRailWidth = 320;
 const maxCourseRailWidth = 620;
+const defaultLabSessionRetryMs = 2500;
+const minLabSessionRetryMs = 500;
+const maxLabSessionRetryMs = 10000;
+
+type LabSessionState = "idle" | "requesting" | "starting" | "ready" | "error";
+type ChatHistoryState = "idle" | "loading" | "ready" | "error";
+type ChatSendState = "idle" | "sending" | "recovering";
 
 function formatElapsed(totalSeconds: number) {
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
   return [hours, minutes, seconds].map((value) => String(value).padStart(2, "0")).join(":");
+}
+
+function formatMessageTime(createdAt: string) {
+  const timestamp = new Date(createdAt);
+  if (Number.isNaN(timestamp.getTime())) return "Saved";
+  return timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
 export default function WorkspacePage() {
@@ -37,7 +44,12 @@ export default function WorkspacePage() {
   const [lessonLoading, setLessonLoading] = useState(false);
   const [completionStatus, setCompletionStatus] = useState("");
   const [message, setMessage] = useState("");
-  const [messages, setMessages] = useState<Message[]>(initialMessages);
+  const [messages, setMessages] = useState<ChatViewMessage[]>([]);
+  const [chatHistoryState, setChatHistoryState] = useState<ChatHistoryState>("idle");
+  const [chatSendState, setChatSendState] = useState<ChatSendState>("idle");
+  const [chatError, setChatError] = useState("");
+  const [chatNotice, setChatNotice] = useState("");
+  const [chatLoadAttempt, setChatLoadAttempt] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const [courseSummaryCollapsed, setCourseSummaryCollapsed] = useState(false);
   const [tutorCollapsed, setTutorCollapsed] = useState(false);
@@ -45,8 +57,14 @@ export default function WorkspacePage() {
   const [latency, setLatency] = useState<number | null>(null);
   const [courseRailWidth, setCourseRailWidth] = useState(420);
   const [vmEnvOpen, setVmEnvOpen] = useState(false);
-  const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [labSessionState, setLabSessionState] = useState<LabSessionState>("idle");
+  const [labEmbedUrl, setLabEmbedUrl] = useState("");
+  const [labSessionError, setLabSessionError] = useState("");
+  const [labSessionAttempt, setLabSessionAttempt] = useState(0);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   const vmEnvCloseButtonRef = useRef<HTMLButtonElement>(null);
+
+  const tutorThreadId = course && enrollment ? courseChatThreadId(enrollment.userId, course.id) : null;
 
   useEffect(() => {
     let active = true;
@@ -87,29 +105,68 @@ export default function WorkspacePage() {
   useEffect(() => {
     if (!course || !selectedLessonId) return;
     let active = true;
-    setLessonLoading(true);
-    setCompletionStatus("");
-    api.lesson(course.id, selectedLessonId).then((lessonData) => {
+
+    async function loadLesson() {
+      await Promise.resolve();
       if (!active) return;
-      setLesson(lessonData);
-      window.localStorage.setItem(`aivirteach.course.lesson.${course.id}`, selectedLessonId);
-    }).catch((caught) => {
-      if (active) setContentError(caught instanceof Error ? caught.message : "Could not load this step.");
-    }).finally(() => { if (active) setLessonLoading(false); });
+      setLessonLoading(true);
+      setCompletionStatus("");
+      try {
+        const lessonData = await api.lesson(course.id, selectedLessonId);
+        if (!active) return;
+        setLesson(lessonData);
+        window.localStorage.setItem(`aivirteach.course.lesson.${course.id}`, selectedLessonId);
+      } catch (caught) {
+        if (active) setContentError(caught instanceof Error ? caught.message : "Could not load this step.");
+      } finally {
+        if (active) setLessonLoading(false);
+      }
+    }
+
+    void loadLesson();
     return () => { active = false; };
   }, [course, selectedLessonId]);
 
   useEffect(() => {
-    api.chatMessages("learning-lab").then((items) => {
-      if (items.length) setMessages(items.map((item) => ({ role: item.role, text: item.text })));
-    }).catch(() => undefined);
-  }, []);
+    if (!tutorThreadId) return;
+    let active = true;
+
+    async function loadTutorHistory() {
+      await Promise.resolve();
+      if (!active) return;
+      setMessages([]);
+      setChatError("");
+      setChatNotice("");
+      setChatHistoryState("loading");
+      try {
+        const items = await api.chatMessages(tutorThreadId);
+        if (!active) return;
+        setMessages(items.map(toChatViewMessage));
+        setChatHistoryState("ready");
+      } catch (caught) {
+        if (!active) return;
+        setChatError(caught instanceof Error ? caught.message : "Could not load the tutor conversation.");
+        setChatHistoryState("error");
+      }
+    }
+
+    void loadTutorHistory();
+    return () => { active = false; };
+  }, [tutorThreadId, chatLoadAttempt]);
+
+  useEffect(() => {
+    if (chatHistoryState === "idle") return;
+    messagesEndRef.current?.scrollIntoView({ block: "end" });
+  }, [chatHistoryState, chatSendState, messages]);
 
   useEffect(() => {
     if (!course) return;
+    let active = true;
     const storageKey = `aivirteach.lab.activeSeconds.${course.id}`;
     const savedSeconds = Number(window.localStorage.getItem(storageKey));
-    if (Number.isFinite(savedSeconds) && savedSeconds > 0) setElapsedSeconds(savedSeconds);
+    void Promise.resolve().then(() => {
+      if (active && Number.isFinite(savedSeconds) && savedSeconds > 0) setElapsedSeconds(savedSeconds);
+    });
     const timer = window.setInterval(() => {
       if (document.visibilityState !== "visible" || !document.hasFocus()) return;
       setElapsedSeconds((current) => {
@@ -118,7 +175,7 @@ export default function WorkspacePage() {
         return next;
       });
     }, 1000);
-    return () => window.clearInterval(timer);
+    return () => { active = false; window.clearInterval(timer); };
   }, [course]);
 
   useEffect(() => {
@@ -135,11 +192,66 @@ export default function WorkspacePage() {
     return () => { active = false; window.clearInterval(interval); };
   }, []);
 
-  useEffect(() => () => { if (refreshTimer.current) clearTimeout(refreshTimer.current); }, []);
+  const activeCourseId = course?.id;
+  const activeEnrollmentId = enrollment?.id;
+
+  useEffect(() => {
+    if (!activeCourseId || !activeEnrollmentId) return;
+    let active = true;
+    let pollTimer: ReturnType<typeof setTimeout> | null = null;
+
+    async function requestLabSession() {
+      try {
+        const session = await api.createLabSession();
+        if (!active) return;
+
+        if (session.state === "starting") {
+          setLabSessionState("starting");
+          const requestedDelay = typeof session.retryAfterMs === "number" && Number.isFinite(session.retryAfterMs)
+            ? session.retryAfterMs
+            : defaultLabSessionRetryMs;
+          const retryDelay = Math.min(maxLabSessionRetryMs, Math.max(minLabSessionRetryMs, requestedDelay));
+          pollTimer = setTimeout(() => void requestLabSession(), retryDelay);
+          return;
+        }
+
+        if (session.state === "ready") {
+          if (!session.embedUrl) throw new Error("The Learning VM is ready, but no browser connection URL was provided.");
+          setLabEmbedUrl(session.embedUrl);
+          setLabSessionState("ready");
+          return;
+        }
+
+        throw new Error(`The Learning VM returned an unsupported state: ${session.state || "unknown"}.`);
+      } catch (caught) {
+        if (!active) return;
+        setLabSessionError(caught instanceof Error ? caught.message : "Could not connect to the Learning VM.");
+        setLabSessionState("error");
+      }
+    }
+
+    async function initializeLabSession() {
+      await Promise.resolve();
+      if (!active) return;
+      setLabEmbedUrl("");
+      setLabSessionError("");
+      setLabSessionState("requesting");
+      await requestLabSession();
+    }
+
+    void initializeLabSession();
+
+    return () => {
+      active = false;
+      if (pollTimer) clearTimeout(pollTimer);
+    };
+  }, [activeCourseId, activeEnrollmentId, labSessionAttempt]);
 
   useEffect(() => {
     const savedWidth = Number(window.localStorage.getItem(courseRailWidthStorageKey));
-    if (Number.isFinite(savedWidth)) setCourseRailWidth(Math.min(maxCourseRailWidth, Math.max(minCourseRailWidth, savedWidth)));
+    void Promise.resolve().then(() => {
+      if (Number.isFinite(savedWidth)) setCourseRailWidth(Math.min(maxCourseRailWidth, Math.max(minCourseRailWidth, savedWidth)));
+    });
   }, []);
 
   function selectLesson(lessonId: string | null) {
@@ -197,24 +309,53 @@ export default function WorkspacePage() {
   async function sendMessage(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const text = message.trim();
-    if (!text) return;
-    setMessage("");
+    if (!text || !course || !selectedLessonId || !tutorThreadId || chatHistoryState !== "ready" || chatSendState !== "idle") return;
+    const input = createChatMessageInput(text, course.id, selectedLessonId);
+    const knownMessageIds = new Set(messages.map((item) => item.id));
+    setChatError("");
+    setChatNotice("");
+    setChatSendState("sending");
     try {
-      const response = await api.sendChatMessage(`course-${course?.id ?? "learning-lab"}`, text);
-      setMessages((current) => [...current, { role: "student", text: response.studentMessage.text }, { role: "tutor", text: response.tutorMessage.text }]);
+      const response = await api.sendChatMessage(tutorThreadId, input);
+      const savedTurn = [response.studentMessage, response.tutorMessage].map(toChatViewMessage);
+      setMessages((current) => mergeChatMessages(current, savedTurn));
+      setMessage("");
     } catch (caught) {
-      setMessages((current) => [...current, { role: "student", text }, { role: "tutor", text: caught instanceof Error ? caught.message : "The tutor is unavailable." }]);
+      const sendError = caught instanceof Error ? caught.message : "The tutor is unavailable.";
+      setChatSendState("recovering");
+      try {
+        const persisted = await api.chatMessages(tutorThreadId);
+        const restoredMessages = persisted.map(toChatViewMessage);
+        const messageWasSaved = persisted.some((item) => item.role === "student" && item.text === text && !knownMessageIds.has(item.id));
+        setMessages(restoredMessages);
+        if (messageWasSaved) {
+          setMessage("");
+          setChatNotice("The connection was interrupted after your message was saved. The conversation was restored from the server.");
+        } else {
+          setChatError(`${sendError} Your draft is still in the composer; send it again when you are ready.`);
+        }
+      } catch {
+        setChatError(`${sendError} The saved conversation could not be checked, so your draft remains in the composer.`);
+      }
+    } finally {
+      setChatSendState("idle");
     }
   }
 
-  function refreshTutor() {
-    if (refreshTimer.current) return;
+  async function refreshTutor() {
+    if (!tutorThreadId || refreshing || chatSendState !== "idle") return;
     setRefreshing(true);
-    refreshTimer.current = setTimeout(() => {
-      api.chatMessages(`course-${course?.id ?? "learning-lab"}`).then((items) => {
-        setMessages(items.length ? items.map((item) => ({ role: item.role, text: item.text })) : initialMessages);
-      }).finally(() => { setRefreshing(false); refreshTimer.current = null; });
-    }, 500);
+    setChatError("");
+    setChatNotice("");
+    try {
+      const items = await api.chatMessages(tutorThreadId);
+      setMessages(items.map(toChatViewMessage));
+      setChatHistoryState("ready");
+    } catch (caught) {
+      setChatError(caught instanceof Error ? caught.message : "Could not refresh the tutor conversation.");
+    } finally {
+      setRefreshing(false);
+    }
   }
 
   if (!courseChecked || !course || !enrollment) {
@@ -225,6 +366,25 @@ export default function WorkspacePage() {
   const currentIndex = allLessons.findIndex((item) => item.id === selectedLessonId);
   const completedSteps = Math.round((enrollment.progressPercent / 100) * allLessons.length);
   const latencyBars = latency === null ? 0 : latency < 80 ? 4 : latency < 160 ? 3 : latency < 300 ? 2 : 1;
+  const vmStatusLabel = labSessionState === "ready"
+    ? "Connected workspace"
+    : labSessionState === "starting"
+      ? "Starting virtual machine"
+      : labSessionState === "error"
+        ? "Connection failed"
+        : "Requesting workspace";
+  const tutorStatusLabel = chatHistoryState === "loading"
+    ? "Loading history"
+    : chatHistoryState === "error"
+      ? "Unavailable"
+      : chatSendState === "recovering"
+        ? "Restoring conversation"
+        : chatSendState === "sending"
+          ? "Preparing reply"
+          : refreshing
+            ? "Refreshing"
+            : "Online";
+  const tutorBusy = chatHistoryState === "loading" || chatSendState !== "idle" || refreshing;
 
   const frameStyle = { "--course-rail-width": `${courseRailWidth}px` } as CSSProperties;
 
@@ -265,11 +425,39 @@ export default function WorkspacePage() {
         <header className="lab-project-header"><div className="lab-project-title"><small>COURSE</small><h1>{course.title}</h1></div><div className="lab-project-status"><div className="latency-status"><span className="latency-bars" aria-hidden="true">{[1,2,3,4].map((bar) => <i className={bar <= latencyBars ? "active" : ""} key={bar} />)}</span><span><small>SERVER</small><strong>{latency === null ? "Offline" : `${latency} ms`}</strong></span></div><div className="lab-active-timer"><span className="timer-glyph" aria-hidden="true" /><span><small>ACTIVE TIME</small><strong>{formatElapsed(elapsedSeconds)}</strong></span></div></div></header>
 
         <main className="lab-workspace vm-workspace">
-          <header className="vm-toolbar"><div><span className="vm-status-dot" aria-hidden="true" /><strong>Learning VM</strong></div><small>{vmUrl ? "Connected workspace" : "Awaiting connection"}</small></header>
-          {vmUrl ? <iframe className="vm-frame" src={vmUrl} title="Interactive learning virtual machine" allow="clipboard-read; clipboard-write; fullscreen" /> : <section className="vm-empty-state" role="status"><span className="vm-display-icon" aria-hidden="true" /><h2>Learning VM</h2><p>The VM interface will appear here when a workspace URL is connected.</p></section>}
+          <header className="vm-toolbar"><div><span className={`vm-status-dot ${labSessionState}`} aria-hidden="true" /><strong>Learning VM</strong></div><small>{vmStatusLabel}</small></header>
+          {labSessionState === "ready" && labEmbedUrl
+            ? <iframe className="vm-frame" src={labEmbedUrl} title="Interactive learning virtual machine" allow="clipboard-read; clipboard-write; fullscreen" allowFullScreen referrerPolicy="no-referrer" />
+            : labSessionState === "error"
+              ? <section className="vm-empty-state vm-error-state" role="alert"><span className="vm-display-icon" aria-hidden="true" /><h2>Learning VM unavailable</h2><p>{labSessionError}</p><button className="primary-button vm-retry-button" type="button" onClick={() => setLabSessionAttempt((current) => current + 1)}>Retry connection</button></section>
+              : <section className={`vm-empty-state vm-starting-state ${labSessionState}`} role="status" aria-live="polite"><span className="vm-display-icon" aria-hidden="true" /><h2>{labSessionState === "starting" ? "Starting your Learning VM" : "Connecting to your Learning VM"}</h2><p>{labSessionState === "starting" ? "The virtual machine is booting. This view will connect automatically when it is ready." : "Requesting your assigned virtual machine and secure browser session."}</p></section>}
         </main>
 
-        <aside className={`lab-tutor-rail ${tutorCollapsed ? "collapsed" : ""}`} aria-label="AI teacher">{tutorCollapsed ? <button className="lab-tutor-expand" type="button" onClick={() => setTutorCollapsed(false)} aria-label="Expand AI teacher"><span className="bot-mark">AI</span><i className="collapse-glyph points-left" aria-hidden="true" /></button> : <><header><div className="tutor-heading"><span className="bot-mark">AI</span><div><strong>AIVir Teacher</strong><small><i /> Online</small></div></div><div className="tutor-header-actions"><button className={`tutor-refresh ${refreshing ? "refreshing" : ""}`} type="button" onClick={refreshTutor} aria-label="Refresh tutor conversation"><img src="/refresh-icon.png" alt="" aria-hidden="true" /></button><button className="lab-rail-toggle points-right" type="button" onClick={() => setTutorCollapsed(true)} aria-label="Collapse AI teacher"><span aria-hidden="true" /></button></div></header><div className={`messages ${refreshing ? "refreshing" : ""}`}>{messages.map((item, index) => <article className={`message ${item.role}`} key={`${item.role}-${index}`}><div><p>{item.text}</p><small>{index === messages.length - 1 ? "Just now" : "Earlier"}</small></div></article>)}</div><form className="message-form" onSubmit={sendMessage}><input value={message} onChange={(event) => setMessage(event.target.value)} aria-label="Ask the tutor for help" placeholder="Ask about this step..." /><button aria-label="Send message">Send</button></form></> }</aside>
+        <aside className={`lab-tutor-rail ${tutorCollapsed ? "collapsed" : ""}`} aria-label="AI teacher">
+          {tutorCollapsed
+            ? <button className="lab-tutor-expand" type="button" onClick={() => setTutorCollapsed(false)} aria-label="Expand AI teacher"><span className="bot-mark">AI</span><i className="collapse-glyph points-left" aria-hidden="true" /></button>
+            : <>
+              <header>
+                <div className="tutor-heading"><span className="bot-mark">AI</span><div><strong>AIVir Teacher</strong><small className={chatHistoryState === "error" ? "error" : tutorBusy ? "busy" : ""}><i /> {tutorStatusLabel}</small></div></div>
+                <div className="tutor-header-actions"><button className={`tutor-refresh ${refreshing ? "refreshing" : ""}`} type="button" onClick={() => void refreshTutor()} aria-label="Refresh tutor conversation" disabled={chatHistoryState !== "ready" || tutorBusy}><img src="/refresh-icon.png" alt="" aria-hidden="true" /></button><button className="lab-rail-toggle points-right" type="button" onClick={() => setTutorCollapsed(true)} aria-label="Collapse AI teacher"><span aria-hidden="true" /></button></div>
+              </header>
+              <div className={`messages ${refreshing ? "refreshing" : ""}`} aria-busy={tutorBusy} aria-live="polite">
+                {chatHistoryState === "loading" && <div className="chat-panel-status" role="status"><i aria-hidden="true" /><span>Loading your saved conversation...</span></div>}
+                {chatHistoryState === "error" && <section className="chat-history-error" role="alert"><strong>Conversation unavailable</strong><p>{chatError}</p><button type="button" onClick={() => setChatLoadAttempt((current) => current + 1)}>Try again</button></section>}
+                {chatHistoryState === "ready" && messages.length === 0 && <section className="chat-empty-state"><span className="bot-mark" aria-hidden="true">AI</span><strong>Ask AIVir Teacher</strong><p>Your course conversation will be saved here so you can continue it next time.</p></section>}
+                {messages.map((item) => <article className={`message ${item.role}`} key={item.id}><div><p>{item.text}</p><small>{item.role === "student" ? "You" : "AIVir Teacher"} · {formatMessageTime(item.createdAt)}</small></div></article>)}
+                {refreshing && <div className="chat-refresh-status" role="status"><i aria-hidden="true" />Refreshing saved messages...</div>}
+                {chatSendState !== "idle" && <div className="chat-send-status" role="status"><i aria-hidden="true" /><span>{chatSendState === "recovering" ? "Checking the server for your saved message..." : "AIVir Teacher is preparing a reply..."}</span></div>}
+                {chatHistoryState === "ready" && chatError && <section className="chat-inline-feedback error" role="alert"><p>{chatError}</p><button type="button" onClick={() => void refreshTutor()} disabled={tutorBusy}>Reload saved history</button></section>}
+                {chatHistoryState === "ready" && chatNotice && <p className="chat-inline-feedback notice" role="status">{chatNotice}</p>}
+                <div ref={messagesEndRef} aria-hidden="true" />
+              </div>
+              <form className="message-form" onSubmit={sendMessage}>
+                <input value={message} onChange={(event) => setMessage(event.target.value)} aria-label="Ask the tutor for help" placeholder={chatHistoryState === "ready" ? "Ask about this step..." : "Loading conversation..."} maxLength={4000} disabled={chatHistoryState !== "ready" || chatSendState !== "idle"} />
+                <button type="submit" aria-label="Send message" disabled={chatHistoryState !== "ready" || chatSendState !== "idle" || !message.trim()}>{chatSendState === "idle" ? "Send" : "Sending..."}</button>
+              </form>
+            </>}
+        </aside>
       </div>
       {vmEnvOpen && <div className="vm-env-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setVmEnvOpen(false); }}>
         <section className="vm-env-dialog" role="dialog" aria-modal="true" aria-labelledby="vm-env-title" aria-describedby="vm-env-description">

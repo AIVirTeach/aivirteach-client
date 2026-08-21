@@ -21,11 +21,30 @@ Use `local` for `http://localhost:4000/api/v1`, or change it to `remote` for `ht
 
 Local mode uses the demo-account picker and `X-Demo-User-Id` contract. Remote mode uses invitation-based JWT login, refresh-token rotation, account activation, and logout.
 
-The deployed control plane currently exposes health and invitation-based JWT authentication. Login, access-token refresh, account activation, and logout are connected. Dashboard, courses, progress, and chat routes are not yet exposed by that server, so authenticated users see the frontend's local demo learning data for those areas until the matching APIs are deployed.
+The configured control plane is the source of learner, course, progress, and chat data. Remote mode also uses its invitation-based JWT login, access-token refresh, account activation, and logout routes.
 
 The server allows the frontend development origin `http://localhost:3001` through CORS. If you change the local frontend port, add that origin to the backend's `CORS_ORIGINS` setting.
 
-Set `NEXT_PUBLIC_LEARNING_VM_URL` to the browser-accessible VM or remote desktop URL shown in the center of the Learning Lab. Without it, the Learning Lab displays its awaiting-connection state while course instructions remain available in the resizable left sidebar.
+### AIVir Teacher chat
+
+The Learning Lab waits for the active enrollment before opening chat. It derives one stable thread for each learner/course pair as `chat:v1:<encoded learner id>:<encoded course id>` and uses that same thread for every operation:
+
+- `GET /api/v1/chat/threads/:threadId/messages` loads the server-persisted history.
+- `POST /api/v1/chat/threads/:threadId/messages` sends `{ "text": "...", "courseId": "...", "lessonId": "..." }` and returns the persisted `studentMessage` and `tutorMessage` pair. The course and lesson are captured from the currently displayed workspace step so the server can validate enrollment and build the correct teaching context.
+
+Only messages returned by those server APIs are rendered as conversation messages. The composer is disabled while a turn is being created. If the POST response is interrupted, the client reloads the thread before offering another send, so a message that the server already saved is restored instead of being replaced by a synthetic error message. The chat client never connects directly to Labs, a learner VM, or Guacamole.
+
+The Learning Lab requests the current learner's VM session from `POST /api/v1/me/lab/session`. While the backend reports `starting`, the page polls at the interval returned by the API. Once the session is `ready`, its opaque `/guacamole/?data=...` URL is loaded in the embedded remote-desktop frame. Connection failures are shown in the workspace with a retry action.
+
+For local development, Vite proxies `/guacamole` HTTP and WebSocket traffic to `GUACAMOLE_PROXY_TARGET`, which defaults to `http://127.0.0.1:8080`. A typical `.env.local` override is:
+
+```dotenv
+GUACAMOLE_PROXY_TARGET=http://127.0.0.1:8080
+```
+
+Guacamole must therefore be available at `http://127.0.0.1:8080/guacamole/`, and the backend must return a browser-facing relative `embedUrl` beginning with `/guacamole/`. Restart `npm run dev` after changing the proxy target. In deployment, route `/guacamole/` through the public application's same-origin reverse proxy and preserve WebSocket upgrades; do not expose the VM's RDP port to the browser.
+
+Local development intentionally leaves the Cloudflare Vite runtime bridge disabled so it cannot consume Guacamole WebSocket upgrades. Production builds still include the Cloudflare plugin.
 
 ## Application entry points
 
