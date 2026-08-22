@@ -43,6 +43,10 @@ export function hasAuthSession() {
   return backendConfig.mode === "local" || readSession() !== null;
 }
 
+export function getAccessToken(): string | null {
+  return readSession()?.accessToken ?? null;
+}
+
 export function getDemoUserId() {
   if (typeof window === "undefined") return "learner_advanced";
   return window.localStorage.getItem(demoUserStorageKey) ?? "learner_advanced";
@@ -256,6 +260,13 @@ export type ApiChatMessage = {
   createdAt: string;
 };
 
+export type ApiWorkspace = {
+  id: string;
+  enrollmentId: string;
+  status: "CREATING" | "RUNNING" | "STOPPED" | "ERROR" | "RESETTING" | "DESTROYED";
+  errorMessage: string | null;
+};
+
 export type ApiHealth = {
   status: string;
   database: "up" | "down";
@@ -320,6 +331,8 @@ export const api = {
   completeLesson: (lessonId: string) => request("/lessons/" + encodeURIComponent(lessonId) + "/complete", { method: "POST" }),
   chatMessages: (threadId: string) => request<ApiChatMessage[]>("/chat/threads/" + encodeURIComponent(threadId) + "/messages"),
   sendChatMessage: (threadId: string, text: string) => request<{ studentMessage: ApiChatMessage; tutorMessage: ApiChatMessage }>("/chat/threads/" + encodeURIComponent(threadId) + "/messages", { method: "POST", body: JSON.stringify({ text }) }),
+  workspace: (enrollmentId: string) => request<ApiWorkspace>("/workspaces/" + encodeURIComponent(enrollmentId)),
+  createWorkspace: (enrollmentId: string) => request<ApiWorkspace>("/workspaces", { method: "POST", body: JSON.stringify({ enrollmentId }) }),
 };
 
 export function courseAssetUrl(courseId: string, assetId: string) {
