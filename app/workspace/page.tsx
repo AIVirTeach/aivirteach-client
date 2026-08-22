@@ -6,7 +6,8 @@ import { AccountMenu } from "../components/AccountMenu";
 import { BrandLogo } from "../components/BrandLogo";
 import { CourseLessonContent } from "../components/CourseLessonContent";
 import { Sidebar } from "../components/Sidebar";
-import { api, type ApiCourseDetail, type ApiEnrollment, type ApiLesson } from "../lib/api";
+import { api, ApiError, type ApiCourseDetail, type ApiEnrollment, type ApiLesson, type ApiWorkspace } from "../lib/api";
+import { subscribeWorkspace } from "../lib/ws";
 
 type Message = { role: "tutor" | "student"; text: string };
 
@@ -30,6 +31,7 @@ export default function WorkspacePage() {
   const router = useRouter();
   const [course, setCourse] = useState<ApiCourseDetail | null>(null);
   const [enrollment, setEnrollment] = useState<ApiEnrollment | null>(null);
+  const [workspace, setWorkspace] = useState<ApiWorkspace | null>(null);
   const [lesson, setLesson] = useState<ApiLesson | null>(null);
   const [selectedLessonId, setSelectedLessonId] = useState<string | null>(null);
   const [courseChecked, setCourseChecked] = useState(false);
@@ -68,6 +70,31 @@ export default function WorkspacePage() {
     }).finally(() => { if (active) setCourseChecked(true); });
     return () => { active = false; };
   }, []);
+
+  useEffect(() => {
+    if (!enrollment) return;
+    let active = true;
+    let unsubscribe: (() => void) | null = null;
+
+    async function ensureWorkspace() {
+      let current: ApiWorkspace;
+      try {
+        current = await api.workspace(enrollment!.id);
+      } catch (caught) {
+        if (!(caught instanceof ApiError) || caught.status !== 404) throw caught;
+        current = await api.createWorkspace(enrollment!.id);
+      }
+      if (!active) return;
+      setWorkspace(current);
+      unsubscribe = subscribeWorkspace(enrollment!.id, (updated) => { if (active) setWorkspace(updated); });
+    }
+
+    ensureWorkspace().catch((caught) => {
+      if (active) setContentError(caught instanceof Error ? caught.message : "Could not prepare the workspace.");
+    });
+
+    return () => { active = false; unsubscribe?.(); };
+  }, [enrollment]);
 
   useEffect(() => {
     if (!vmEnvOpen) return;
@@ -207,6 +234,13 @@ export default function WorkspacePage() {
     }
   }
 
+  function retryWorkspace() {
+    if (!enrollment) return;
+    void api.createWorkspace(enrollment.id).then(setWorkspace).catch((caught) => {
+      setContentError(caught instanceof Error ? caught.message : "Could not restart the workspace.");
+    });
+  }
+
   function refreshTutor() {
     if (refreshTimer.current) return;
     setRefreshing(true);
@@ -265,8 +299,23 @@ export default function WorkspacePage() {
         <header className="lab-project-header"><div className="lab-project-title"><small>COURSE</small><h1>{course.title}</h1></div><div className="lab-project-status"><div className="latency-status"><span className="latency-bars" aria-hidden="true">{[1,2,3,4].map((bar) => <i className={bar <= latencyBars ? "active" : ""} key={bar} />)}</span><span><small>SERVER</small><strong>{latency === null ? "Offline" : `${latency} ms`}</strong></span></div><div className="lab-active-timer"><span className="timer-glyph" aria-hidden="true" /><span><small>ACTIVE TIME</small><strong>{formatElapsed(elapsedSeconds)}</strong></span></div></div></header>
 
         <main className="lab-workspace vm-workspace">
-          <header className="vm-toolbar"><div><span className="vm-status-dot" aria-hidden="true" /><strong>Learning VM</strong></div><small>{vmUrl ? "Connected workspace" : "Awaiting connection"}</small></header>
-          {vmUrl ? <iframe className="vm-frame" src={vmUrl} title="Interactive learning virtual machine" allow="clipboard-read; clipboard-write; fullscreen" /> : <section className="vm-empty-state" role="status"><span className="vm-display-icon" aria-hidden="true" /><h2>Learning VM</h2><p>The VM interface will appear here when a workspace URL is connected.</p></section>}
+          <header className="vm-toolbar"><div><span className="vm-status-dot" aria-hidden="true" /><strong>Learning VM</strong></div><small>{workspace?.status === "RUNNING" && vmUrl ? "Connected workspace" : "Awaiting connection"}</small></header>
+          {workspace?.status === "RUNNING" && vmUrl ? (
+            <iframe className="vm-frame" src={vmUrl} title="Interactive learning virtual machine" allow="clipboard-read; clipboard-write; fullscreen" />
+          ) : workspace?.status === "ERROR" ? (
+            <section className="vm-empty-state" role="status">
+              <span className="vm-display-icon" aria-hidden="true" />
+              <h2>Learning VM</h2>
+              <p>{workspace.errorMessage || "Could not start your Learning VM."}</p>
+              <button className="primary-button" type="button" onClick={retryWorkspace}>Retry</button>
+            </section>
+          ) : (
+            <section className="vm-empty-state" role="status">
+              <span className="vm-display-icon" aria-hidden="true" />
+              <h2>Learning VM</h2>
+              <p>Preparing your Learning VM. This can take a few minutes.</p>
+            </section>
+          )}
         </main>
 
         <aside className={`lab-tutor-rail ${tutorCollapsed ? "collapsed" : ""}`} aria-label="AI teacher">{tutorCollapsed ? <button className="lab-tutor-expand" type="button" onClick={() => setTutorCollapsed(false)} aria-label="Expand AI teacher"><span className="bot-mark">AI</span><i className="collapse-glyph points-left" aria-hidden="true" /></button> : <><header><div className="tutor-heading"><span className="bot-mark">AI</span><div><strong>AIVir Teacher</strong><small><i /> Online</small></div></div><div className="tutor-header-actions"><button className={`tutor-refresh ${refreshing ? "refreshing" : ""}`} type="button" onClick={refreshTutor} aria-label="Refresh tutor conversation"><img src="/refresh-icon.png" alt="" aria-hidden="true" /></button><button className="lab-rail-toggle points-right" type="button" onClick={() => setTutorCollapsed(true)} aria-label="Collapse AI teacher"><span aria-hidden="true" /></button></div></header><div className={`messages ${refreshing ? "refreshing" : ""}`}>{messages.map((item, index) => <article className={`message ${item.role}`} key={`${item.role}-${index}`}><div><p>{item.text}</p><small>{index === messages.length - 1 ? "Just now" : "Earlier"}</small></div></article>)}</div><form className="message-form" onSubmit={sendMessage}><input value={message} onChange={(event) => setMessage(event.target.value)} aria-label="Ask the tutor for help" placeholder="Ask about this step..." /><button aria-label="Send message">Send</button></form></> }</aside>
