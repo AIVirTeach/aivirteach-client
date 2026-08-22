@@ -2,10 +2,35 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { api, courseAssetUrl, type ApiCourseDetail, type ApiCourseWelcome } from "../../lib/api";
+import { api, ApiError, courseAssetUrl, type ApiCourseDetail, type ApiCourseWelcome } from "../../lib/api";
 import { activateCourse } from "../../lib/courses";
 
 const welcomeVideoUrl = process.env.NEXT_PUBLIC_COURSE_WELCOME_VIDEO_URL;
+
+// Courses ingested without a dedicated welcome.json have no CourseWelcome row, so
+// GET /courses/:slug/welcome 404s. Build an equivalent welcome view from the course
+// detail that's already loaded, instead of blocking the learner from reaching /workspace.
+function synthesizeWelcome(course: ApiCourseDetail): ApiCourseWelcome {
+  return {
+    schemaVersion: 0,
+    courseId: course.id,
+    title: course.title,
+    overviewAsset: null,
+    overview: { heading: course.title, paragraphs: [course.description] },
+    howItWorks: {
+      heading: "Before you start",
+      steps: course.requirements.map((requirement, index) => ({
+        number: String(index + 1).padStart(2, "0"),
+        title: requirement,
+        description: "",
+      })),
+    },
+    finalOutcome: {
+      heading: "What you'll walk away with",
+      description: course.outcomes.map((outcome) => (outcome.endsWith(".") ? outcome : `${outcome}.`)).join(" "),
+    },
+  };
+}
 
 export default function CourseWelcomePage() {
   const router = useRouter();
@@ -19,11 +44,16 @@ export default function CourseWelcomePage() {
     api.enrollments().then(async (enrollments) => {
       const activeCourseId = enrollments.find((enrollment) => enrollment.active)?.courseId;
       if (!activeCourseId) return;
-      const [courseData, welcomeData] = await Promise.all([api.course(activeCourseId), api.courseWelcome(activeCourseId)]);
+      const courseData = await api.course(activeCourseId);
       if (!active) return;
       activateCourse(activeCourseId);
       setCourse(courseData);
-      setWelcome(welcomeData);
+      try {
+        setWelcome(await api.courseWelcome(activeCourseId));
+      } catch (caught) {
+        if (!(caught instanceof ApiError) || caught.status !== 404) throw caught;
+        setWelcome(synthesizeWelcome(courseData));
+      }
     }).catch((caught) => {
       if (active) setError(caught instanceof Error ? caught.message : "Could not prepare this course.");
     }).finally(() => { if (active) setChecked(true); });
@@ -52,7 +82,7 @@ export default function CourseWelcomePage() {
                 <div className="course-overview-paragraphs">{welcome.overview.paragraphs.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}</div>
                 <section className="course-how-it-works" aria-labelledby="how-it-works-title">
                   <h2 id="how-it-works-title">{welcome.howItWorks.heading}</h2>
-                  <ol>{welcome.howItWorks.steps.map((item) => <li key={item.number}><span>{item.number}</span><div><strong>{item.title}</strong><p>{item.description}</p></div></li>)}</ol>
+                  <ol>{welcome.howItWorks.steps.map((item) => <li key={item.number}><span>{item.number}</span><div><strong>{item.title}</strong>{item.description && <p>{item.description}</p>}</div></li>)}</ol>
                 </section>
                 <section className="course-final-outcome"><strong>{welcome.finalOutcome.heading}</strong><p>{welcome.finalOutcome.description}</p></section>
               </section>
