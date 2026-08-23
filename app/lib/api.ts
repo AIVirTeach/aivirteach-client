@@ -267,6 +267,13 @@ export type ApiWorkspace = {
   errorMessage: string | null;
 };
 
+export type ApiConsoleSession = {
+  wsUrl: string;
+  rdpUsername: string;
+  rdpPassword: string;
+  expiresAt: string;
+};
+
 export type ApiHealth = {
   status: string;
   database: "up" | "down";
@@ -333,6 +340,10 @@ export const api = {
   sendChatMessage: (threadId: string, text: string) => request<{ studentMessage: ApiChatMessage; tutorMessage: ApiChatMessage }>("/chat/threads/" + encodeURIComponent(threadId) + "/messages", { method: "POST", body: JSON.stringify({ text }) }),
   workspace: (enrollmentId: string) => request<ApiWorkspace>("/workspaces/" + encodeURIComponent(enrollmentId)),
   createWorkspace: (enrollmentId: string) => request<ApiWorkspace>("/workspaces", { method: "POST", body: JSON.stringify({ enrollmentId }) }),
+  consoleSession: (enrollmentId: string) =>
+    request<ApiConsoleSession>("/workspaces/" + encodeURIComponent(enrollmentId) + "/console-session", {
+      method: "POST",
+    }),
 };
 
 export function courseAssetUrl(courseId: string, assetId: string) {

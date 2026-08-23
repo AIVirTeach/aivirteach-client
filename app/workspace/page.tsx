@@ -1,13 +1,14 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { type CSSProperties, type FormEvent, type KeyboardEvent, type PointerEvent as ReactPointerEvent, useEffect, useRef, useState } from "react";
+import { type CSSProperties, type FormEvent, type KeyboardEvent, type PointerEvent as ReactPointerEvent, useCallback, useEffect, useRef, useState } from "react";
 import { AccountMenu } from "../components/AccountMenu";
 import { BrandLogo } from "../components/BrandLogo";
 import { CourseLessonContent } from "../components/CourseLessonContent";
 import { Sidebar } from "../components/Sidebar";
-import { api, ApiError, type ApiCourseDetail, type ApiEnrollment, type ApiLesson, type ApiWorkspace } from "../lib/api";
+import { api, ApiError, type ApiConsoleSession, type ApiCourseDetail, type ApiEnrollment, type ApiLesson, type ApiWorkspace } from "../lib/api";
 import { subscribeWorkspace } from "../lib/ws";
+import { ConsoleViewer } from "./console-viewer";
 
 type Message = { role: "tutor" | "student"; text: string };
 
@@ -15,7 +16,6 @@ const initialMessages: Message[] = [
   { role: "tutor", text: "I am ready to help with this course step. Tell me what you are trying to do or where the result differs from the lesson." },
 ];
 
-const vmUrl = process.env.NEXT_PUBLIC_LEARNING_VM_URL;
 const courseRailWidthStorageKey = "aivirteach.lab.courseRailWidth.v1";
 const minCourseRailWidth = 320;
 const maxCourseRailWidth = 620;
@@ -47,6 +47,9 @@ export default function WorkspacePage() {
   const [latency, setLatency] = useState<number | null>(null);
   const [courseRailWidth, setCourseRailWidth] = useState(420);
   const [vmEnvOpen, setVmEnvOpen] = useState(false);
+  const [consoleSession, setConsoleSession] = useState<ApiConsoleSession | null>(null);
+  const [consoleError, setConsoleError] = useState("");
+  const [consoleLoading, setConsoleLoading] = useState(false);
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const vmEnvCloseButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -241,6 +244,25 @@ export default function WorkspacePage() {
     });
   }
 
+  async function startConsoleSession() {
+    if (!enrollment) return;
+    setConsoleLoading(true);
+    setConsoleError("");
+    try {
+      const session = await api.consoleSession(enrollment.id);
+      setConsoleSession(session);
+    } catch (caught) {
+      setConsoleError(caught instanceof Error ? caught.message : "无法启动远程桌面");
+    } finally {
+      setConsoleLoading(false);
+    }
+  }
+
+  const handleConsoleError = useCallback((message: string) => {
+    setConsoleError(message);
+    setConsoleSession(null);
+  }, []);
+
   function refreshTutor() {
     if (refreshTimer.current) return;
     setRefreshing(true);
@@ -299,9 +321,23 @@ export default function WorkspacePage() {
         <header className="lab-project-header"><div className="lab-project-title"><small>COURSE</small><h1>{course.title}</h1></div><div className="lab-project-status"><div className="latency-status"><span className="latency-bars" aria-hidden="true">{[1,2,3,4].map((bar) => <i className={bar <= latencyBars ? "active" : ""} key={bar} />)}</span><span><small>SERVER</small><strong>{latency === null ? "Offline" : `${latency} ms`}</strong></span></div><div className="lab-active-timer"><span className="timer-glyph" aria-hidden="true" /><span><small>ACTIVE TIME</small><strong>{formatElapsed(elapsedSeconds)}</strong></span></div></div></header>
 
         <main className="lab-workspace vm-workspace">
-          <header className="vm-toolbar"><div><span className="vm-status-dot" aria-hidden="true" /><strong>Learning VM</strong></div><small>{workspace?.status === "RUNNING" && vmUrl ? "Connected workspace" : "Awaiting connection"}</small></header>
-          {workspace?.status === "RUNNING" && vmUrl ? (
-            <iframe className="vm-frame" src={vmUrl} title="Interactive learning virtual machine" allow="clipboard-read; clipboard-write; fullscreen" />
+          <header className="vm-toolbar"><div><span className="vm-status-dot" aria-hidden="true" /><strong>Learning VM</strong></div><small>{workspace?.status === "RUNNING" && consoleSession ? "Connected workspace" : "Awaiting connection"}</small></header>
+          {workspace?.status === "RUNNING" && consoleSession ? (
+            <ConsoleViewer
+              wsUrl={consoleSession.wsUrl}
+              rdpUsername={consoleSession.rdpUsername}
+              rdpPassword={consoleSession.rdpPassword}
+              onError={handleConsoleError}
+            />
+          ) : workspace?.status === "RUNNING" ? (
+            <section className="vm-empty-state" role="status">
+              <span className="vm-display-icon" aria-hidden="true" />
+              <h2>Learning VM</h2>
+              {consoleError && <p className="auth-error" role="alert">{consoleError}</p>}
+              <button className="primary-button" type="button" onClick={() => void startConsoleSession()} disabled={consoleLoading}>
+                {consoleLoading ? "Connecting..." : "Start remote desktop"}
+              </button>
+            </section>
           ) : workspace?.status === "ERROR" ? (
             <section className="vm-empty-state" role="status">
               <span className="vm-display-icon" aria-hidden="true" />
