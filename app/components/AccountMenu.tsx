@@ -2,18 +2,26 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useLearnerProfile } from "../hooks/useLearnerProfile";
 import { api } from "../lib/api";
 import { Avatar } from "./Avatar";
 
 type AccountMenuProps = { placement: "sidebar" | "lab"; collapsed?: boolean; onVmEnv?: () => void };
+type Theme = "light" | "dark";
 
 export function AccountMenu({ placement, collapsed = false, onVmEnv }: AccountMenuProps) {
   const router = useRouter();
   const { profile, loading } = useLearnerProfile();
   const [open, setOpen] = useState(false);
+  const [theme, setTheme] = useState<Theme>("light");
   const containerRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    const savedTheme: Theme = window.localStorage.getItem("aivir-theme") === "dark" ? "dark" : "light";
+    setTheme(savedTheme);
+    document.documentElement.dataset.theme = savedTheme;
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -31,6 +39,13 @@ export function AccountMenu({ placement, collapsed = false, onVmEnv }: AccountMe
     };
   }, [open]);
 
+  function toggleTheme() {
+    const nextTheme: Theme = theme === "dark" ? "light" : "dark";
+    setTheme(nextTheme);
+    document.documentElement.dataset.theme = nextTheme;
+    window.localStorage.setItem("aivir-theme", nextTheme);
+  }
+
   if (loading) {
     return (
       <div className={`account-menu account-menu-${placement}`}>
@@ -47,6 +62,11 @@ export function AccountMenu({ placement, collapsed = false, onVmEnv }: AccountMe
       {open && (
         <div className="account-dropdown" role="menu" aria-label="Account menu">
           {placement === "lab" ? <>
+            <button className="account-theme-toggle" type="button" role="menuitemcheckbox" aria-checked={theme === "dark"} onClick={toggleTheme}>
+              <span className={theme === "dark" ? "theme-sun" : "theme-moon"} aria-hidden="true" />
+              <span>Dark mode</span>
+              <span className="account-theme-switch" aria-hidden="true"><span /></span>
+            </button>
             <button type="button" role="menuitem" onClick={() => { setOpen(false); onVmEnv?.(); }}>VM Env</button>
             <Link className="account-menu-exit" href="/courses" role="menuitem">Exit Learning Lab</Link>
           </> : <>

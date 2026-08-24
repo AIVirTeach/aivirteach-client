@@ -21,6 +21,11 @@ for (const [path, expected] of [
   ["/courses", "Choose what to learn next"],
   ["/courses/welcome", "Preparing your course"],
   ["/workspace", "Opening Learning Lab"],
+  ["/admin/login", "Turn AI Learners into AI Builders"],
+  ["/admin", "Website Analytics"],
+  ["/admin/courses", "Course Settings"],
+  ["/admin/courses/new", "New Course"],
+  ["/admin/courses/upload", "Upload Course"],
 ]) {
   test(`renders ${path}`, async () => {
     const response = await request(path);

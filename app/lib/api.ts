@@ -149,7 +149,6 @@ export type ApiCourse = {
   category: string;
   description: string;
   level: "Beginner" | "Intermediate" | "Advanced";
-  durationMinutes: number;
   lessonCount: number;
   published: boolean;
   coverAssetId?: string;
@@ -159,7 +158,6 @@ export type ApiCourseLessonSummary = {
   id: string;
   position: number;
   title: string;
-  estimatedMinutes: number;
   objectives: string[];
   activity: { type: string; prompt: string; completionType: string };
 };
@@ -169,7 +167,6 @@ export type ApiCourseModule = {
   position: number;
   title: string;
   description: string;
-  estimatedMinutes: number;
   lessons: ApiCourseLessonSummary[];
 };
 

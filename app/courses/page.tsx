@@ -194,7 +194,7 @@ export default function CoursesPage() {
                   <div className="catalog-course-info">
                     <div className="catalog-label-row"><span>{course.category}</span>{course.localOnly && <strong>Browser demo</strong>}</div>
                     <h2>{course.title}</h2>
-                    <div className="catalog-meta"><span>{course.level}</span><span>{course.duration}</span></div>
+                    <div className="catalog-meta"><span>{course.level}</span></div>
                   </div>
                   <div className="catalog-actions">
                     {isActive && <button className="restart-course-button" type="button" onClick={() => setRestartCourseTarget(course)}>Restart course</button>}
@@ -247,5 +247,5 @@ export default function CoursesPage() {
 
 function toDemoCourse(course: ApiCourse): DemoCourse {
   const tone = course.id === "ai-daily-briefing" ? "blue" : "indigo";
-  return { id: course.id, title: course.title, category: course.category, description: course.description, level: course.level, duration: Math.round(course.durationMinutes / 60) + " hours", lessons: course.lessonCount, tone, coverAssetId: course.coverAssetId };
+  return { id: course.id, title: course.title, category: course.category, description: course.description, level: course.level, lessons: course.lessonCount, tone, coverAssetId: course.coverAssetId };
 }

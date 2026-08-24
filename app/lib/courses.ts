@@ -4,7 +4,6 @@ export type DemoCourse = {
   category: string;
   description: string;
   level: string;
-  duration: string;
   lessons: number;
   tone: "blue" | "violet" | "cyan" | "indigo";
   coverAssetId?: string;
@@ -20,7 +19,6 @@ export const courseCatalog: DemoCourse[] = [
     category: "AI Automation",
     description: "Collect, rank, summarize, and email the most important AI and technology news.",
     level: "Intermediate",
-    duration: "6 hours",
     lessons: 12,
     tone: "blue",
   },
@@ -30,7 +28,6 @@ export const courseCatalog: DemoCourse[] = [
     category: "AI Automation",
     description: "Monitor a public webpage, detect meaningful changes, and send relevant alerts.",
     level: "Intermediate",
-    duration: "9 hours",
     lessons: 11,
     tone: "indigo",
   },
@@ -40,7 +37,6 @@ export const courseCatalog: DemoCourse[] = [
     category: "Python Programming",
     description: "Learn syntax, variables, decisions, and functions in four short browser-based lessons.",
     level: "Beginner",
-    duration: "20 minutes",
     lessons: 4,
     tone: "cyan",
     localOnly: true,

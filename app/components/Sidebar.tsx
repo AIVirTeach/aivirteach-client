@@ -3,16 +3,25 @@
 import Link from "next/link";
 import { useLayoutEffect, useSyncExternalStore } from "react";
 import { AccountMenu } from "./AccountMenu";
+import { AdminAccountMenu } from "./AdminAccountMenu";
 import { BrandLogo } from "./BrandLogo";
 
-type SidebarProps = { active: "dashboard" | "courses" | "workspace" | "analysis" | "settings" };
+type SidebarProps = {
+  active: "dashboard" | "courses" | "workspace" | "analysis" | "settings" | "analytics" | "course-settings";
+  mode?: "learner" | "admin";
+};
 
-const items = [
+const learnerItems = [
   { id: "dashboard", label: "Dashboard", href: "/dashboard", icon: "▦" },
   { id: "courses", label: "Courses", href: "/courses", icon: "▤" },
   { id: "workspace", label: "Learning Lab", href: "/workspace", icon: "‹›" },
   { id: "analysis", label: "Progress", href: "/analysis", icon: "" },
   { id: "settings", label: "Settings", href: "/settings", icon: "⚙" },
+] as const;
+
+const adminItems = [
+  { id: "analytics", label: "Website Analytics", href: "/admin", icon: "▦" },
+  { id: "course-settings", label: "Course Settings", href: "/admin/courses", icon: "▤" },
 ] as const;
 
 const sidebarStorageKey = "aivir-sidebar-collapsed";
@@ -33,8 +42,9 @@ function getSidebarSnapshot() {
   return cachedSidebarCollapsed;
 }
 
-export function Sidebar({ active }: SidebarProps) {
+export function Sidebar({ active, mode = "learner" }: SidebarProps) {
   const collapsed = useSyncExternalStore(subscribeToSidebar, getSidebarSnapshot, () => false);
+  const items = mode === "admin" ? adminItems : learnerItems;
 
   useLayoutEffect(() => {
     const savedTheme = window.localStorage.getItem("aivir-theme") === "dark" ? "dark" : "light";
@@ -55,11 +65,11 @@ export function Sidebar({ active }: SidebarProps) {
       </header>
 
       <section className="sidebar-content-section" aria-label="Navigation">
-        <nav className="side-nav" aria-label="Primary navigation">
+        <nav className="side-nav" aria-label={mode === "admin" ? "Admin navigation" : "Primary navigation"}>
           {items.map((item) => (
             <Link key={item.id} href={item.href} className={active === item.id ? "active" : ""} title={collapsed ? item.label : undefined}>
               <span className={`nav-icon ${item.id === "analysis" ? "progress-nav-icon" : ""} ${item.id === "workspace" ? "learning-lab-nav-icon" : ""}`} aria-hidden="true">
-                {item.id === "dashboard" ? <i className="home-nav-icon" /> : item.id === "analysis" ? <i><b /><b /><b /></i> : item.id === "workspace" ? <i className="lab-code-icon"><b /><b /></i> : item.icon}
+                {item.id === "dashboard" || item.id === "analytics" ? <i className="home-nav-icon" /> : item.id === "analysis" ? <i><b /><b /><b /></i> : item.id === "workspace" ? <i className="lab-code-icon"><b /><b /></i> : item.icon}
               </span>
               <span className="nav-label">{item.label}</span>
             </Link>
@@ -67,8 +77,8 @@ export function Sidebar({ active }: SidebarProps) {
         </nav>
       </section>
 
-      <section className="sidebar-profile-section" aria-label="Learner profile">
-        <AccountMenu placement="sidebar" collapsed={collapsed} />
+      <section className="sidebar-profile-section" aria-label={mode === "admin" ? "Administrator profile" : "Learner profile"}>
+        {mode === "admin" ? <AdminAccountMenu collapsed={collapsed} /> : <AccountMenu placement="sidebar" collapsed={collapsed} />}
       </section>
     </aside>
   );
