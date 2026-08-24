@@ -100,6 +100,13 @@ export default function WorkspacePage() {
   }, [enrollment]);
 
   useEffect(() => {
+    if (workspace?.status !== "RUNNING") {
+      setConsoleSession(null);
+      setConsoleError("");
+    }
+  }, [workspace?.status]);
+
+  useEffect(() => {
     if (!vmEnvOpen) return;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
