@@ -25,8 +25,6 @@ The deployed control plane currently exposes health and invitation-based JWT aut
 
 The server allows the frontend development origin `http://localhost:3001` through CORS. If you change the local frontend port, add that origin to the backend's `CORS_ORIGINS` setting.
 
-Set `NEXT_PUBLIC_LEARNING_VM_URL` to the browser-accessible VM or remote desktop URL shown in the center of the Learning Lab. Without it, the Learning Lab displays its awaiting-connection state while course instructions remain available in the resizable left sidebar.
-
 ## Application entry points
 
 - `app/layout.tsx` — root HTML layout, metadata, favicon, and global stylesheet.
