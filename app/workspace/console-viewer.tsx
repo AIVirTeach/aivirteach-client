@@ -6,21 +6,26 @@ import Guacamole from "guacamole-common-js";
 interface ConsoleViewerProps {
   data: string;
   labId: string;
-  guacamoleBaseUrl: string;
   onError: (message: string) => void;
 }
 
-function toWebSocketBase(httpBaseUrl: string): string {
-  return httpBaseUrl.replace(/^http/, "ws");
+// Guacamole 只能同源访问：`/guacamole/*` 需要由部署层的边缘路由（Labs 那边的
+// 网关/Cloudflare Tunnel）反代到 Guacamole，浏览器全程不知道 Guacamole 真实地址。
+// 这层路由目前还没有搭好（Next.js/Vercel 的 rewrites 实测代理不了 WebSocket，
+// 已弃用），本地开发暂时也没有替代方案，见 aivirteach-labs README「当前架构决定」。
+function guacamoleWebSocketUrl(path: string): string {
+  const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  return `${wsProtocol}//${window.location.host}/guacamole/${path}`;
 }
 
 /**
  * Wraps the Guacamole web client (`guacamole-common-js`) as a React
  * component. `data` is the opaque, encrypted Guacamole JSON-auth ticket
  * minted by Labs; this component exchanges it for a real Guacamole
- * authToken, then opens a WebSocket tunnel directly to Guacamole.
+ * authToken, then opens a WebSocket tunnel to the same-origin `/guacamole/`
+ * reverse proxy in front of Guacamole.
  */
-export function ConsoleViewer({ data, labId, guacamoleBaseUrl, onError }: ConsoleViewerProps) {
+export function ConsoleViewer({ data, labId, onError }: ConsoleViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -32,7 +37,7 @@ export function ConsoleViewer({ data, labId, guacamoleBaseUrl, onError }: Consol
     let keyboard: Guacamole.Keyboard | null = null;
 
     async function connect(mountPoint: HTMLDivElement) {
-      const tokenResponse = await fetch(`${guacamoleBaseUrl}api/tokens`, {
+      const tokenResponse = await fetch("/guacamole/api/tokens", {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: new URLSearchParams({ data }),
@@ -43,7 +48,7 @@ export function ConsoleViewer({ data, labId, guacamoleBaseUrl, onError }: Consol
       }
       const tokenBody = (await tokenResponse.json()) as { authToken: string };
 
-      const tunnel = new Guacamole.WebSocketTunnel(`${toWebSocketBase(guacamoleBaseUrl)}websocket-tunnel`);
+      const tunnel = new Guacamole.WebSocketTunnel(guacamoleWebSocketUrl("websocket-tunnel"));
       const guacClient = new Guacamole.Client(tunnel);
       client = guacClient;
 
@@ -105,7 +110,7 @@ export function ConsoleViewer({ data, labId, guacamoleBaseUrl, onError }: Consol
       client?.disconnect();
       if (container) container.innerHTML = "";
     };
-  }, [data, labId, guacamoleBaseUrl, onError]);
+  }, [data, labId, onError]);
 
   return <div ref={containerRef} className="console-viewer" />;
 }

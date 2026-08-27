@@ -272,7 +272,6 @@ export type ApiConsoleSession = {
   state: string;
   data?: string;
   expiresAt?: string;
-  guacamoleBaseUrl?: string;
 };
 
 export type ApiHealth = {

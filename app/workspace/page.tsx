@@ -370,11 +370,10 @@ export default function WorkspacePage() {
 
         <main className="lab-workspace vm-workspace">
           <header className="vm-toolbar"><div><span className="vm-status-dot" aria-hidden="true" /><strong>Learning VM</strong></div><small>{workspace?.status === "RUNNING" && consoleSession ? "Connected workspace" : "Awaiting connection"}</small></header>
-          {workspace?.status === "RUNNING" && consoleSession?.state === "ready" && consoleSession.data && consoleSession.guacamoleBaseUrl ? (
+          {workspace?.status === "RUNNING" && consoleSession?.state === "ready" && consoleSession.data ? (
             <ConsoleViewer
               data={consoleSession.data}
               labId={consoleSession.labId}
-              guacamoleBaseUrl={consoleSession.guacamoleBaseUrl}
               onError={handleConsoleError}
             />
           ) : workspace?.status === "RUNNING" ? (
