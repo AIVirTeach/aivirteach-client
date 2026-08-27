@@ -50,6 +50,8 @@ export default function WorkspacePage() {
   const [consoleSession, setConsoleSession] = useState<ApiConsoleSession | null>(null);
   const [consoleError, setConsoleError] = useState("");
   const [consoleLoading, setConsoleLoading] = useState(false);
+  const consolePollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const consolePollCancelled = useRef(false);
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const vmEnvCloseButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -101,8 +103,13 @@ export default function WorkspacePage() {
 
   useEffect(() => {
     if (workspace?.status !== "RUNNING") {
+      consolePollCancelled.current = true;
       setConsoleSession(null);
       setConsoleError("");
+      if (consolePollTimer.current) {
+        clearTimeout(consolePollTimer.current);
+        consolePollTimer.current = null;
+      }
     }
   }, [workspace?.status]);
 
@@ -173,6 +180,11 @@ export default function WorkspacePage() {
   }, []);
 
   useEffect(() => () => { if (refreshTimer.current) clearTimeout(refreshTimer.current); }, []);
+
+  useEffect(() => () => {
+    consolePollCancelled.current = true;
+    if (consolePollTimer.current) clearTimeout(consolePollTimer.current);
+  }, []);
 
   useEffect(() => {
     const savedWidth = Number(window.localStorage.getItem(courseRailWidthStorageKey));
@@ -251,18 +263,46 @@ export default function WorkspacePage() {
     });
   }
 
+  const consolePollDeadlineMs = 2 * 60 * 1000;
+  const consolePollIntervalMs = 2500;
+
   async function startConsoleSession() {
     if (!enrollment) return;
+    // 上一轮轮询可能因为超时/报错而结束但定时器已经清空、也可能是用户重新点击重试——
+    // 无论哪种情况，开始新一轮之前先把旧状态清干净，保证同一时刻只有一条轮询链在跑。
+    if (consolePollTimer.current) {
+      clearTimeout(consolePollTimer.current);
+      consolePollTimer.current = null;
+    }
+    consolePollCancelled.current = false;
     setConsoleLoading(true);
     setConsoleError("");
-    try {
-      const session = await api.consoleSession(enrollment.id);
-      setConsoleSession(session);
-    } catch (caught) {
-      setConsoleError(caught instanceof Error ? caught.message : "无法启动远程桌面");
-    } finally {
-      setConsoleLoading(false);
+    const deadline = Date.now() + consolePollDeadlineMs;
+
+    async function poll() {
+      if (!enrollment) return;
+      try {
+        const session = await api.consoleSession(enrollment.id);
+        if (consolePollCancelled.current) return; // 请求在飞行中时这一轮轮询已经作废，结果直接丢弃
+        if (session.state === "ready") {
+          setConsoleSession(session);
+          setConsoleLoading(false);
+          return;
+        }
+        if (Date.now() >= deadline) {
+          setConsoleError("启动超时，请重试");
+          setConsoleLoading(false);
+          return;
+        }
+        consolePollTimer.current = setTimeout(() => void poll(), consolePollIntervalMs);
+      } catch (caught) {
+        if (consolePollCancelled.current) return;
+        setConsoleError(caught instanceof Error ? caught.message : "无法启动远程桌面");
+        setConsoleLoading(false);
+      }
     }
+
+    void poll();
   }
 
   const handleConsoleError = useCallback((message: string) => {
@@ -329,11 +369,11 @@ export default function WorkspacePage() {
 
         <main className="lab-workspace vm-workspace">
           <header className="vm-toolbar"><div><span className="vm-status-dot" aria-hidden="true" /><strong>Learning VM</strong></div><small>{workspace?.status === "RUNNING" && consoleSession ? "Connected workspace" : "Awaiting connection"}</small></header>
-          {workspace?.status === "RUNNING" && consoleSession ? (
+          {workspace?.status === "RUNNING" && consoleSession?.state === "ready" && consoleSession.data && consoleSession.guacamoleBaseUrl ? (
             <ConsoleViewer
-              wsUrl={consoleSession.wsUrl}
-              rdpUsername={consoleSession.rdpUsername}
-              rdpPassword={consoleSession.rdpPassword}
+              data={consoleSession.data}
+              labId={consoleSession.labId}
+              guacamoleBaseUrl={consoleSession.guacamoleBaseUrl}
               onError={handleConsoleError}
             />
           ) : workspace?.status === "RUNNING" ? (
@@ -342,7 +382,7 @@ export default function WorkspacePage() {
               <h2>Learning VM</h2>
               {consoleError && <p className="auth-error" role="alert">{consoleError}</p>}
               <button className="primary-button" type="button" onClick={() => void startConsoleSession()} disabled={consoleLoading}>
-                {consoleLoading ? "Connecting..." : "Start remote desktop"}
+                {consoleLoading ? "Starting..." : "Start remote desktop"}
               </button>
             </section>
           ) : workspace?.status === "ERROR" ? (

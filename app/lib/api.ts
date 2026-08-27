@@ -268,10 +268,11 @@ export type ApiWorkspace = {
 };
 
 export type ApiConsoleSession = {
-  wsUrl: string;
-  rdpUsername: string;
-  rdpPassword: string;
-  expiresAt: string;
+  labId: string;
+  state: string;
+  data?: string;
+  expiresAt?: string;
+  guacamoleBaseUrl?: string;
 };
 
 export type ApiHealth = {
