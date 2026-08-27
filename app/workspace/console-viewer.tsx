@@ -59,13 +59,17 @@ export function ConsoleViewer({ data, labId, enrollmentId, onError }: ConsoleVie
         guacClient.sendMouseState((event as Guacamole.Mouse.Event).state, true);
       });
 
-      keyboard = new Guacamole.Keyboard(document);
+      // 绑定到控制台自己的容器（而不是 document），跟下面的 Mouse 一样只在
+      // 这个元素拿到焦点时才会经浏览器的事件路径收到按键——避免抢走页面其它
+      // 输入框（比如右侧 AI 助教聊天框）的键盘事件。
+      keyboard = new Guacamole.Keyboard(mountPoint);
       keyboard.onkeydown = (keysym) => {
         guacClient.sendKeyEvent(1, keysym);
       };
       keyboard.onkeyup = (keysym) => {
         guacClient.sendKeyEvent(0, keysym);
       };
+      mountPoint.focus();
 
       // 连接参数的具体 key 名/取值以 Task 1 spike 实测结果为准（非本文件设计阶段假设）：
       // GUAC_ID 必须等于 Labs 加密票据里 connections 字典的 key，实测就是 labId 本身
@@ -99,5 +103,5 @@ export function ConsoleViewer({ data, labId, enrollmentId, onError }: ConsoleVie
     };
   }, [data, labId, enrollmentId, onError]);
 
-  return <div ref={containerRef} className="console-viewer" />;
+  return <div ref={containerRef} className="console-viewer" tabIndex={0} aria-label="Remote desktop console" />;
 }

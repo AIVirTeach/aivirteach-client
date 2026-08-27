@@ -19,6 +19,7 @@ const initialMessages: Message[] = [
 const courseRailWidthStorageKey = "aivirteach.lab.courseRailWidth.v1";
 const minCourseRailWidth = 320;
 const maxCourseRailWidth = 620;
+const workspacePollIntervalMs = 10000;
 
 function formatElapsed(totalSeconds: number) {
   const hours = Math.floor(totalSeconds / 3600);
@@ -50,6 +51,7 @@ export default function WorkspacePage() {
   const [consoleSession, setConsoleSession] = useState<ApiConsoleSession | null>(null);
   const [consoleError, setConsoleError] = useState("");
   const [consoleLoading, setConsoleLoading] = useState(false);
+  const [retrying, setRetrying] = useState(false);
   const consolePollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const consolePollCancelled = useRef(false);
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -100,6 +102,19 @@ export default function WorkspacePage() {
 
     return () => { active = false; unsubscribe?.(); };
   }, [enrollment]);
+
+  // WS 推送在服务端 waitUntil 后台任务被 Vercel 回收时不会产生任何广播（DB 也不会
+  // 更新），重连 WS 接不到一条不存在的消息——这种情况下只有客户端主动重新 GET 才能
+  // 触发服务端 getForEnrollment 里"createdAt 超过 5 分钟即判超时"的兜底。轮询作为
+  // 兜底而非替代：一旦状态变为终态就自动停止，不影响 WS 推送到达时的即时更新。
+  useEffect(() => {
+    if (!enrollment || workspace?.status !== "CREATING") return;
+    let active = true;
+    const interval = window.setInterval(() => {
+      api.workspace(enrollment.id).then((updated) => { if (active) setWorkspace(updated); }).catch(() => undefined);
+    }, workspacePollIntervalMs);
+    return () => { active = false; window.clearInterval(interval); };
+  }, [enrollment, workspace?.status]);
 
   useEffect(() => {
     if (workspace?.status !== "RUNNING") {
@@ -258,10 +273,11 @@ export default function WorkspacePage() {
   }
 
   function retryWorkspace() {
-    if (!enrollment) return;
+    if (!enrollment || retrying) return;
+    setRetrying(true);
     void api.createWorkspace(enrollment.id).then(setWorkspace).catch((caught) => {
       setContentError(caught instanceof Error ? caught.message : "Could not restart the workspace.");
-    });
+    }).finally(() => setRetrying(false));
   }
 
   const consolePollDeadlineMs = 2 * 60 * 1000;
@@ -391,7 +407,7 @@ export default function WorkspacePage() {
               <span className="vm-display-icon" aria-hidden="true" />
               <h2>Learning VM</h2>
               <p>{workspace.errorMessage || "Could not start your Learning VM."}</p>
-              <button className="primary-button" type="button" onClick={retryWorkspace}>Retry</button>
+              <button className="primary-button" type="button" onClick={retryWorkspace} disabled={retrying}>{retrying ? "Retrying..." : "Retry"}</button>
             </section>
           ) : (
             <section className="vm-empty-state" role="status">
