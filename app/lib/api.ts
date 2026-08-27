@@ -274,6 +274,11 @@ export type ApiConsoleSession = {
   expiresAt?: string;
 };
 
+export type ApiGuacamoleToken = {
+  authToken: string;
+  websocketUrl: string;
+};
+
 export type ApiHealth = {
   status: string;
   database: "up" | "down";
@@ -343,6 +348,11 @@ export const api = {
   consoleSession: (enrollmentId: string) =>
     request<ApiConsoleSession>("/workspaces/" + encodeURIComponent(enrollmentId) + "/console-session", {
       method: "POST",
+    }),
+  exchangeConsoleToken: (enrollmentId: string, data: string) =>
+    request<ApiGuacamoleToken>("/workspaces/" + encodeURIComponent(enrollmentId) + "/console-session/token", {
+      method: "POST",
+      body: JSON.stringify({ data }),
     }),
 };
 

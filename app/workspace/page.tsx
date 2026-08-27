@@ -374,6 +374,7 @@ export default function WorkspacePage() {
             <ConsoleViewer
               data={consoleSession.data}
               labId={consoleSession.labId}
+              enrollmentId={enrollment.id}
               onError={handleConsoleError}
             />
           ) : workspace?.status === "RUNNING" ? (

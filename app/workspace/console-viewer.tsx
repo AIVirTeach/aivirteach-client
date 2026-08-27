@@ -2,30 +2,25 @@
 
 import { useEffect, useRef } from "react";
 import Guacamole from "guacamole-common-js";
+import { api } from "../lib/api";
 
 interface ConsoleViewerProps {
   data: string;
   labId: string;
+  enrollmentId: string;
   onError: (message: string) => void;
-}
-
-// Guacamole 只能同源访问：`/guacamole/*` 需要由部署层的边缘路由（Labs 那边的
-// 网关/Cloudflare Tunnel）反代到 Guacamole，浏览器全程不知道 Guacamole 真实地址。
-// 这层路由目前还没有搭好（Next.js/Vercel 的 rewrites 实测代理不了 WebSocket，
-// 已弃用），本地开发暂时也没有替代方案，见 aivirteach-labs README「当前架构决定」。
-function guacamoleWebSocketUrl(path: string): string {
-  const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-  return `${wsProtocol}//${window.location.host}/guacamole/${path}`;
 }
 
 /**
  * Wraps the Guacamole web client (`guacamole-common-js`) as a React
  * component. `data` is the opaque, encrypted Guacamole JSON-auth ticket
- * minted by Labs; this component exchanges it for a real Guacamole
- * authToken, then opens a WebSocket tunnel to the same-origin `/guacamole/`
- * reverse proxy in front of Guacamole.
+ * minted by Labs. Guacamole's `/api/tokens` doesn't send CORS headers, so
+ * the browser can't fetch it directly cross-origin; `api.exchangeConsoleToken`
+ * routes that exchange through our own server (server-to-server, no CORS)
+ * instead. The WebSocket tunnel itself isn't subject to CORS, so it connects
+ * straight to the address the server returns.
  */
-export function ConsoleViewer({ data, labId, onError }: ConsoleViewerProps) {
+export function ConsoleViewer({ data, labId, enrollmentId, onError }: ConsoleViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -37,18 +32,10 @@ export function ConsoleViewer({ data, labId, onError }: ConsoleViewerProps) {
     let keyboard: Guacamole.Keyboard | null = null;
 
     async function connect(mountPoint: HTMLDivElement) {
-      const tokenResponse = await fetch("/guacamole/api/tokens", {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({ data }),
-      });
+      const { authToken, websocketUrl } = await api.exchangeConsoleToken(enrollmentId, data);
       if (cancelled) return;
-      if (!tokenResponse.ok) {
-        throw new Error(`无法建立远程桌面会话（${tokenResponse.status}）`);
-      }
-      const tokenBody = (await tokenResponse.json()) as { authToken: string };
 
-      const tunnel = new Guacamole.WebSocketTunnel(guacamoleWebSocketUrl("websocket-tunnel"));
+      const tunnel = new Guacamole.WebSocketTunnel(websocketUrl);
       const guacClient = new Guacamole.Client(tunnel);
       client = guacClient;
 
@@ -85,7 +72,7 @@ export function ConsoleViewer({ data, labId, onError }: ConsoleViewerProps) {
       // （见设计文档第 23 行 "connections: {<lab_id>: {...}}"）；GUAC_WIDTH/HEIGHT/DPI
       // 是 spike 里实测出桌面能正常渲染出画面的固定取值，保守起见沿用。
       const connectParams = new URLSearchParams({
-        token: tokenBody.authToken,
+        token: authToken,
         GUAC_DATA_SOURCE: "json",
         GUAC_ID: labId,
         GUAC_TYPE: "c",
@@ -110,7 +97,7 @@ export function ConsoleViewer({ data, labId, onError }: ConsoleViewerProps) {
       client?.disconnect();
       if (container) container.innerHTML = "";
     };
-  }, [data, labId, onError]);
+  }, [data, labId, enrollmentId, onError]);
 
   return <div ref={containerRef} className="console-viewer" />;
 }
