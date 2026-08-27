@@ -101,24 +101,27 @@ export default function CoursesPage() {
       router.push(course.localOnly ? "/courses/python-basics" : "/workspace");
       return;
     }
+    if (!activeCourseId) {
+      void startCourse(course);
+      return;
+    }
     setPendingCourse(course);
   }
 
-  async function confirmStartCourse() {
-    if (!pendingCourse) return;
+  async function startCourse(course: DemoCourse) {
     setStarting(true);
-    if (pendingCourse.localOnly) {
+    if (course.localOnly) {
       startMockCourse();
-      activateCourse(pendingCourse.id);
-      setActiveCourseId(pendingCourse.id);
+      activateCourse(course.id);
+      setActiveCourseId(course.id);
       setPendingCourse(null);
       router.push("/courses/python-basics");
       return;
     }
     try {
-      await api.enroll(pendingCourse.id);
-      activateCourse(pendingCourse.id);
-      setActiveCourseId(pendingCourse.id);
+      await api.enroll(course.id);
+      activateCourse(course.id);
+      setActiveCourseId(course.id);
       setPendingCourse(null);
       router.push("/courses/welcome");
     } catch (caught) {
@@ -126,6 +129,11 @@ export default function CoursesPage() {
       setPendingCourse(null);
       setStarting(false);
     }
+  }
+
+  async function confirmStartCourse() {
+    if (!pendingCourse) return;
+    await startCourse(pendingCourse);
   }
 
   async function confirmRestartCourse() {
@@ -194,11 +202,11 @@ export default function CoursesPage() {
                   <div className="catalog-course-info">
                     <div className="catalog-label-row"><span>{course.category}</span>{course.localOnly && <strong>Browser demo</strong>}</div>
                     <h2>{course.title}</h2>
-                    <div className="catalog-meta"><span>{course.level}</span><span>{course.duration}</span></div>
+                    <div className="catalog-meta"><span>{course.level}</span></div>
                   </div>
                   <div className="catalog-actions">
                     {isActive && <button className="restart-course-button" type="button" onClick={() => setRestartCourseTarget(course)}>Restart course</button>}
-                    <button className={isActive ? "continue-course-button" : "primary-button"} type="button" onClick={() => selectCourse(course)}>{isActive ? "Continue course" : "Start course"}</button>
+                    <button className={isActive ? "continue-course-button" : "primary-button"} type="button" onClick={() => selectCourse(course)} disabled={starting}>{isActive ? "Continue course" : "Start course"}</button>
                   </div>
                 </div>
               </article>
