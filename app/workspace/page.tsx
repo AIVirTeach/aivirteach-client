@@ -106,6 +106,7 @@ export default function WorkspacePage() {
       consolePollCancelled.current = true;
       setConsoleSession(null);
       setConsoleError("");
+      setConsoleLoading(false);
       if (consolePollTimer.current) {
         clearTimeout(consolePollTimer.current);
         consolePollTimer.current = null;
