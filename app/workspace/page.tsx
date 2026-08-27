@@ -1,12 +1,14 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { type CSSProperties, type FormEvent, type KeyboardEvent, type PointerEvent as ReactPointerEvent, useEffect, useRef, useState } from "react";
+import { type CSSProperties, type FormEvent, type KeyboardEvent, type PointerEvent as ReactPointerEvent, useCallback, useEffect, useRef, useState } from "react";
 import { AccountMenu } from "../components/AccountMenu";
 import { BrandLogo } from "../components/BrandLogo";
 import { CourseLessonContent } from "../components/CourseLessonContent";
 import { Sidebar } from "../components/Sidebar";
-import { api, type ApiCourseDetail, type ApiEnrollment, type ApiLesson } from "../lib/api";
+import { api, ApiError, type ApiConsoleSession, type ApiCourseDetail, type ApiEnrollment, type ApiLesson, type ApiWorkspace } from "../lib/api";
+import { subscribeWorkspace } from "../lib/ws";
+import { ConsoleViewer } from "./console-viewer";
 
 type Message = { role: "tutor" | "student"; text: string };
 
@@ -14,10 +16,10 @@ const initialMessages: Message[] = [
   { role: "tutor", text: "I am ready to help with this course step. Tell me what you are trying to do or where the result differs from the lesson." },
 ];
 
-const vmUrl = process.env.NEXT_PUBLIC_LEARNING_VM_URL;
 const courseRailWidthStorageKey = "aivirteach.lab.courseRailWidth.v1";
 const minCourseRailWidth = 320;
 const maxCourseRailWidth = 620;
+const workspacePollIntervalMs = 10000;
 
 function formatElapsed(totalSeconds: number) {
   const hours = Math.floor(totalSeconds / 3600);
@@ -30,6 +32,7 @@ export default function WorkspacePage() {
   const router = useRouter();
   const [course, setCourse] = useState<ApiCourseDetail | null>(null);
   const [enrollment, setEnrollment] = useState<ApiEnrollment | null>(null);
+  const [workspace, setWorkspace] = useState<ApiWorkspace | null>(null);
   const [lesson, setLesson] = useState<ApiLesson | null>(null);
   const [selectedLessonId, setSelectedLessonId] = useState<string | null>(null);
   const [courseChecked, setCourseChecked] = useState(false);
@@ -45,6 +48,12 @@ export default function WorkspacePage() {
   const [latency, setLatency] = useState<number | null>(null);
   const [courseRailWidth, setCourseRailWidth] = useState(420);
   const [vmEnvOpen, setVmEnvOpen] = useState(false);
+  const [consoleSession, setConsoleSession] = useState<ApiConsoleSession | null>(null);
+  const [consoleError, setConsoleError] = useState("");
+  const [consoleLoading, setConsoleLoading] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+  const consolePollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const consolePollCancelled = useRef(false);
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const vmEnvCloseButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -68,6 +77,57 @@ export default function WorkspacePage() {
     }).finally(() => { if (active) setCourseChecked(true); });
     return () => { active = false; };
   }, []);
+
+  useEffect(() => {
+    if (!enrollment) return;
+    let active = true;
+    let unsubscribe: (() => void) | null = null;
+
+    async function ensureWorkspace() {
+      let current: ApiWorkspace;
+      try {
+        current = await api.workspace(enrollment!.id);
+      } catch (caught) {
+        if (!(caught instanceof ApiError) || caught.status !== 404) throw caught;
+        current = await api.createWorkspace(enrollment!.id);
+      }
+      if (!active) return;
+      setWorkspace(current);
+      unsubscribe = subscribeWorkspace(enrollment!.id, (updated) => { if (active) setWorkspace(updated); });
+    }
+
+    ensureWorkspace().catch((caught) => {
+      if (active) setContentError(caught instanceof Error ? caught.message : "Could not prepare the workspace.");
+    });
+
+    return () => { active = false; unsubscribe?.(); };
+  }, [enrollment]);
+
+  // WS 推送在服务端 waitUntil 后台任务被 Vercel 回收时不会产生任何广播（DB 也不会
+  // 更新），重连 WS 接不到一条不存在的消息——这种情况下只有客户端主动重新 GET 才能
+  // 触发服务端 getForEnrollment 里"createdAt 超过 5 分钟即判超时"的兜底。轮询作为
+  // 兜底而非替代：一旦状态变为终态就自动停止，不影响 WS 推送到达时的即时更新。
+  useEffect(() => {
+    if (!enrollment || workspace?.status !== "CREATING") return;
+    let active = true;
+    const interval = window.setInterval(() => {
+      api.workspace(enrollment.id).then((updated) => { if (active) setWorkspace(updated); }).catch(() => undefined);
+    }, workspacePollIntervalMs);
+    return () => { active = false; window.clearInterval(interval); };
+  }, [enrollment, workspace?.status]);
+
+  useEffect(() => {
+    if (workspace?.status !== "RUNNING") {
+      consolePollCancelled.current = true;
+      setConsoleSession(null);
+      setConsoleError("");
+      setConsoleLoading(false);
+      if (consolePollTimer.current) {
+        clearTimeout(consolePollTimer.current);
+        consolePollTimer.current = null;
+      }
+    }
+  }, [workspace?.status]);
 
   useEffect(() => {
     if (!vmEnvOpen) return;
@@ -136,6 +196,11 @@ export default function WorkspacePage() {
   }, []);
 
   useEffect(() => () => { if (refreshTimer.current) clearTimeout(refreshTimer.current); }, []);
+
+  useEffect(() => () => {
+    consolePollCancelled.current = true;
+    if (consolePollTimer.current) clearTimeout(consolePollTimer.current);
+  }, []);
 
   useEffect(() => {
     const savedWidth = Number(window.localStorage.getItem(courseRailWidthStorageKey));
@@ -207,6 +272,61 @@ export default function WorkspacePage() {
     }
   }
 
+  function retryWorkspace() {
+    if (!enrollment || retrying) return;
+    setRetrying(true);
+    void api.createWorkspace(enrollment.id).then(setWorkspace).catch((caught) => {
+      setContentError(caught instanceof Error ? caught.message : "Could not restart the workspace.");
+    }).finally(() => setRetrying(false));
+  }
+
+  const consolePollDeadlineMs = 2 * 60 * 1000;
+  const consolePollIntervalMs = 2500;
+
+  async function startConsoleSession() {
+    if (!enrollment) return;
+    // 上一轮轮询可能因为超时/报错而结束但定时器已经清空、也可能是用户重新点击重试——
+    // 无论哪种情况，开始新一轮之前先把旧状态清干净，保证同一时刻只有一条轮询链在跑。
+    if (consolePollTimer.current) {
+      clearTimeout(consolePollTimer.current);
+      consolePollTimer.current = null;
+    }
+    consolePollCancelled.current = false;
+    setConsoleLoading(true);
+    setConsoleError("");
+    const deadline = Date.now() + consolePollDeadlineMs;
+
+    async function poll() {
+      if (!enrollment) return;
+      try {
+        const session = await api.consoleSession(enrollment.id);
+        if (consolePollCancelled.current) return; // 请求在飞行中时这一轮轮询已经作废，结果直接丢弃
+        if (session.state === "ready") {
+          setConsoleSession(session);
+          setConsoleLoading(false);
+          return;
+        }
+        if (Date.now() >= deadline) {
+          setConsoleError("启动超时，请重试");
+          setConsoleLoading(false);
+          return;
+        }
+        consolePollTimer.current = setTimeout(() => void poll(), consolePollIntervalMs);
+      } catch (caught) {
+        if (consolePollCancelled.current) return;
+        setConsoleError(caught instanceof Error ? caught.message : "无法启动远程桌面");
+        setConsoleLoading(false);
+      }
+    }
+
+    void poll();
+  }
+
+  const handleConsoleError = useCallback((message: string) => {
+    setConsoleError(message);
+    setConsoleSession(null);
+  }, []);
+
   function refreshTutor() {
     if (refreshTimer.current) return;
     setRefreshing(true);
@@ -265,8 +385,37 @@ export default function WorkspacePage() {
         <header className="lab-project-header"><div className="lab-project-title"><small>COURSE</small><h1>{course.title}</h1></div><div className="lab-project-status"><div className="latency-status"><span className="latency-bars" aria-hidden="true">{[1,2,3,4].map((bar) => <i className={bar <= latencyBars ? "active" : ""} key={bar} />)}</span><span><small>SERVER</small><strong>{latency === null ? "Offline" : `${latency} ms`}</strong></span></div><div className="lab-active-timer"><span className="timer-glyph" aria-hidden="true" /><span><small>ACTIVE TIME</small><strong>{formatElapsed(elapsedSeconds)}</strong></span></div></div></header>
 
         <main className="lab-workspace vm-workspace">
-          <header className="vm-toolbar"><div><span className="vm-status-dot" aria-hidden="true" /><strong>Learning VM</strong></div><small>{vmUrl ? "Connected workspace" : "Awaiting connection"}</small></header>
-          {vmUrl ? <iframe className="vm-frame" src={vmUrl} title="Interactive learning virtual machine" allow="clipboard-read; clipboard-write; fullscreen" /> : <section className="vm-empty-state" role="status"><span className="vm-display-icon" aria-hidden="true" /><h2>Learning VM</h2><p>The VM interface will appear here when a workspace URL is connected.</p></section>}
+          <header className="vm-toolbar"><div><span className="vm-status-dot" aria-hidden="true" /><strong>Learning VM</strong></div><small>{workspace?.status === "RUNNING" && consoleSession ? "Connected workspace" : "Awaiting connection"}</small></header>
+          {workspace?.status === "RUNNING" && consoleSession?.state === "ready" && consoleSession.data ? (
+            <ConsoleViewer
+              data={consoleSession.data}
+              labId={consoleSession.labId}
+              enrollmentId={enrollment.id}
+              onError={handleConsoleError}
+            />
+          ) : workspace?.status === "RUNNING" ? (
+            <section className="vm-empty-state" role="status">
+              <span className="vm-display-icon" aria-hidden="true" />
+              <h2>Learning VM</h2>
+              {consoleError && <p className="auth-error" role="alert">{consoleError}</p>}
+              <button className="primary-button" type="button" onClick={() => void startConsoleSession()} disabled={consoleLoading}>
+                {consoleLoading ? "Starting..." : "Start remote desktop"}
+              </button>
+            </section>
+          ) : workspace?.status === "ERROR" ? (
+            <section className="vm-empty-state" role="status">
+              <span className="vm-display-icon" aria-hidden="true" />
+              <h2>Learning VM</h2>
+              <p>{workspace.errorMessage || "Could not start your Learning VM."}</p>
+              <button className="primary-button" type="button" onClick={retryWorkspace} disabled={retrying}>{retrying ? "Retrying..." : "Retry"}</button>
+            </section>
+          ) : (
+            <section className="vm-empty-state" role="status">
+              <span className="vm-display-icon" aria-hidden="true" />
+              <h2>Learning VM</h2>
+              <p>Preparing your Learning VM. This can take a few minutes.</p>
+            </section>
+          )}
         </main>
 
         <aside className={`lab-tutor-rail ${tutorCollapsed ? "collapsed" : ""}`} aria-label="AI teacher">{tutorCollapsed ? <button className="lab-tutor-expand" type="button" onClick={() => setTutorCollapsed(false)} aria-label="Expand AI teacher"><span className="bot-mark">AI</span><i className="collapse-glyph points-left" aria-hidden="true" /></button> : <><header><div className="tutor-heading"><span className="bot-mark">AI</span><div><strong>AIVir Teacher</strong><small><i /> Online</small></div></div><div className="tutor-header-actions"><button className={`tutor-refresh ${refreshing ? "refreshing" : ""}`} type="button" onClick={refreshTutor} aria-label="Refresh tutor conversation"><img src="/refresh-icon.png" alt="" aria-hidden="true" /></button><button className="lab-rail-toggle points-right" type="button" onClick={() => setTutorCollapsed(true)} aria-label="Collapse AI teacher"><span aria-hidden="true" /></button></div></header><div className={`messages ${refreshing ? "refreshing" : ""}`}>{messages.map((item, index) => <article className={`message ${item.role}`} key={`${item.role}-${index}`}><div><p>{item.text}</p><small>{index === messages.length - 1 ? "Just now" : "Earlier"}</small></div></article>)}</div><form className="message-form" onSubmit={sendMessage}><input value={message} onChange={(event) => setMessage(event.target.value)} aria-label="Ask the tutor for help" placeholder="Ask about this step..." /><button aria-label="Send message">Send</button></form></> }</aside>
