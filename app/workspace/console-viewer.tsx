@@ -29,6 +29,7 @@ export function ConsoleViewer({ data, labId, guacamoleBaseUrl, onError }: Consol
 
     let cancelled = false;
     let client: Guacamole.Client | null = null;
+    let keyboard: Guacamole.Keyboard | null = null;
 
     async function connect(mountPoint: HTMLDivElement) {
       const tokenResponse = await fetch(`${guacamoleBaseUrl}api/tokens`, {
@@ -66,7 +67,7 @@ export function ConsoleViewer({ data, labId, guacamoleBaseUrl, onError }: Consol
         guacClient.sendMouseState((event as Guacamole.Mouse.Event).state, true);
       });
 
-      const keyboard = new Guacamole.Keyboard(document);
+      keyboard = new Guacamole.Keyboard(document);
       keyboard.onkeydown = (keysym) => {
         guacClient.sendKeyEvent(1, keysym);
       };
@@ -96,6 +97,11 @@ export function ConsoleViewer({ data, labId, guacamoleBaseUrl, onError }: Consol
 
     return () => {
       cancelled = true;
+      if (keyboard) {
+        keyboard.onkeydown = null;
+        keyboard.onkeyup = null;
+        keyboard.reset();
+      }
       client?.disconnect();
       if (container) container.innerHTML = "";
     };
