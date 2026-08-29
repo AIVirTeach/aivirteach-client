@@ -160,10 +160,11 @@ export default function WorkspacePage() {
   }, [course, selectedLessonId]);
 
   useEffect(() => {
-    api.chatMessages("learning-lab").then((items) => {
+    if (!enrollment) return;
+    api.chatMessages(enrollment.id).then((items) => {
       if (items.length) setMessages(items.map((item) => ({ role: item.role, text: item.text })));
     }).catch(() => undefined);
-  }, []);
+  }, [enrollment]);
 
   useEffect(() => {
     if (!course) return;
@@ -261,11 +262,12 @@ export default function WorkspacePage() {
 
   async function sendMessage(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!enrollment) return;
     const text = message.trim();
     if (!text) return;
     setMessage("");
     try {
-      const response = await api.sendChatMessage(`course-${course?.id ?? "learning-lab"}`, text);
+      const response = await api.sendChatMessage(enrollment.id, text);
       setMessages((current) => [...current, { role: "student", text: response.studentMessage.text }, { role: "tutor", text: response.tutorMessage.text }]);
     } catch (caught) {
       setMessages((current) => [...current, { role: "student", text }, { role: "tutor", text: caught instanceof Error ? caught.message : "The tutor is unavailable." }]);
@@ -328,10 +330,10 @@ export default function WorkspacePage() {
   }, []);
 
   function refreshTutor() {
-    if (refreshTimer.current) return;
+    if (refreshTimer.current || !enrollment) return;
     setRefreshing(true);
     refreshTimer.current = setTimeout(() => {
-      api.chatMessages(`course-${course?.id ?? "learning-lab"}`).then((items) => {
+      api.chatMessages(enrollment.id).then((items) => {
         setMessages(items.length ? items.map((item) => ({ role: item.role, text: item.text })) : initialMessages);
       }).finally(() => { setRefreshing(false); refreshTimer.current = null; });
     }, 500);
