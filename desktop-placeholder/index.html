@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:; base-uri 'none'; form-action 'none'" />
+    <title>AIVirTeach desktop configuration required</title>
+    <style>
+      :root { color-scheme: dark; font-family: system-ui, sans-serif; background: #101521; color: #f6f7fb; }
+      body { display: grid; min-height: 100vh; margin: 0; place-items: center; }
+      main { width: min(680px, calc(100% - 48px)); padding: 32px; border: 1px solid #30384a; border-radius: 18px; background: #171d2a; }
+      h1 { margin-top: 0; font-size: 1.5rem; }
+      p { color: #c7ccda; line-height: 1.6; }
+      code { color: #9ed0ff; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Desktop target is not configured</h1>
+      <p>This fallback page is included only to keep the base Tauri configuration valid. Set <code>AIVIRTEACH_DESKTOP_APP_URL</code> and build with <code>npm run desktop:build</code>.</p>
+    </main>
+  </body>
+</html>

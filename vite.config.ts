@@ -2,6 +2,7 @@ import vinext from "vinext";
 import { defineConfig, loadEnv } from "vite";
 import hostingConfig from "./.openai/hosting.json";
 import { sites } from "./build/sites-vite-plugin";
+import { normalizeGuacamolePublicPath } from "./app/lib/lab-session";
 
 const SITE_CREATOR_PLACEHOLDER_DATABASE_ID =
   "00000000-0000-4000-8000-000000000000";
@@ -36,6 +37,8 @@ const localBindingConfig = {
 export default defineConfig(async ({ command, mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
   const guacamoleProxyTarget = env.GUACAMOLE_PROXY_TARGET || "http://127.0.0.1:8080";
+  const guacamolePublicPath = normalizeGuacamolePublicPath(env.NEXT_PUBLIC_GUACAMOLE_PUBLIC_PATH);
+  const guacamoleProxyPrefix = guacamolePublicPath.slice(0, -1);
 
   // Keep Wrangler and Miniflare state project-local. These are non-secret tool
   // settings; application environment belongs in ignored `.env*` files.
@@ -60,10 +63,11 @@ export default defineConfig(async ({ command, mode }) => {
       port: 3001,
       strictPort: true,
       proxy: {
-        "/guacamole": {
+        [guacamoleProxyPrefix]: {
           target: guacamoleProxyTarget,
           changeOrigin: true,
           ws: true,
+          rewrite: (path) => `/guacamole${path.slice(guacamoleProxyPrefix.length)}`,
         },
       },
       ...(isCodexSeatbeltSandbox

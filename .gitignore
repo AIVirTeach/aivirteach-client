@@ -45,6 +45,8 @@ next-env.d.ts
 /pnpm-lock.yaml
 /dev-server.log
 /dev-server-error.log
+/src-tauri/tauri.generated.conf.json
+/src-tauri/target/
 
 # TypeScript build cache
 *.tsbuildinfo

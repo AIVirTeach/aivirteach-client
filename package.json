@@ -11,7 +11,12 @@
     "start": "vinext start",
     "test": "npm run build && node --test tests/*.test.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
-    "db:generate": "drizzle-kit generate"
+    "db:generate": "drizzle-kit generate",
+    "desktop:dev": "tauri dev",
+    "desktop:config": "node scripts/create-desktop-config.mjs",
+    "desktop:build": "npm run desktop:config && tauri build --config src-tauri/tauri.generated.conf.json",
+    "desktop:doctor": "tauri info",
+    "desktop:icon": "tauri icon public/favicon.png"
   },
   "dependencies": {
     "drizzle-orm": "0.45.2",
@@ -22,6 +27,7 @@
   "devDependencies": {
     "@cloudflare/vite-plugin": "1.37.1",
     "@tailwindcss/postcss": "4.2.1",
+    "@tauri-apps/cli": "2.11.4",
     "@types/node": "22.19.19",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",

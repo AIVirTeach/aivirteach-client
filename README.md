@@ -44,7 +44,25 @@ GUACAMOLE_PROXY_TARGET=http://127.0.0.1:8080
 
 Guacamole must therefore be available at `http://127.0.0.1:8080/guacamole/`, and the backend must return a browser-facing relative `embedUrl` beginning with `/guacamole/`. Restart `npm run dev` after changing the proxy target. In deployment, route `/guacamole/` through the public application's same-origin reverse proxy and preserve WebSocket upgrades; do not expose the VM's RDP port to the browser.
 
+If the public route is changed, set `NEXT_PUBLIC_GUACAMOLE_PUBLIC_PATH` to the same absolute path used by the server's `GUACAMOLE_PUBLIC_PATH` and the reverse proxy. Vite rewrites that public development path to Guacamole's internal `/guacamole` context.
+
 Local development intentionally leaves the Cloudflare Vite runtime bridge disabled so it cannot consume Guacamole WebSocket upgrades. Production builds still include the Cloudflare plugin.
+
+## Desktop app (Tauri + Workspace + Guacamole)
+
+The desktop MVP is a restricted Tauri 2 shell around this complete, deployed React/Vinext application. In development it opens `http://localhost:3001`; a release build opens the HTTPS origin supplied in `AIVIRTEACH_DESKTOP_APP_URL`. The Workspace still requests `POST /api/v1/me/lab/session` and embeds the same-origin `/guacamole/` ticket, so the desktop binary never receives a Labs service token, VM address, or RDP password.
+
+```bash
+# Linux/macOS development (after installing Tauri prerequisites)
+npm install
+npm run desktop:dev
+
+# Release build: point at the already deployed frontend + /guacamole proxy
+export AIVIRTEACH_DESKTOP_APP_URL=https://learn.example.com/
+npm run desktop:build
+```
+
+The current Vinext output is an RSC/Worker application rather than a static SPA, so `dist/client` is intentionally not embedded in the binary. The Rust shell denies cross-origin top-level navigation, denies new WebView windows, and grants the remote site no Tauri IPC capabilities. See [the desktop operations guide](docs/desktop-app.md) for prerequisites, the three-service startup order, production reverse proxy, release gates, and troubleshooting.
 
 ## Application entry points
 
@@ -88,4 +106,7 @@ npm run dev
 npm run build
 npm test
 npm run lint
+npm run desktop:doctor
+npm run desktop:dev
+npm run desktop:build
 ```

@@ -8,6 +8,7 @@ import { CourseLessonContent } from "../components/CourseLessonContent";
 import { Sidebar } from "../components/Sidebar";
 import { api, type ApiCourseDetail, type ApiEnrollment, type ApiLesson } from "../lib/api";
 import { courseChatThreadId, createChatMessageInput, mergeChatMessages, toChatViewMessage, type ChatViewMessage } from "../lib/chat";
+import { validateLabEmbedUrl } from "../lib/lab-session";
 
 const courseRailWidthStorageKey = "aivirteach.lab.courseRailWidth.v1";
 const minCourseRailWidth = 320;
@@ -15,6 +16,7 @@ const maxCourseRailWidth = 620;
 const defaultLabSessionRetryMs = 2500;
 const minLabSessionRetryMs = 500;
 const maxLabSessionRetryMs = 10000;
+const guacamolePublicPath = process.env.NEXT_PUBLIC_GUACAMOLE_PUBLIC_PATH ?? "/guacamole/";
 
 type LabSessionState = "idle" | "requesting" | "starting" | "ready" | "error";
 type ChatHistoryState = "idle" | "loading" | "ready" | "error";
@@ -217,7 +219,7 @@ export default function WorkspacePage() {
 
         if (session.state === "ready") {
           if (!session.embedUrl) throw new Error("The Learning VM is ready, but no browser connection URL was provided.");
-          setLabEmbedUrl(session.embedUrl);
+          setLabEmbedUrl(validateLabEmbedUrl(session.embedUrl, guacamolePublicPath));
           setLabSessionState("ready");
           return;
         }
