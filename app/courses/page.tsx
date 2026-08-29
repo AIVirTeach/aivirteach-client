@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Sidebar } from "../components/Sidebar";
 import { api, courseAssetUrl, type ApiCourse } from "../lib/api";
-import { activateCourse, clearActiveCourse, mockPythonCourse, readActiveCourse, type DemoCourse } from "../lib/courses";
+import { activateCourse, clearActiveCourse, type DemoCourse } from "../lib/courses";
 import { resetMockCourseProgress, startMockCourse } from "../lib/mock-course";
 
 export default function CoursesPage() {
@@ -28,13 +28,8 @@ export default function CoursesPage() {
   }, []);
 
   useEffect(() => {
-    const locallyActiveCourse = readActiveCourse();
     Promise.all([api.courses(), api.enrollments()]).then(([courseData, enrollments]) => {
-      setCourses([...courseData.filter((course) => course.id !== mockPythonCourse.id).map(toDemoCourse), mockPythonCourse]);
-      if (locallyActiveCourse?.localOnly) {
-        setActiveCourseId(locallyActiveCourse.id);
-        return;
-      }
+      setCourses(courseData.map(toDemoCourse));
       const activeEnrollment = enrollments.find((enrollment) => enrollment.active);
       if (activeEnrollment) {
         activateCourse(activeEnrollment.courseId);
@@ -44,9 +39,8 @@ export default function CoursesPage() {
         setActiveCourseId(null);
       }
     }).catch((caught) => {
-      setCourses([mockPythonCourse]);
-      if (locallyActiveCourse?.localOnly) setActiveCourseId(locallyActiveCourse.id);
-      setError(caught instanceof Error ? `${caught.message} The browser course is still available.` : "Could not load server courses. The browser course is still available.");
+      setCourses([]);
+      setError(caught instanceof Error ? caught.message : "Could not load courses.");
     });
   }, []);
 
