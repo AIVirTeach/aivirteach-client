@@ -62,8 +62,36 @@ function mapAuthProfile(user: AuthUser): DemoLearner {
   return { ...fallback, id: user.userId, accountType: "beginner", name, email: user.email };
 }
 
+// First paint (no cached profile yet) has no real learner identity to show.
+// Every field `mapBackendProfile`/`mapAuthProfile` later overwrite with real
+// data gets zeroed/blanked here instead of inheriting the `learner_advanced`
+// mock's numbers (e.g. 68% progress, "Alex Chen") -- otherwise every
+// consumer of this hook flashes that mock persona's data before `refresh()`
+// resolves. Fields the backend never overrides (skills radar, achievements,
+// analytics copy, avatar) are intentionally left as-is: they're a permanent
+// placeholder, not a flash.
+function loadingProfilePlaceholder(): DemoLearner {
+  const template = profileTemplate("learner_advanced");
+  return {
+    ...template,
+    id: "",
+    accountType: "beginner",
+    name: "",
+    email: "",
+    role: "",
+    plan: "Free",
+    level: 0,
+    timezone: "",
+    stats: { ...template.stats, streakDays: 0, practiceMinutes: 0, last30PracticeMinutes: 0, tasksCompleted: 0, last30TasksCompleted: 0, skillsMastered: 0 },
+    course: { ...template.course, category: "", title: "", module: "", progress: 0 },
+    weeklyHours: [0, 0, 0, 0, 0, 0, 0],
+    recentActivity: [],
+    notifications: [],
+  };
+}
+
 export function useLearnerProfile() {
-  const [profile, setProfile] = useState<DemoLearner>(() => cachedLearnerProfile ?? profileTemplate("learner_advanced"));
+  const [profile, setProfile] = useState<DemoLearner>(() => cachedLearnerProfile ?? loadingProfilePlaceholder());
   const [loading, setLoading] = useState(() => cachedLearnerProfile === null);
   const [error, setError] = useState<string | null>(null);
 
