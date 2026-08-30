@@ -10,6 +10,7 @@ import { resetMockCourseProgress, startMockCourse } from "../lib/mock-course";
 export default function CoursesPage() {
   const router = useRouter();
   const [activeCourseId, setActiveCourseId] = useState<string | null>(null);
+  const [activeCourseProgress, setActiveCourseProgress] = useState(0);
   const [courses, setCourses] = useState<DemoCourse[]>([]);
   const [error, setError] = useState("");
   const [pendingCourse, setPendingCourse] = useState<DemoCourse | null>(null);
@@ -34,6 +35,7 @@ export default function CoursesPage() {
       if (activeEnrollment) {
         activateCourse(activeEnrollment.courseId);
         setActiveCourseId(activeEnrollment.courseId);
+        setActiveCourseProgress(activeEnrollment.progressPercent);
       } else {
         clearActiveCourse();
         setActiveCourseId(null);
@@ -150,6 +152,7 @@ export default function CoursesPage() {
       // (which re-derives activeCourseId from api.enrollments()) would flip
       // it back to active and the "Restart course" button would reappear.
       clearCourseProgressCache(restartCourseTarget.id);
+      setActiveCourseProgress(0);
       setRestartCourseTarget(null);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not restart this course.");
@@ -178,6 +181,10 @@ export default function CoursesPage() {
         <section className="course-catalog" aria-label="Available courses">
           {orderedCourses.map((course) => {
             const isActive = activeCourseId === course.id;
+            // Restarting resets progress to zero, so there's nothing left to
+            // restart until the learner makes progress again -- show a single
+            // "Start course" action instead of "Continue" + "Restart".
+            const canRestart = isActive && activeCourseProgress > 0;
             return (
               <article className={"catalog-card " + (isActive ? "active" : "")} key={course.id}>
                 {course.coverAssetId ? (
@@ -203,8 +210,8 @@ export default function CoursesPage() {
                     <div className="catalog-meta"><span>{course.level}</span></div>
                   </div>
                   <div className="catalog-actions">
-                    {isActive && <button className="restart-course-button" type="button" onClick={() => setRestartCourseTarget(course)}>Restart course</button>}
-                    <button className={isActive ? "continue-course-button" : "primary-button"} type="button" onClick={() => selectCourse(course)} disabled={starting}>{isActive ? "Continue course" : "Start course"}</button>
+                    {canRestart && <button className="restart-course-button" type="button" onClick={() => setRestartCourseTarget(course)}>Restart course</button>}
+                    <button className={isActive ? "continue-course-button" : "primary-button"} type="button" onClick={() => selectCourse(course)} disabled={starting}>{canRestart ? "Continue course" : "Start course"}</button>
                   </div>
                 </div>
               </article>
