@@ -12,7 +12,12 @@ export default function ProfileSettingsPage() {
   const router = useRouter();
   const { profile, updateIdentity, resetProfile } = useLearnerProfile();
   const [status, setStatus] = useState("");
-  const memberSince = new Date(`${profile.joinedAt}T00:00:00`).toLocaleDateString("en-MY", { month: "long", year: "numeric" });
+  // Mock learners store `joinedAt` as a bare date ("2026-05-18"); the real
+  // backend sends a full ISO timestamp (`user.createdAt.toISOString()`).
+  // Appending "T00:00:00" to the latter breaks Date parsing, so only do it
+  // for the bare-date shape.
+  const joinedAtDate = new Date(profile.joinedAt.includes("T") ? profile.joinedAt : `${profile.joinedAt}T00:00:00`);
+  const memberSince = joinedAtDate.toLocaleDateString("en-MY", { month: "long", year: "numeric" });
 
   async function saveProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
