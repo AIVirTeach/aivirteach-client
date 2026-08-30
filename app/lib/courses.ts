@@ -55,10 +55,12 @@ export function activateCourse(courseId: string) {
 
 export function clearActiveCourse(courseId?: string) {
   window.localStorage.removeItem(activeCourseStorageKey);
-  if (courseId) {
-    window.localStorage.removeItem(`aivirteach.course.lesson.${courseId}`);
-    window.localStorage.removeItem(`aivirteach.lab.activeSeconds.${courseId}`);
-  }
+  if (courseId) clearCourseProgressCache(courseId);
+}
+
+export function clearCourseProgressCache(courseId: string) {
+  window.localStorage.removeItem(`aivirteach.course.lesson.${courseId}`);
+  window.localStorage.removeItem(`aivirteach.lab.activeSeconds.${courseId}`);
 }
 
 export function readActiveCourse() {

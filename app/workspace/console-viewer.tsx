@@ -22,6 +22,23 @@ interface ConsoleViewerProps {
  */
 export function ConsoleViewer({ data, labId, enrollmentId, onError }: ConsoleViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const clientRef = useRef<Guacamole.Client | null>(null);
+
+  async function syncClipboardToVm() {
+    const guacClient = clientRef.current;
+    if (!guacClient) return;
+    let text: string;
+    try {
+      text = await navigator.clipboard.readText();
+    } catch {
+      return;
+    }
+    if (!text) return;
+    const stream = guacClient.createClipboardStream("text/plain");
+    const writer = new Guacamole.StringWriter(stream);
+    writer.sendText(text);
+    writer.sendEnd();
+  }
 
   useEffect(() => {
     const container = containerRef.current;
@@ -38,6 +55,7 @@ export function ConsoleViewer({ data, labId, enrollmentId, onError }: ConsoleVie
       const tunnel = new Guacamole.WebSocketTunnel(websocketUrl);
       const guacClient = new Guacamole.Client(tunnel);
       client = guacClient;
+      clientRef.current = guacClient;
 
       guacClient.onerror = (status) => {
         if (cancelled) return;
@@ -46,6 +64,19 @@ export function ConsoleViewer({ data, labId, enrollmentId, onError }: ConsoleVie
       tunnel.onerror = (status) => {
         if (cancelled) return;
         onError(status.message || "无法连接远程桌面服务");
+      };
+
+      // 剪贴板同步：远程 -> 本地（从 VM 里复制出来）。
+      guacClient.onclipboard = (stream, mimetype) => {
+        if (mimetype !== "text/plain") return;
+        const reader = new Guacamole.StringReader(stream);
+        let text = "";
+        reader.ontext = (chunk) => {
+          text += chunk;
+        };
+        reader.onend = () => {
+          navigator.clipboard.writeText(text).catch(() => {});
+        };
       };
 
       const display = guacClient.getDisplay();
@@ -99,9 +130,21 @@ export function ConsoleViewer({ data, labId, enrollmentId, onError }: ConsoleVie
         keyboard.reset();
       }
       client?.disconnect();
+      clientRef.current = null;
       if (container) container.innerHTML = "";
     };
   }, [data, labId, enrollmentId, onError]);
 
-  return <div ref={containerRef} className="console-viewer" tabIndex={0} aria-label="Remote desktop console" />;
+  return (
+    <div className="console-viewer-wrap">
+      <div ref={containerRef} className="console-viewer" tabIndex={0} aria-label="Remote desktop console" />
+      {/* Guacamole.Keyboard 会对转发给远程的按键调用 preventDefault（包括 Ctrl/Cmd+V），
+          这会连带压掉浏览器原生的 paste 事件，导致 VM 里只收到裸的 "v" 按键、收不到剪贴板
+          内容。所以本地 -> 远程走一个显式按钮（真实用户手势，navigator.clipboard.readText()
+          才会被允许），同步后在 VM 里用它自己的粘贴快捷键（Linux 终端一般是 Ctrl+Shift+V）粘贴。 */}
+      <button type="button" className="console-viewer-paste-button" onClick={syncClipboardToVm}>
+        同步剪贴板到 VM
+      </button>
+    </div>
+  );
 }

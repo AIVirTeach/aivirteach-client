@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Sidebar } from "../components/Sidebar";
 import { api, courseAssetUrl, type ApiCourse } from "../lib/api";
-import { activateCourse, clearActiveCourse, type DemoCourse } from "../lib/courses";
+import { activateCourse, clearActiveCourse, clearCourseProgressCache, type DemoCourse } from "../lib/courses";
 import { resetMockCourseProgress, startMockCourse } from "../lib/mock-course";
 
 export default function CoursesPage() {
@@ -144,8 +144,12 @@ export default function CoursesPage() {
     }
     try {
       await api.restartCourse(restartCourseTarget.id);
-      clearActiveCourse(restartCourseTarget.id);
-      setActiveCourseId(null);
+      // The server keeps this enrollment active after a restart (it only
+      // resets progress to the first lesson) -- clearing activeCourseId here
+      // was optimistic UI that didn't match that, so re-entering the page
+      // (which re-derives activeCourseId from api.enrollments()) would flip
+      // it back to active and the "Restart course" button would reappear.
+      clearCourseProgressCache(restartCourseTarget.id);
       setRestartCourseTarget(null);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not restart this course.");
@@ -227,7 +231,7 @@ export default function CoursesPage() {
           <section className="course-confirm-dialog course-restart-dialog" role="dialog" aria-modal="true" aria-labelledby="course-restart-title" aria-describedby="course-restart-description">
             <span className="course-confirm-mark restart" aria-hidden="true">!</span>
             <h2 id="course-restart-title">Restart {restartCourseTarget.title}?</h2>
-            <p id="course-restart-description">{restartCourseTarget.localOnly ? "This removes the Python course progress, answers, and learning time saved in this browser." : "This resets your saved progress and returns the course to the catalog. You will need to select Start course when you are ready to begin again."}</p>
+            <p id="course-restart-description">{restartCourseTarget.localOnly ? "This removes the Python course progress, answers, and learning time saved in this browser." : "This resets your saved progress back to the first lesson. You'll stay on this course and can continue right away."}</p>
             <div className="course-confirm-actions">
               <button type="button" onClick={() => setRestartCourseTarget(null)} disabled={restarting}>Cancel</button>
               <button className="restart-confirm-button" type="button" onClick={() => void confirmRestartCourse()} disabled={restarting} ref={restartConfirmButtonRef}>{restarting ? "Restarting..." : "Restart course"}</button>
