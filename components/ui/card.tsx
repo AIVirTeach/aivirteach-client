@@ -1,7 +1,7 @@
 import * as React from "react"
 import { cn } from "@/lib/utils"
 
-type CardElement = "div" | "article" | "section" | "aside"
+type CardElement = "div" | "article" | "section" | "aside" | "header"
 
 function Card({
   as: Component = "div",

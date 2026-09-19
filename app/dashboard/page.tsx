@@ -8,16 +8,13 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
-import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from "@/components/ui/popover";
+import { NotificationMenu } from "../components/NotificationMenu";
 import { Sidebar } from "../components/Sidebar";
 import { useLearnerProfile } from "../hooks/useLearnerProfile";
 import { activateCourse, courseCatalog } from "../lib/courses";
 
 export default function DashboardPage() {
-  const { profile, loading, error, recordPractice, markNotificationsRead } = useLearnerProfile();
-  const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const [notificationsRead, setNotificationsRead] = useState(false);
-  const [highlightUnread, setHighlightUnread] = useState(false);
+  const { profile, loading, error, recordPractice } = useLearnerProfile();
   const [searchQuery, setSearchQuery] = useState("");
   const [searchFeedback, setSearchFeedback] = useState("");
 
@@ -50,24 +47,6 @@ export default function DashboardPage() {
     setSearchFeedback(match ? `Found: ${match}` : `No results for “${query}”.`);
   }
 
-  function changeNotifications(open: boolean) {
-    if (!open) {
-      setNotificationsOpen(false);
-      setHighlightUnread(false);
-      return;
-    }
-
-    setHighlightUnread(!notificationsRead && profile.notifications.length > 0);
-    setNotificationsRead(true);
-    void markNotificationsRead();
-    setNotificationsOpen(true);
-  }
-
-  function closeNotifications() {
-    setNotificationsOpen(false);
-    setHighlightUnread(false);
-  }
-
   return (
     <div className="app-shell dashboard-shell">
       <Sidebar active="dashboard" />
@@ -79,12 +58,7 @@ export default function DashboardPage() {
             <Button className="search-button" variant="ghost" size="icon" type="submit" aria-label="Search"><span className="search-glyph" aria-hidden="true" /></Button>
             {searchFeedback && <output className="search-feedback" aria-live="polite">{searchFeedback}</output>}
           </form>
-          <div className="notification-wrap">
-            <Popover open={notificationsOpen} onOpenChange={changeNotifications}>
-              <PopoverTrigger render={<Button className="notification-button" variant="ghost" size="icon" type="button" aria-label={notificationsRead ? "Notifications" : "Notifications, new items"} />}><span className="bell-icon" aria-hidden="true" />{!notificationsRead && <span className="notification-dot" />}</PopoverTrigger>
-              <PopoverContent className="notification-popover" align="end" sideOffset={8}><header><PopoverTitle>Notifications</PopoverTitle><Button variant="ghost" size="icon-sm" type="button" onClick={closeNotifications} aria-label="Close notifications">×</Button></header>{profile.notifications.map((notification) => <p className={highlightUnread ? "unread" : ""} key={notification}>{highlightUnread && <Badge className="new-label">New</Badge>}{notification}</p>)}</PopoverContent>
-            </Popover>
-          </div>
+          <NotificationMenu placement="dashboard" />
         </header>
         <section className="welcome-copy">
           <h1>{isAllClear ? `Hi, ${firstName}! You're all clear.` : `Hi, ${firstName}! You're making great progress.`}</h1>

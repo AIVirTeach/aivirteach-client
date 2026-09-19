@@ -9,7 +9,7 @@ import { useLearnerProfile } from "../hooks/useLearnerProfile";
 import { api } from "../lib/api";
 import { Avatar } from "./Avatar";
 
-type AccountMenuProps = { placement: "sidebar" | "lab"; collapsed?: boolean; onVmEnv?: () => void };
+type AccountMenuProps = { placement: "sidebar" | "topbar" | "lab"; collapsed?: boolean; onVmEnv?: () => void };
 
 export function AccountMenu({ placement, collapsed = false, onVmEnv }: AccountMenuProps) {
   const router = useRouter();
@@ -29,15 +29,15 @@ export function AccountMenu({ placement, collapsed = false, onVmEnv }: AccountMe
     <div className={`account-menu account-menu-${placement}`}>
       <DropdownMenu>
         <DropdownMenuTrigger render={<Button className="profile-block profile-trigger account-menu-trigger" variant="ghost" type="button" aria-label={collapsed ? `${profile.name} account menu` : undefined} />}>
-          <Avatar size={placement === "lab" ? "medium" : "large"} name={profile.name} src={profile.avatar} />
+          <Avatar size={placement === "sidebar" ? "large" : "medium"} name={profile.name} src={profile.avatar} />
           <span className="profile-summary">
             <strong>{profile.name}</strong>
             <span>{placement === "lab" ? profile.role : `${profile.plan} Learner`}</span>
             {placement === "sidebar" && <em>Level {profile.level}</em>}
           </span>
-          <span className="account-menu-chevron" aria-hidden="true" />
+          {placement !== "topbar" && <span className="account-menu-chevron" aria-hidden="true" />}
         </DropdownMenuTrigger>
-        <DropdownMenuContent className="account-dropdown-shadcn" side={placement === "lab" ? "top" : "right"} align="end" sideOffset={8}>
+        <DropdownMenuContent className="account-dropdown-shadcn" side={placement === "lab" ? "top" : placement === "sidebar" ? "right" : "bottom"} align="end" sideOffset={8}>
           {placement === "lab" ? <>
             <DropdownMenuItem onClick={() => onVmEnv?.()}>VM Env</DropdownMenuItem>
             <DropdownMenuItem variant="destructive" render={<Link className="account-menu-exit" href="/courses" />}>Exit Learning Lab</DropdownMenuItem>
