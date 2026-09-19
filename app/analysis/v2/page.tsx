@@ -2,6 +2,10 @@
 
 import Link from "next/link";
 import { type CSSProperties, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Alert } from "@/components/ui/alert";
+import { Card } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
 import { Sidebar } from "../../components/Sidebar";
 import { useLearnerProfile } from "../../hooks/useLearnerProfile";
 import { useMockCourseProgress } from "../../hooks/useMockCourseProgress";
@@ -61,7 +65,7 @@ export default function AnalysisV2Page() {
     <div className="app-shell analysis-v2-shell">
       <Sidebar active="analysis" />
       <main className={`analysis-v2 page-content ${loading ? "data-loading" : ""}`}>
-        {error && <p className="auth-error" role="alert">Backend unavailable: {error}</p>}
+        {error && <Alert className="auth-error" variant="destructive">Backend unavailable: {error}</Alert>}
 
         <header className="analysis-v2-head">
           <div>
@@ -70,22 +74,20 @@ export default function AnalysisV2Page() {
             <p>A focused view of your progress, practice patterns, and next best action.</p>
           </div>
           <div className="analysis-v2-head-actions">
-            <Link href="/analysis">Classic view</Link>
+            <Button render={<Link href="/analysis" />} variant="ghost">Classic view</Button>
             <div className="analysis-v2-range" aria-label="Analytics date range">
-              <button className={range === "30" ? "active" : ""} type="button" onClick={() => setRange("30")}>30 days</button>
-              <button className={range === "all" ? "active" : ""} type="button" onClick={() => setRange("all")}>All time</button>
+              <Button variant="ghost" className={range === "30" ? "active" : ""} type="button" onClick={() => setRange("30")}>30 days</Button>
+              <Button variant="ghost" className={range === "all" ? "active" : ""} type="button" onClick={() => setRange("all")}>All time</Button>
             </div>
           </div>
         </header>
 
-        <section className="analysis-v2-course" aria-labelledby="analysis-v2-course-title">
+        <Card as="section" className="analysis-v2-course" aria-labelledby="analysis-v2-course-title">
           <div className="analysis-v2-course-copy">
             <span>{course.category}</span>
             <h2 id="analysis-v2-course-title">{course.title}</h2>
             <p>{course.module}</p>
-            <div className="analysis-v2-course-track" aria-label={`${course.progress}% course completion`}>
-              <span style={{ width: `${course.progress}%` }} />
-            </div>
+            <Progress className="analysis-v2-course-track" value={course.progress} aria-label={`${course.progress}% course completion`} />
           </div>
           <div className="analysis-v2-course-progress" style={courseProgressStyle} aria-label={`${course.progress}% complete`}>
             <div><strong>{course.progress}%</strong><span>complete</span></div>
@@ -93,21 +95,21 @@ export default function AnalysisV2Page() {
           <div className="analysis-v2-course-note">
             <span>Next milestone</span>
             <strong>{course.progress === 100 ? "Course complete" : `${Math.min(100, Math.ceil((course.progress + 1) / 10) * 10)}% completion`}</strong>
-            <Link href={course.progress === 100 ? "/courses" : hasMockCourseData ? "/courses/python-basics" : "/workspace"}>{course.progress === 100 ? "Explore another course" : "Continue learning"}<span aria-hidden="true">→</span></Link>
+            <Button render={<Link href={course.progress === 100 ? "/courses" : hasMockCourseData ? "/courses/python-basics" : "/workspace"} />} variant="link">{course.progress === 100 ? "Explore another course" : "Continue learning"}<span aria-hidden="true">→</span></Button>
           </div>
-        </section>
+        </Card>
 
         <section className="analysis-v2-metrics" aria-label="Learning outcomes">
           {metrics.map((metric) => (
-            <article key={metric.label}>
+            <Card as="article" key={metric.label}>
               <span className={`analysis-v2-metric-mark ${metric.tone}`} aria-hidden="true" />
               <div><span>{metric.label}</span><strong>{metric.value}</strong><small>{metric.detail}</small></div>
-            </article>
+            </Card>
           ))}
         </section>
 
         <section className="analysis-v2-main-grid">
-          <article className="analysis-v2-panel analysis-v2-weekly">
+          <Card as="article" className="analysis-v2-panel analysis-v2-weekly">
             <header>
               <div><span className="analysis-v2-label">THIS WEEK</span><h2>Learning activity</h2></div>
               <div><strong>{weeklyTotal}h</strong><span>Total practice</span></div>
@@ -122,15 +124,15 @@ export default function AnalysisV2Page() {
               ))}
             </div>
             <footer><span><i /> Active learning</span><p>{weeklyTotal > 0 ? <>Your strongest day was <strong>{days[bestDayIndex]}</strong> with {actualMaxWeeklyHours} hours.</> : "Complete a lesson to begin charting activity."}</p></footer>
-          </article>
+          </Card>
 
           <aside className="analysis-v2-side">
-            <article className="analysis-v2-insight">
+            <Card as="article" className="analysis-v2-insight">
               <header><span aria-hidden="true">AI</span><div><small>PERSONAL INSIGHT</small><strong>Recommended focus</strong></div></header>
               <p>{analyticsInsight}</p>
               {insightExpanded && <p className="analysis-v2-insight-detail">{analyticsInsightDetail}</p>}
-              <button type="button" onClick={() => setInsightExpanded((expanded) => !expanded)}>{insightExpanded ? "Show less" : "Why this matters"}<span aria-hidden="true">→</span></button>
-            </article>
+              <Button variant="link" type="button" onClick={() => setInsightExpanded((expanded) => !expanded)}>{insightExpanded ? "Show less" : "Why this matters"}<span aria-hidden="true">→</span></Button>
+            </Card>
           </aside>
         </section>
 
@@ -138,10 +140,10 @@ export default function AnalysisV2Page() {
           <header><div><span className="analysis-v2-label">MILESTONES</span><h2>Achievements</h2></div><span>{achievements.filter((achievement) => achievement.unlocked).length} of {achievements.length} unlocked</span></header>
           <div>
             {achievements.map((achievement, index) => (
-              <article className={achievement.unlocked ? "unlocked" : "locked"} key={achievement.title}>
+              <Card as="article" className={achievement.unlocked ? "unlocked" : "locked"} key={achievement.title}>
                 <span aria-hidden="true">{achievement.unlocked ? "✓" : index + 1}</span>
                 <div><strong>{achievement.title}</strong><small>{achievement.subtitle}</small></div>
-              </article>
+              </Card>
             ))}
           </div>
         </section>

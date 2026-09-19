@@ -4,6 +4,12 @@ import { useRouter } from "next/navigation";
 import { type ComponentPropsWithoutRef, type CSSProperties, type FormEvent, type KeyboardEvent, type PointerEvent as ReactPointerEvent, useCallback, useEffect, useRef, useState } from "react";
 import { Markdown } from "@tanstack/markdown/react";
 import { streamingMarkdownExtension } from "@tanstack/markdown/extensions/streaming";
+import { Button } from "@/components/ui/button";
+import { Alert } from "@/components/ui/alert";
+import { Card } from "@/components/ui/card";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { AccountMenu } from "../components/AccountMenu";
 import { BrandLogo } from "../components/BrandLogo";
 import { CourseLessonContent } from "../components/CourseLessonContent";
@@ -465,7 +471,7 @@ export default function WorkspacePage() {
   }
 
   if (!courseChecked || !course || !enrollment) {
-    return <div className="app-shell"><Sidebar active="workspace" /><main className="course-required-page"><section className="course-required-card" role="status"><h1>{courseChecked ? "Choose a course first" : "Opening Learning Lab..."}</h1><p>{contentError || (courseChecked ? "Choose a course before opening its project workspace." : "Checking for your active course.")}</p>{courseChecked && <button className="primary-button" type="button" onClick={() => router.replace("/courses")}>Browse courses</button>}</section></main></div>;
+    return <div className="app-shell"><Sidebar active="workspace" /><main className="course-required-page"><Card as="section" className="course-required-card" role="status"><h1>{courseChecked ? "Choose a course first" : "Opening Learning Lab..."}</h1><p>{contentError || (courseChecked ? "Choose a course before opening its project workspace." : "Checking for your active course.")}</p>{courseChecked && <Button className="primary-button" size="lg" type="button" onClick={() => router.replace("/courses")}>Browse courses</Button>}</Card></main></div>;
   }
 
   const allLessons = course.modules.flatMap((module) => module.lessons.map((item) => ({ ...item, module })));
@@ -478,36 +484,36 @@ export default function WorkspacePage() {
   return (
     <div className={`workspace-shell lab-shell ${courseSummaryCollapsed ? "summary-collapsed" : ""} ${tutorCollapsed ? "tutor-collapsed" : ""}`}>
       <div className="lab-frame" style={frameStyle}>
-        <aside className={`lab-course-rail ${courseSummaryCollapsed ? "collapsed" : ""}`} aria-label="Course steps">
-          <header className="lab-course-brand"><BrandLogo className="lab-brand-logo" /><span className="lab-brand-mark" role="img" aria-label="AIVirTeach" />{!courseSummaryCollapsed && <button className="lab-rail-toggle points-left" type="button" onClick={() => setCourseSummaryCollapsed(true)} aria-label="Collapse course steps"><span aria-hidden="true" /></button>}</header>
-          {courseSummaryCollapsed && <button className="lab-course-rail-expand" type="button" onClick={() => setCourseSummaryCollapsed(false)} aria-label="Expand course steps" />}
+        <Card as="aside" className={`lab-course-rail ${courseSummaryCollapsed ? "collapsed" : ""}`} aria-label="Course steps">
+          <header className="lab-course-brand"><BrandLogo className="lab-brand-logo" /><span className="lab-brand-mark" role="img" aria-label="AIVirTeach" />{!courseSummaryCollapsed && <Button className="lab-rail-toggle points-left" variant="ghost" size="icon" type="button" onClick={() => setCourseSummaryCollapsed(true)} aria-label="Collapse course steps"><span aria-hidden="true" /></Button>}</header>
+          {courseSummaryCollapsed && <Button className="lab-course-rail-expand" variant="ghost" size="icon" type="button" onClick={() => setCourseSummaryCollapsed(false)} aria-label="Expand course steps" />}
           {!courseSummaryCollapsed && <div className="lab-course-content">
             <section className="lab-step-navigation" aria-label="Step navigation">
-              <button type="button" onClick={() => selectLesson(lesson?.navigation.previousLessonId ?? null)} disabled={!lesson?.navigation.previousLessonId}>Previous step</button>
+              <Button variant="outline" size="sm" type="button" onClick={() => selectLesson(lesson?.navigation.previousLessonId ?? null)} disabled={!lesson?.navigation.previousLessonId}>Previous step</Button>
               <span>Step {currentIndex + 1} of {allLessons.length}</span>
-              <button type="button" onClick={() => selectLesson(lesson?.navigation.nextLessonId ?? null)} disabled={!lesson?.navigation.nextLessonId}>Next step</button>
+              <Button variant="outline" size="sm" type="button" onClick={() => selectLesson(lesson?.navigation.nextLessonId ?? null)} disabled={!lesson?.navigation.nextLessonId}>Next step</Button>
             </section>
-            <details className="course-outline-panel"><summary>Course outline</summary><nav className="chapter-timeline course-step-outline" aria-label="Course outline"><ol>{course.modules.map((module) => {
+            <Collapsible className="course-outline-panel"><CollapsibleTrigger render={<Button className="course-outline-trigger" variant="ghost" type="button" />}>Course outline</CollapsibleTrigger><CollapsibleContent><nav className="chapter-timeline course-step-outline" aria-label="Course outline"><ol>{course.modules.map((module) => {
               const moduleActive = module.lessons.some((item) => item.id === selectedLessonId);
               return <li className={moduleActive ? "active" : ""} key={module.id}>
                 <div className="chapter-row"><span>{module.position}</span><div><small>Module {module.position}</small><strong>{module.title}</strong></div></div>
                 <ol className="chapter-steps">{module.lessons.map((item) => {
                   const stepIndex = allLessons.findIndex((lessonItem) => lessonItem.id === item.id);
                   const status = item.id === selectedLessonId ? "current" : stepIndex < completedSteps ? "complete" : "upcoming";
-                  return <li className={status} key={item.id}><button type="button" onClick={() => selectLesson(item.id)}><span>{module.position}.{item.position}</span><strong>{item.title}</strong></button></li>;
+                  return <li className={status} key={item.id}><Button variant="ghost" type="button" onClick={() => selectLesson(item.id)}><span>{module.position}.{item.position}</span><strong>{item.title}</strong></Button></li>;
                 })}</ol>
               </li>;
-            })}</ol></nav></details>
+            })}</ol></nav></CollapsibleContent></Collapsible>
             {lessonLoading || !lesson ? <p className="sidebar-lesson-loading" role="status">Loading course step...</p> : <section className="sidebar-lesson">
               <header className="sidebar-lesson-header"><span>{lesson.module.position}.{lesson.lesson.position}</span><div><small>{lesson.module.title}</small><h2>{lesson.lesson.title}</h2><p>{lesson.lesson.estimatedMinutes} minutes</p></div></header>
-              {contentError && <p className="auth-error" role="alert">{contentError}</p>}
+              {contentError && <Alert className="auth-error" variant="destructive">{contentError}</Alert>}
               <CourseLessonContent markdown={lesson.markdown} />
-              <section className="lesson-activity sidebar-lesson-activity"><small>STEP CHECK</small><h3>{lesson.lesson.activity.prompt}</h3><button className="primary-button" type="button" onClick={() => void completeStep()} disabled={completionStatus === "Saving..."}>{lesson.navigation.nextLessonId ? "Complete and continue" : "Complete course"}</button>{completionStatus && <p role="status">{completionStatus}</p>}</section>
+              <Card as="section" className="lesson-activity sidebar-lesson-activity"><small>STEP CHECK</small><h3>{lesson.lesson.activity.prompt}</h3><Button className="primary-button" size="lg" type="button" onClick={() => void completeStep()} disabled={completionStatus === "Saving..."}>{lesson.navigation.nextLessonId ? "Complete and continue" : "Complete course"}</Button>{completionStatus && <p role="status">{completionStatus}</p>}</Card>
             </section>}
           </div>}
           <AccountMenu placement="lab" collapsed={courseSummaryCollapsed} onVmEnv={() => setVmEnvOpen(true)} />
           {!courseSummaryCollapsed && <div className="lab-course-resizer" role="separator" aria-label="Resize course sidebar" aria-orientation="vertical" aria-valuemin={minCourseRailWidth} aria-valuemax={maxCourseRailWidth} aria-valuenow={courseRailWidth} tabIndex={0} onPointerDown={startCourseRailResize} onKeyDown={resizeCourseRailWithKeyboard} />}
-        </aside>
+        </Card>
 
         <header className="lab-project-header"><div className="lab-project-title"><small>COURSE</small><h1>{course.title}</h1></div><div className="lab-project-status"><div className="latency-status"><span className="latency-bars" aria-hidden="true">{[1,2,3,4].map((bar) => <i className={bar <= latencyBars ? "active" : ""} key={bar} />)}</span><span><small>SERVER</small><strong>{latency === null ? "Offline" : `${latency} ms`}</strong></span></div><div className="lab-active-timer"><span className="timer-glyph" aria-hidden="true" /><span><small>ACTIVE TIME</small><strong>{formatElapsed(elapsedSeconds)}</strong></span></div></div></header>
 
@@ -524,24 +530,24 @@ export default function WorkspacePage() {
             <section className="vm-empty-state" role="status">
               <span className="vm-display-icon" aria-hidden="true" />
               <h2>Learning VM</h2>
-              {consoleError && <p className="auth-error" role="alert">{consoleError}</p>}
-              <button className="primary-button" type="button" onClick={() => void startConsoleSession()} disabled={consoleLoading}>
+              {consoleError && <Alert className="auth-error" variant="destructive">{consoleError}</Alert>}
+              <Button className="primary-button" size="lg" type="button" onClick={() => void startConsoleSession()} disabled={consoleLoading}>
                 {consoleLoading ? "Starting..." : "Start remote desktop"}
-              </button>
+              </Button>
             </section>
           ) : workspace?.status === "STOPPED" ? (
             <section className="vm-empty-state" role="status">
               <span className="vm-display-icon" aria-hidden="true" />
               <h2>Learning VM</h2>
               <p>Your Learning VM is closed. Resume it to keep working.</p>
-              <button className="primary-button" type="button" onClick={resumeWorkspace} disabled={resuming}>{resuming ? "Resuming..." : "Resume learning environment"}</button>
+              <Button className="primary-button" size="lg" type="button" onClick={resumeWorkspace} disabled={resuming}>{resuming ? "Resuming..." : "Resume learning environment"}</Button>
             </section>
           ) : workspace?.status === "ERROR" ? (
             <section className="vm-empty-state" role="status">
               <span className="vm-display-icon" aria-hidden="true" />
               <h2>Learning VM</h2>
               <p>{workspace.errorMessage || "Could not start your Learning VM."}</p>
-              <button className="primary-button" type="button" onClick={retryWorkspace} disabled={retrying}>{retrying ? "Retrying..." : "Retry"}</button>
+              <Button className="primary-button" size="lg" type="button" onClick={retryWorkspace} disabled={retrying}>{retrying ? "Retrying..." : "Retry"}</Button>
             </section>
           ) : (
             <section className="vm-empty-state" role="status">
@@ -552,16 +558,16 @@ export default function WorkspacePage() {
           )}
         </main>
 
-        <aside className={`lab-tutor-rail ${tutorCollapsed ? "collapsed" : ""}`} aria-label="AI teacher">{tutorCollapsed ? <button className="lab-tutor-expand" type="button" onClick={() => setTutorCollapsed(false)} aria-label="Expand AI teacher"><span className="bot-mark">AI</span><i className="collapse-glyph points-left" aria-hidden="true" /></button> : <><header><div className="tutor-heading"><span className="bot-mark">AI</span><div><strong>AIVir Teacher</strong><small><i /> Online</small></div></div><div className="tutor-header-actions"><button className={`tutor-refresh ${refreshing ? "refreshing" : ""}`} type="button" onClick={refreshTutor} aria-label="Refresh tutor conversation"><img src="/refresh-icon.png" alt="" aria-hidden="true" /></button><button className="lab-rail-toggle points-right" type="button" onClick={() => setTutorCollapsed(true)} aria-label="Collapse AI teacher"><span aria-hidden="true" /></button></div></header><div className={`messages ${refreshing ? "refreshing" : ""}`}>{messages.map((item, index) => <article className={`message ${item.role}`} key={`${item.role}-${index}`}><div>{item.role === "tutor" ? <Markdown extensions={markdownExtensions} components={markdownComponents}>{item.text}</Markdown> : <p>{item.text}</p>}<small>{index === messages.length - 1 && !streaming ? "Just now" : "Earlier"}</small></div></article>)}{streaming && <article className="message tutor pending"><div>{streamingText ? <Markdown extensions={markdownExtensions} components={markdownComponents}>{streamingText}</Markdown> : <p className="tutor-progress">{streamingProgress ?? "..."}</p>}<small>Just now</small></div></article>}</div><form className="message-form" onSubmit={sendMessage}><input value={message} onChange={(event) => setMessage(event.target.value)} aria-label="Ask the tutor for help" placeholder="Ask about this step..." disabled={streaming} /><button aria-label="Send message" disabled={streaming}>Send</button></form></> }</aside>
+        <Card as="aside" className={`lab-tutor-rail ${tutorCollapsed ? "collapsed" : ""}`} aria-label="AI teacher">{tutorCollapsed ? <Button className="lab-tutor-expand" variant="ghost" size="icon" type="button" onClick={() => setTutorCollapsed(false)} aria-label="Expand AI teacher"><span className="bot-mark">AI</span><i className="collapse-glyph points-left" aria-hidden="true" /></Button> : <><header><div className="tutor-heading"><span className="bot-mark">AI</span><div><strong>AIVir Teacher</strong><small><i /> Online</small></div></div><div className="tutor-header-actions"><Button className={`tutor-refresh ${refreshing ? "refreshing" : ""}`} variant="ghost" size="icon" type="button" onClick={refreshTutor} aria-label="Refresh tutor conversation"><img src="/refresh-icon.png" alt="" aria-hidden="true" /></Button><Button className="lab-rail-toggle points-right" variant="ghost" size="icon" type="button" onClick={() => setTutorCollapsed(true)} aria-label="Collapse AI teacher"><span aria-hidden="true" /></Button></div></header><div className={`messages ${refreshing ? "refreshing" : ""}`}>{messages.map((item, index) => <article className={`message ${item.role}`} key={`${item.role}-${index}`}><div>{item.role === "tutor" ? <Markdown extensions={markdownExtensions} components={markdownComponents}>{item.text}</Markdown> : <p>{item.text}</p>}<small>{index === messages.length - 1 && !streaming ? "Just now" : "Earlier"}</small></div></article>)}{streaming && <article className="message tutor pending"><div>{streamingText ? <Markdown extensions={markdownExtensions} components={markdownComponents}>{streamingText}</Markdown> : <p className="tutor-progress">{streamingProgress ?? "..."}</p>}<small>Just now</small></div></article>}</div><form className="message-form" onSubmit={sendMessage}><Input value={message} onChange={(event) => setMessage(event.target.value)} aria-label="Ask the tutor for help" placeholder="Ask about this step..." disabled={streaming} /><Button size="icon" type="submit" aria-label="Send message" disabled={streaming}>Send</Button></form></> }</Card>
       </div>
-      {vmEnvOpen && <div className="vm-env-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setVmEnvOpen(false); }}>
-        <section className="vm-env-dialog" role="dialog" aria-modal="true" aria-labelledby="vm-env-title" aria-describedby="vm-env-description">
-          <header><div><small>COURSE ENVIRONMENT</small><h2 id="vm-env-title">VM Env</h2></div><button type="button" aria-label="Close VM environment requirements" onClick={() => setVmEnvOpen(false)} ref={vmEnvCloseButtonRef}><span aria-hidden="true" /></button></header>
-          <p id="vm-env-description">{course.title}</p>
+      <Dialog open={vmEnvOpen} onOpenChange={setVmEnvOpen}>
+        {vmEnvOpen && <DialogContent className="vm-env-dialog" showCloseButton={false}>
+          <header><div><small>COURSE ENVIRONMENT</small><DialogTitle id="vm-env-title">VM Env</DialogTitle></div><Button variant="ghost" size="icon" type="button" aria-label="Close VM environment requirements" onClick={() => setVmEnvOpen(false)} ref={vmEnvCloseButtonRef}><span aria-hidden="true" /></Button></header>
+          <DialogDescription id="vm-env-description">{course.title}</DialogDescription>
           <ul>{course.requirements.map((requirement) => <li key={requirement}><span aria-hidden="true">✓</span><strong>{requirement}</strong></li>)}</ul>
-          <footer><button className="primary-button" type="button" onClick={() => setVmEnvOpen(false)}>Done</button></footer>
-        </section>
-      </div>}
+          <footer><Button className="primary-button" size="lg" type="button" onClick={() => setVmEnvOpen(false)}>Done</Button></footer>
+        </DialogContent>}
+      </Dialog>
     </div>
   );
 }

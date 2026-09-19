@@ -2,6 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { api, ApiError, courseAssetUrl, type ApiCourseDetail, type ApiCourseWelcome } from "../../lib/api";
 import { activateCourse } from "../../lib/courses";
 
@@ -65,7 +67,7 @@ export default function CourseWelcomePage() {
       {!checked ? (
         <p className="course-welcome-loading" role="status">Preparing your course...</p>
       ) : course && welcome ? (
-        <section className="course-welcome-window" aria-label={`${course.title} welcome`}>
+        <Card as="section" className="course-welcome-window" aria-label={`${course.title} welcome`}>
           <header className="course-welcome-progress">
             <span>{step} of 2</span>
             <div aria-hidden="true"><i className="active" /><i className={step === 2 ? "active" : ""} /></div>
@@ -101,16 +103,16 @@ export default function CourseWelcomePage() {
           )}
 
           <footer className="course-welcome-actions">
-            {step === 2 && <button type="button" onClick={() => setStep(1)}>Back</button>}
-            {step === 1 ? <button className="primary-button" type="button" onClick={() => setStep(2)}>Next</button> : <button className="primary-button" type="button" onClick={() => router.push("/workspace")}>Let&apos;s go</button>}
+            {step === 2 && <Button variant="outline" size="lg" type="button" onClick={() => setStep(1)}>Back</Button>}
+            {step === 1 ? <Button className="primary-button" size="lg" type="button" onClick={() => setStep(2)}>Next</Button> : <Button className="primary-button" size="lg" type="button" onClick={() => router.push("/workspace")}>Let&apos;s go</Button>}
           </footer>
-        </section>
+        </Card>
       ) : (
-        <section className="course-required-card">
+        <Card as="section" className="course-required-card">
           <h1>No active course</h1>
           <p>{error || "Choose a course before entering the Learning Lab."}</p>
-          <button className="primary-button" type="button" onClick={() => router.replace("/courses")}>Browse courses</button>
-        </section>
+          <Button className="primary-button" size="lg" type="button" onClick={() => router.replace("/courses")}>Browse courses</Button>
+        </Card>
       )}
     </main>
   );

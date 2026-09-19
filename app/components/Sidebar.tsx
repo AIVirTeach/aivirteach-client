@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useLayoutEffect, useSyncExternalStore } from "react";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { AccountMenu } from "./AccountMenu";
 import { BrandLogo } from "./BrandLogo";
 
@@ -39,6 +41,7 @@ export function Sidebar({ active }: SidebarProps) {
   useLayoutEffect(() => {
     const savedTheme = window.localStorage.getItem("aivir-theme") === "dark" ? "dark" : "light";
     document.documentElement.dataset.theme = savedTheme;
+    document.documentElement.classList.toggle("dark", savedTheme === "dark");
   }, []);
 
   function toggleSidebar() {
@@ -48,21 +51,21 @@ export function Sidebar({ active }: SidebarProps) {
   }
 
   return (
-    <aside className={`sidebar ${collapsed ? "sidebar-collapsed" : ""}`}>
+    <Card as="aside" className={`sidebar ${collapsed ? "sidebar-collapsed" : ""}`}>
       <header className="sidebar-brand-header">
         <BrandLogo className="sidebar-brand-logo" />
-        <button className="sidebar-collapse-toggle" type="button" onClick={toggleSidebar} aria-label={collapsed ? "Expand navigation" : "Collapse navigation"} aria-expanded={!collapsed}><span aria-hidden="true" /></button>
+        <Button className="sidebar-collapse-toggle" variant="ghost" size="icon" type="button" onClick={toggleSidebar} aria-label={collapsed ? "Expand navigation" : "Collapse navigation"} aria-expanded={!collapsed}><span aria-hidden="true" /></Button>
       </header>
 
       <section className="sidebar-content-section" aria-label="Navigation">
         <nav className="side-nav" aria-label="Primary navigation">
           {items.map((item) => (
-            <Link key={item.id} href={item.href} className={active === item.id ? "active" : ""} title={collapsed ? item.label : undefined}>
+            <Button key={item.id} render={<Link href={item.href} />} variant="ghost" className={active === item.id ? "active" : ""} title={collapsed ? item.label : undefined}>
               <span className={`nav-icon ${item.id === "analysis" ? "progress-nav-icon" : ""} ${item.id === "workspace" ? "learning-lab-nav-icon" : ""}`} aria-hidden="true">
                 {item.id === "dashboard" ? <i className="home-nav-icon" /> : item.id === "analysis" ? <i><b /><b /><b /></i> : item.id === "workspace" ? <i className="lab-code-icon"><b /><b /></i> : item.icon}
               </span>
               <span className="nav-label">{item.label}</span>
-            </Link>
+            </Button>
           ))}
         </nav>
       </section>
@@ -70,6 +73,6 @@ export function Sidebar({ active }: SidebarProps) {
       <section className="sidebar-profile-section" aria-label="Learner profile">
         <AccountMenu placement="sidebar" collapsed={collapsed} />
       </section>
-    </aside>
+    </Card>
   );
 }

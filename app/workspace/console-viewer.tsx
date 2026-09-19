@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import Guacamole from "guacamole-common-js";
+import { Button } from "@/components/ui/button";
 import { api } from "../lib/api";
 
 interface ConsoleViewerProps {
@@ -142,9 +143,9 @@ export function ConsoleViewer({ data, labId, enrollmentId, onError }: ConsoleVie
           这会连带压掉浏览器原生的 paste 事件，导致 VM 里只收到裸的 "v" 按键、收不到剪贴板
           内容。所以本地 -> 远程走一个显式按钮（真实用户手势，navigator.clipboard.readText()
           才会被允许），同步后在 VM 里用它自己的粘贴快捷键（Linux 终端一般是 Ctrl+Shift+V）粘贴。 */}
-      <button type="button" className="console-viewer-paste-button" onClick={syncClipboardToVm}>
+      <Button variant="outline" size="xs" type="button" className="console-viewer-paste-button" onClick={syncClipboardToVm}>
         同步剪贴板到 VM
-      </button>
+      </Button>
     </div>
   );
 }
