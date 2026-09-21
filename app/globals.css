@@ -518,7 +518,7 @@ html[data-theme="dark"] .profile-settings-card { border-color: var(--outline); b
 .courses-head h1 { margin: 0; font-size: clamp(30px, 3.4vw, 40px); letter-spacing: -.035em; }
 .courses-head > p:last-child { margin: 10px 0 0; color: var(--ink-soft); font-size: 16px; }
 .course-catalog { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
-.catalog-card { overflow: hidden; border: 1px solid #dce5f2; border-radius: 8px; background: #fff; box-shadow: var(--shadow); }
+.catalog-card { overflow: hidden; border: 1px solid #dce5f2; border-radius: 8px; padding: 0; background: #fff; box-shadow: var(--shadow); }
 .catalog-card.active { border-color: var(--primary); box-shadow: 0 10px 32px rgba(5, 104, 254, .16); }
 .catalog-image-wrap { position: relative; width: 100%; height: 180px; overflow: hidden; background: #080a1b; }
 .catalog-image { width: 100%; height: 100%; display: block; object-fit: cover; object-position: top center; }
