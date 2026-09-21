@@ -1,11 +1,11 @@
-export type InterfaceVersion = "v1" | "v2" | "soft" | "brutal";
+export type InterfaceVersion = "v1" | "v2" | "soft" | "brutal" | "neubrutal";
 
 const versionStorageKey = "aivir-interface-version";
 const versionChangeEvent = "aivirteach:interface-version-change";
 
 export function getStoredInterfaceVersion(): InterfaceVersion {
   const storedVersion = window.localStorage.getItem(versionStorageKey);
-  return storedVersion === "v1" || storedVersion === "soft" || storedVersion === "brutal" ? storedVersion : "v2";
+  return storedVersion === "v1" || storedVersion === "soft" || storedVersion === "brutal" || storedVersion === "neubrutal" ? storedVersion : "v2";
 }
 
 export function getServerInterfaceVersion(): InterfaceVersion {

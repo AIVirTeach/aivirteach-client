@@ -49,12 +49,13 @@ export default function SettingsPage() {
           </Card>
 
           <Card as="article" className="settings-card">
-            <div><span className="settings-card-icon version-setting-icon" aria-hidden="true">V</span><div><h2>Interface design</h2><p>Choose the original layout, V2, soft neumorphism, or bold brutalism.</p></div></div>
+            <div><span className="settings-card-icon version-setting-icon" aria-hidden="true">V</span><div><h2>Interface design</h2><p>Choose the original layout, V2, soft neumorphism, brutalism, or modern neubrutalism.</p></div></div>
             <div className="version-choice" role="group" aria-label="Interface version">
               <Button variant="ghost" className={interfaceVersion === "v1" ? "active" : ""} type="button" onClick={() => chooseInterfaceVersion("v1")} aria-pressed={interfaceVersion === "v1"}>V1</Button>
               <Button variant="ghost" className={interfaceVersion === "v2" ? "active" : ""} type="button" onClick={() => chooseInterfaceVersion("v2")} aria-pressed={interfaceVersion === "v2"}>V2</Button>
               <Button variant="ghost" className={interfaceVersion === "soft" ? "active" : ""} type="button" onClick={() => chooseInterfaceVersion("soft")} aria-pressed={interfaceVersion === "soft"}>Soft</Button>
               <Button variant="ghost" className={interfaceVersion === "brutal" ? "active" : ""} type="button" onClick={() => chooseInterfaceVersion("brutal")} aria-pressed={interfaceVersion === "brutal"}>Brutal</Button>
+              <Button variant="ghost" className={interfaceVersion === "neubrutal" ? "active" : ""} type="button" onClick={() => chooseInterfaceVersion("neubrutal")} aria-pressed={interfaceVersion === "neubrutal"}>Neubrutal</Button>
             </div>
           </Card>
 
