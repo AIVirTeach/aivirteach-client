@@ -16,14 +16,30 @@ import { progressLabel } from "./chat-progress";
 import { heartbeatIntervalMs, isHeartbeatDue } from "./heartbeat";
 import { parseChatStreamFrame } from "./chat-stream-frame";
 import { isSafeMarkdownHref } from "./markdown-safety";
-import { safeErrorMessage, sanitizeErrorMessage } from "./safe-error-message";
 import { typewriterChunks, typewriterDelayMs } from "./typewriter";
+import { upstreamErrorMessage, type UpstreamErrorMessages } from "./upstream-error";
 
 type Message = { role: "tutor" | "student"; text: string };
 
 const initialMessages: Message[] = [
   { role: "tutor", text: "I am ready to help with this course step. Tell me what you are trying to do or where the result differs from the lesson." },
 ];
+
+// 面向学生的文案，按"重试是否有用"分两档，不透出任何上游响应内容或内部服务名——
+// 跟 aivirteach-server 的 VM_MESSAGES/REMOTE_DESKTOP_MESSAGES/AGENT_MESSAGES 保持同一套文案，
+// 不管这次报错是服务端已经分档好再传下来的，还是本地按 ApiError.status 现分档的，学生看到的都一样。
+const VM_MESSAGES: UpstreamErrorMessages = {
+  retryable: "学习环境暂时连接不上，请稍后重试。",
+  unavailable: "学习环境暂时无法使用，请稍后再试或联系客服。",
+};
+const REMOTE_DESKTOP_MESSAGES: UpstreamErrorMessages = {
+  retryable: "远程桌面连接失败，请稍后重试。",
+  unavailable: "远程桌面暂时无法使用，请联系客服。",
+};
+const AGENT_MESSAGES: UpstreamErrorMessages = {
+  retryable: "助教暂时没有回应，请重试一次。",
+  unavailable: "助教服务暂时不可用，请联系客服。",
+};
 
 const markdownExtensions = [streamingMarkdownExtension()];
 
@@ -98,8 +114,8 @@ export default function WorkspacePage() {
       setEnrollment(activeEnrollment);
       setCourse(courseData);
       setSelectedLessonId(initialLesson?.id ?? null);
-    }).catch((caught) => {
-      if (active) setContentError(safeErrorMessage(caught, "Could not load the course."));
+    }).catch(() => {
+      if (active) setContentError("Could not load the course.");
     }).finally(() => { if (active) setCourseChecked(true); });
     return () => { active = false; };
   }, []);
@@ -123,7 +139,7 @@ export default function WorkspacePage() {
     }
 
     ensureWorkspace().catch((caught) => {
-      if (active) setContentError(safeErrorMessage(caught, "Could not prepare the workspace."));
+      if (active) setContentError(upstreamErrorMessage(caught, VM_MESSAGES));
     });
 
     return () => { active = false; unsubscribe?.(); };
@@ -202,8 +218,8 @@ export default function WorkspacePage() {
       if (!active) return;
       setLesson(lessonData);
       window.localStorage.setItem(`aivirteach.course.lesson.${course.id}`, selectedLessonId);
-    }).catch((caught) => {
-      if (active) setContentError(safeErrorMessage(caught, "Could not load this step."));
+    }).catch(() => {
+      if (active) setContentError("Could not load this step.");
     }).finally(() => { if (active) setLessonLoading(false); });
     return () => { active = false; };
   }, [course, selectedLessonId]);
@@ -304,8 +320,8 @@ export default function WorkspacePage() {
       setEnrollment((current) => current ? { ...current, ...result.enrollment } : current);
       setCompletionStatus("Step completed");
       if (lesson.navigation.nextLessonId) selectLesson(lesson.navigation.nextLessonId);
-    } catch (caught) {
-      setCompletionStatus(safeErrorMessage(caught, "Could not complete this step."));
+    } catch {
+      setCompletionStatus("Could not complete this step.");
     }
   }
 
@@ -353,7 +369,7 @@ export default function WorkspacePage() {
       setMessages((current) => [...current, { role: "tutor", text: tutorText! }]);
     } catch (caught) {
       if (controller.signal.aborted) return;
-      setMessages((current) => [...current, { role: "tutor", text: safeErrorMessage(caught, "The tutor is unavailable.") }]);
+      setMessages((current) => [...current, { role: "tutor", text: upstreamErrorMessage(caught, AGENT_MESSAGES) }]);
     } finally {
       if (!controller.signal.aborted) {
         setStreaming(false);
@@ -367,7 +383,7 @@ export default function WorkspacePage() {
     if (!enrollment || retrying) return;
     setRetrying(true);
     void api.createWorkspace(enrollment.id).then(setWorkspace).catch((caught) => {
-      setContentError(safeErrorMessage(caught, "Could not restart the workspace."));
+      setContentError(upstreamErrorMessage(caught, VM_MESSAGES));
     }).finally(() => setRetrying(false));
   }
 
@@ -376,7 +392,7 @@ export default function WorkspacePage() {
     if (!window.confirm("Close the learning environment? You can resume it anytime.")) return;
     setStopping(true);
     void api.stopWorkspace(enrollment.id).then(setWorkspace).catch((caught) => {
-      setContentError(safeErrorMessage(caught, "Could not close the environment."));
+      setContentError(upstreamErrorMessage(caught, VM_MESSAGES));
     }).finally(() => setStopping(false));
   }
 
@@ -384,7 +400,7 @@ export default function WorkspacePage() {
     if (!enrollment || resuming) return;
     setResuming(true);
     void api.startWorkspace(enrollment.id).then(setWorkspace).catch((caught) => {
-      setContentError(safeErrorMessage(caught, "Could not resume the environment."));
+      setContentError(upstreamErrorMessage(caught, VM_MESSAGES));
     }).finally(() => setResuming(false));
   }
 
@@ -422,7 +438,7 @@ export default function WorkspacePage() {
         consolePollTimer.current = setTimeout(() => void poll(), consolePollIntervalMs);
       } catch (caught) {
         if (consolePollCancelled.current) return;
-        setConsoleError(safeErrorMessage(caught, "无法启动远程桌面"));
+        setConsoleError(upstreamErrorMessage(caught, REMOTE_DESKTOP_MESSAGES));
         setConsoleLoading(false);
       }
     }
@@ -521,7 +537,7 @@ export default function WorkspacePage() {
             <section className="vm-empty-state" role="status">
               <span className="vm-display-icon" aria-hidden="true" />
               <h2>Learning VM</h2>
-              <p>{sanitizeErrorMessage(workspace.errorMessage ?? "", "Could not start your Learning VM.")}</p>
+              <p>{workspace.errorMessage || "Could not start your Learning VM."}</p>
               <button className="primary-button" type="button" onClick={retryWorkspace} disabled={retrying}>{retrying ? "Retrying..." : "Retry"}</button>
             </section>
           ) : (
