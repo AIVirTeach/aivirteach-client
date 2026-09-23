@@ -16,6 +16,7 @@ import { progressLabel } from "./chat-progress";
 import { heartbeatIntervalMs, isHeartbeatDue } from "./heartbeat";
 import { parseChatStreamFrame } from "./chat-stream-frame";
 import { isSafeMarkdownHref } from "./markdown-safety";
+import { safeErrorMessage, sanitizeErrorMessage } from "./safe-error-message";
 import { typewriterChunks, typewriterDelayMs } from "./typewriter";
 
 type Message = { role: "tutor" | "student"; text: string };
@@ -98,7 +99,7 @@ export default function WorkspacePage() {
       setCourse(courseData);
       setSelectedLessonId(initialLesson?.id ?? null);
     }).catch((caught) => {
-      if (active) setContentError(caught instanceof Error ? caught.message : "Could not load the course.");
+      if (active) setContentError(safeErrorMessage(caught, "Could not load the course."));
     }).finally(() => { if (active) setCourseChecked(true); });
     return () => { active = false; };
   }, []);
@@ -122,7 +123,7 @@ export default function WorkspacePage() {
     }
 
     ensureWorkspace().catch((caught) => {
-      if (active) setContentError(caught instanceof Error ? caught.message : "Could not prepare the workspace.");
+      if (active) setContentError(safeErrorMessage(caught, "Could not prepare the workspace."));
     });
 
     return () => { active = false; unsubscribe?.(); };
@@ -202,7 +203,7 @@ export default function WorkspacePage() {
       setLesson(lessonData);
       window.localStorage.setItem(`aivirteach.course.lesson.${course.id}`, selectedLessonId);
     }).catch((caught) => {
-      if (active) setContentError(caught instanceof Error ? caught.message : "Could not load this step.");
+      if (active) setContentError(safeErrorMessage(caught, "Could not load this step."));
     }).finally(() => { if (active) setLessonLoading(false); });
     return () => { active = false; };
   }, [course, selectedLessonId]);
@@ -304,7 +305,7 @@ export default function WorkspacePage() {
       setCompletionStatus("Step completed");
       if (lesson.navigation.nextLessonId) selectLesson(lesson.navigation.nextLessonId);
     } catch (caught) {
-      setCompletionStatus(caught instanceof Error ? caught.message : "Could not complete this step.");
+      setCompletionStatus(safeErrorMessage(caught, "Could not complete this step."));
     }
   }
 
@@ -352,7 +353,7 @@ export default function WorkspacePage() {
       setMessages((current) => [...current, { role: "tutor", text: tutorText! }]);
     } catch (caught) {
       if (controller.signal.aborted) return;
-      setMessages((current) => [...current, { role: "tutor", text: caught instanceof Error ? caught.message : "The tutor is unavailable." }]);
+      setMessages((current) => [...current, { role: "tutor", text: safeErrorMessage(caught, "The tutor is unavailable.") }]);
     } finally {
       if (!controller.signal.aborted) {
         setStreaming(false);
@@ -366,7 +367,7 @@ export default function WorkspacePage() {
     if (!enrollment || retrying) return;
     setRetrying(true);
     void api.createWorkspace(enrollment.id).then(setWorkspace).catch((caught) => {
-      setContentError(caught instanceof Error ? caught.message : "Could not restart the workspace.");
+      setContentError(safeErrorMessage(caught, "Could not restart the workspace."));
     }).finally(() => setRetrying(false));
   }
 
@@ -375,7 +376,7 @@ export default function WorkspacePage() {
     if (!window.confirm("Close the learning environment? You can resume it anytime.")) return;
     setStopping(true);
     void api.stopWorkspace(enrollment.id).then(setWorkspace).catch((caught) => {
-      setContentError(caught instanceof Error ? caught.message : "Could not close the environment.");
+      setContentError(safeErrorMessage(caught, "Could not close the environment."));
     }).finally(() => setStopping(false));
   }
 
@@ -383,7 +384,7 @@ export default function WorkspacePage() {
     if (!enrollment || resuming) return;
     setResuming(true);
     void api.startWorkspace(enrollment.id).then(setWorkspace).catch((caught) => {
-      setContentError(caught instanceof Error ? caught.message : "Could not resume the environment.");
+      setContentError(safeErrorMessage(caught, "Could not resume the environment."));
     }).finally(() => setResuming(false));
   }
 
@@ -421,7 +422,7 @@ export default function WorkspacePage() {
         consolePollTimer.current = setTimeout(() => void poll(), consolePollIntervalMs);
       } catch (caught) {
         if (consolePollCancelled.current) return;
-        setConsoleError(caught instanceof Error ? caught.message : "无法启动远程桌面");
+        setConsoleError(safeErrorMessage(caught, "无法启动远程桌面"));
         setConsoleLoading(false);
       }
     }
@@ -520,7 +521,7 @@ export default function WorkspacePage() {
             <section className="vm-empty-state" role="status">
               <span className="vm-display-icon" aria-hidden="true" />
               <h2>Learning VM</h2>
-              <p>{workspace.errorMessage || "Could not start your Learning VM."}</p>
+              <p>{sanitizeErrorMessage(workspace.errorMessage ?? "", "Could not start your Learning VM.")}</p>
               <button className="primary-button" type="button" onClick={retryWorkspace} disabled={retrying}>{retrying ? "Retrying..." : "Retry"}</button>
             </section>
           ) : (
