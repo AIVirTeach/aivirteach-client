@@ -368,6 +368,9 @@ export default function WorkspacePage() {
       if (controller.signal.aborted) return;
       setMessages((current) => [...current, { role: "tutor", text: tutorText! }]);
     } catch (caught) {
+      // 上面两处 throw new Error(...) 不是 ApiError，upstreamErrorMessage 会把它们归为
+      // retryable（提示重试）而不是 unavailable——这是有意为之：响应体缺失/流结束却没有最终
+      // 消息通常是瞬时的网络或流式问题，值得让用户重试，不该直接判定为服务不可用。
       if (controller.signal.aborted) return;
       setMessages((current) => [...current, { role: "tutor", text: upstreamErrorMessage(caught, AGENT_MESSAGES) }]);
     } finally {
