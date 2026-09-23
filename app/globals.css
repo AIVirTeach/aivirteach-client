@@ -1281,6 +1281,10 @@ html[data-theme="dark"] .account-menu-exit { color: #ff9c94 !important; }
 .vm-toolbar > div { display: flex; align-items: center; gap: 8px; }
 .vm-toolbar strong { font-size: 12px; }
 .vm-toolbar small { color: #aeb7bf; font-size: 10px; }
+.vm-toolbar-actions { gap: 12px; }
+.vm-close-button { min-height: 26px; border: 1px solid #64717d; border-radius: 3px; padding: 0 10px; background: #1d2329; color: #f4f6f8; font-size: 10px; font-weight: 800; }
+.vm-close-button:hover { border-color: #fff; }
+.vm-close-button:disabled { opacity: .6; }
 .vm-status-dot { width: 8px; height: 8px; border-radius: 50%; background: #1cab67; box-shadow: 0 0 0 3px rgba(28,171,103,.16); }
 .vm-frame { width: 100%; min-height: 0; flex: 1; border: 0; background: #0d1014; }
 .console-viewer-wrap { position: relative; isolation: isolate; min-height: 0; flex: 1; background: #0d1014; }

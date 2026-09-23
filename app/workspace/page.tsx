@@ -6,9 +6,10 @@ import { AccountMenu } from "../components/AccountMenu";
 import { BrandLogo } from "../components/BrandLogo";
 import { CourseLessonContent } from "../components/CourseLessonContent";
 import { Sidebar } from "../components/Sidebar";
-import { api, ApiError, type ApiConsoleSession, type ApiCourseDetail, type ApiEnrollment, type ApiLesson, type ApiWorkspace } from "../lib/api";
+import { api, ApiError, beaconStopWorkspace, getAccessToken, type ApiConsoleSession, type ApiCourseDetail, type ApiEnrollment, type ApiLesson, type ApiWorkspace } from "../lib/api";
 import { subscribeWorkspace } from "../lib/ws";
 import { ConsoleViewer } from "./console-viewer";
+import { heartbeatIntervalMs, isHeartbeatDue } from "./heartbeat";
 
 type Message = { role: "tutor" | "student"; text: string };
 
@@ -52,6 +53,8 @@ export default function WorkspacePage() {
   const [consoleError, setConsoleError] = useState("");
   const [consoleLoading, setConsoleLoading] = useState(false);
   const [retrying, setRetrying] = useState(false);
+  const [stopping, setStopping] = useState(false);
+  const [resuming, setResuming] = useState(false);
   const consolePollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const consolePollCancelled = useRef(false);
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -114,6 +117,29 @@ export default function WorkspacePage() {
       api.workspace(enrollment.id).then((updated) => { if (active) setWorkspace(updated); }).catch(() => undefined);
     }, workspacePollIntervalMs);
     return () => { active = false; window.clearInterval(interval); };
+  }, [enrollment, workspace?.status]);
+
+  // Plan A（主路径）：关标签页时用 sendBeacon 立即通知服务端停止 VM，不等心跳超时。
+  // Plan B（兜底）：每 60 秒发一次心跳，只在页面可见且有焦点时发；如果心跳断了
+  // （崩溃、断网、beacon 没送到），服务端会在空闲超过阈值后自己收掉，见 workspace 服务端设计。
+  useEffect(() => {
+    if (!enrollment || workspace?.status !== "RUNNING") return;
+    const enrollmentId = enrollment.id;
+
+    const interval = window.setInterval(() => {
+      if (!isHeartbeatDue(workspace?.status, document.visibilityState === "visible", document.hasFocus())) return;
+      void api.workspaceHeartbeat(enrollmentId).catch(() => undefined);
+    }, heartbeatIntervalMs);
+
+    function stopOnClose() {
+      beaconStopWorkspace(enrollmentId, getAccessToken());
+    }
+    window.addEventListener("pagehide", stopOnClose);
+
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("pagehide", stopOnClose);
+    };
   }, [enrollment, workspace?.status]);
 
   useEffect(() => {
@@ -282,6 +308,23 @@ export default function WorkspacePage() {
     }).finally(() => setRetrying(false));
   }
 
+  function closeEnvironment() {
+    if (!enrollment || stopping) return;
+    if (!window.confirm("Close the learning environment? You can resume it anytime.")) return;
+    setStopping(true);
+    void api.stopWorkspace(enrollment.id).then(setWorkspace).catch((caught) => {
+      setContentError(caught instanceof Error ? caught.message : "Could not close the environment.");
+    }).finally(() => setStopping(false));
+  }
+
+  function resumeWorkspace() {
+    if (!enrollment || resuming) return;
+    setResuming(true);
+    void api.startWorkspace(enrollment.id).then(setWorkspace).catch((caught) => {
+      setContentError(caught instanceof Error ? caught.message : "Could not resume the environment.");
+    }).finally(() => setResuming(false));
+  }
+
   const consolePollDeadlineMs = 2 * 60 * 1000;
   const consolePollIntervalMs = 2500;
 
@@ -387,7 +430,7 @@ export default function WorkspacePage() {
         <header className="lab-project-header"><div className="lab-project-title"><small>COURSE</small><h1>{course.title}</h1></div><div className="lab-project-status"><div className="latency-status"><span className="latency-bars" aria-hidden="true">{[1,2,3,4].map((bar) => <i className={bar <= latencyBars ? "active" : ""} key={bar} />)}</span><span><small>SERVER</small><strong>{latency === null ? "Offline" : `${latency} ms`}</strong></span></div><div className="lab-active-timer"><span className="timer-glyph" aria-hidden="true" /><span><small>ACTIVE TIME</small><strong>{formatElapsed(elapsedSeconds)}</strong></span></div></div></header>
 
         <main className="lab-workspace vm-workspace">
-          <header className="vm-toolbar"><div><span className="vm-status-dot" aria-hidden="true" /><strong>Learning VM</strong></div><small>{workspace?.status === "RUNNING" && consoleSession ? "Connected workspace" : "Awaiting connection"}</small></header>
+          <header className="vm-toolbar"><div><span className="vm-status-dot" aria-hidden="true" /><strong>Learning VM</strong></div><div className="vm-toolbar-actions"><small>{workspace?.status === "RUNNING" && consoleSession ? "Connected workspace" : "Awaiting connection"}</small>{workspace?.status === "RUNNING" && <button type="button" className="vm-close-button" onClick={closeEnvironment} disabled={stopping}>{stopping ? "Closing..." : "Close environment"}</button>}</div></header>
           {workspace?.status === "RUNNING" && consoleSession?.state === "ready" && consoleSession.data ? (
             <ConsoleViewer
               data={consoleSession.data}
@@ -403,6 +446,13 @@ export default function WorkspacePage() {
               <button className="primary-button" type="button" onClick={() => void startConsoleSession()} disabled={consoleLoading}>
                 {consoleLoading ? "Starting..." : "Start remote desktop"}
               </button>
+            </section>
+          ) : workspace?.status === "STOPPED" ? (
+            <section className="vm-empty-state" role="status">
+              <span className="vm-display-icon" aria-hidden="true" />
+              <h2>Learning VM</h2>
+              <p>Your Learning VM is closed. Resume it to keep working.</p>
+              <button className="primary-button" type="button" onClick={resumeWorkspace} disabled={resuming}>{resuming ? "Resuming..." : "Resume learning environment"}</button>
             </section>
           ) : workspace?.status === "ERROR" ? (
             <section className="vm-empty-state" role="status">
