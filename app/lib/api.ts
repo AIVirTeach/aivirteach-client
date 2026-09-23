@@ -107,6 +107,29 @@ async function refreshSession() {
   return refreshPromise;
 }
 
+// SSE 端点：调用方需要拿到原始 Response 去读 .body（ReadableStream），不能走 request()——
+// 那边固定 response.json()，会把 event-stream 当 JSON 解析炸掉。
+async function streamRequest(path: string, init?: RequestInit): Promise<Response> {
+  let session = backendConfig.mode === "remote" ? readSession() : null;
+  if (backendConfig.mode === "remote" && !session) throw new ApiError(401, "Please log in to continue.");
+  if (session && session.expiresAt <= Date.now() + 15_000) session = await refreshSession();
+
+  const response = await fetch(API_BASE_URL + path, {
+    ...init,
+    cache: "no-store",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "text/event-stream",
+      ...(session ? { Authorization: `Bearer ${session.accessToken}` } : {}),
+      "X-Demo-User-Id": getDemoUserId(),
+      ...init?.headers,
+    },
+  });
+
+  if (!response.ok) throw await responseError(response);
+  return response;
+}
+
 async function request<T>(path: string, init?: RequestInit, retry = true): Promise<T> {
   let session = backendConfig.mode === "remote" ? readSession() : null;
   if (backendConfig.mode === "remote" && !session) throw new ApiError(401, "Please log in to continue.");
@@ -343,6 +366,7 @@ export const api = {
   completeLesson: (lessonId: string) => request("/lessons/" + encodeURIComponent(lessonId) + "/complete", { method: "POST" }),
   chatMessages: (enrollmentId: string) => request<ApiChatMessage[]>("/workspaces/" + encodeURIComponent(enrollmentId) + "/chat/messages"),
   sendChatMessage: (enrollmentId: string, text: string) => request<{ studentMessage: ApiChatMessage; tutorMessage: ApiChatMessage }>("/workspaces/" + encodeURIComponent(enrollmentId) + "/chat/messages", { method: "POST", body: JSON.stringify({ text }) }),
+  streamChatMessage: (enrollmentId: string, text: string) => streamRequest("/workspaces/" + encodeURIComponent(enrollmentId) + "/chat/messages/stream", { method: "POST", body: JSON.stringify({ text }) }),
   workspace: (enrollmentId: string) => request<ApiWorkspace>("/workspaces/" + encodeURIComponent(enrollmentId)),
   createWorkspace: (enrollmentId: string) => request<ApiWorkspace>("/workspaces", { method: "POST", body: JSON.stringify({ enrollmentId }) }),
   consoleSession: (enrollmentId: string) =>

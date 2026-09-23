@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { api, beaconStopWorkspace } from "./api";
+import { ApiError, api, beaconStopWorkspace } from "./api";
+import { API_BASE_URL } from "./config";
 
 describe("api.stopWorkspace / startWorkspace / workspaceHeartbeat", () => {
   const originalFetch = global.fetch;
@@ -63,6 +64,7 @@ describe("beaconStopWorkspace", () => {
   beforeEach(() => {
     vi.stubGlobal("navigator", { sendBeacon: vi.fn().mockReturnValue(true) });
   });
+
   afterEach(() => {
     vi.unstubAllGlobals();
   });
@@ -80,5 +82,43 @@ describe("beaconStopWorkspace", () => {
     expect(String(url)).toContain("/workspaces/enr_1/stop?token=access-token-123");
     expect(body).toBeInstanceOf(Blob);
     expect((body as Blob).type).toBe("application/json");
+  });
+});
+
+describe("api.streamChatMessage", () => {
+  beforeEach(() => {
+    vi.stubGlobal("fetch", vi.fn());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("POST 到 /workspaces/:enrollmentId/chat/messages/stream，带上 text 和 SSE Accept 头", async () => {
+    const body = new ReadableStream();
+    vi.mocked(fetch).mockResolvedValue(new Response(body, { status: 200 }));
+
+    const response = await api.streamChatMessage("enroll-1", "你好");
+
+    expect(fetch).toHaveBeenCalledWith(
+      `${API_BASE_URL}/workspaces/enroll-1/chat/messages/stream`,
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ text: "你好" }),
+        headers: expect.objectContaining({
+          "Content-Type": "application/json",
+          Accept: "text/event-stream",
+        }),
+      }),
+    );
+    expect(response.body).toBe(body);
+  });
+
+  it("非 2xx 响应时抛出 ApiError，而不是把错误响应体当成流返回", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(JSON.stringify({ message: "请先启动虚拟机后再提问。" }), { status: 400 }),
+    );
+
+    await expect(api.streamChatMessage("enroll-1", "你好")).rejects.toBeInstanceOf(ApiError);
   });
 });
