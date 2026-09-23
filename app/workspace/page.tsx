@@ -2,20 +2,31 @@
 
 import { useRouter } from "next/navigation";
 import { type CSSProperties, type FormEvent, type KeyboardEvent, type PointerEvent as ReactPointerEvent, useCallback, useEffect, useRef, useState } from "react";
+import { Markdown } from "@tanstack/markdown/react";
+import { streamingMarkdownExtension } from "@tanstack/markdown/extensions/streaming";
 import { AccountMenu } from "../components/AccountMenu";
 import { BrandLogo } from "../components/BrandLogo";
 import { CourseLessonContent } from "../components/CourseLessonContent";
 import { Sidebar } from "../components/Sidebar";
 import { api, ApiError, beaconStopWorkspace, getAccessToken, type ApiConsoleSession, type ApiCourseDetail, type ApiEnrollment, type ApiLesson, type ApiWorkspace } from "../lib/api";
+import { parseSseStream } from "../lib/sse";
 import { subscribeWorkspace } from "../lib/ws";
 import { ConsoleViewer } from "./console-viewer";
+import { progressLabel } from "./chat-progress";
 import { heartbeatIntervalMs, isHeartbeatDue } from "./heartbeat";
+import { typewriterChunks, typewriterDelayMs } from "./typewriter";
 
 type Message = { role: "tutor" | "student"; text: string };
+
+type ChatStreamFrame =
+  | { type: "progress"; event: string; data: Record<string, unknown> }
+  | { type: "complete"; studentMessage: { text: string }; tutorMessage: { text: string } };
 
 const initialMessages: Message[] = [
   { role: "tutor", text: "I am ready to help with this course step. Tell me what you are trying to do or where the result differs from the lesson." },
 ];
+
+const markdownExtensions = [streamingMarkdownExtension()];
 
 const courseRailWidthStorageKey = "aivirteach.lab.courseRailWidth.v1";
 const minCourseRailWidth = 320;
@@ -42,6 +53,9 @@ export default function WorkspacePage() {
   const [completionStatus, setCompletionStatus] = useState("");
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState<Message[]>(initialMessages);
+  const [streaming, setStreaming] = useState(false);
+  const [streamingProgress, setStreamingProgress] = useState<string | null>(null);
+  const [streamingText, setStreamingText] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const [courseSummaryCollapsed, setCourseSummaryCollapsed] = useState(false);
   const [tutorCollapsed, setTutorCollapsed] = useState(false);
@@ -286,17 +300,49 @@ export default function WorkspacePage() {
     }
   }
 
+  async function revealTutorText(text: string) {
+    let accumulated = "";
+    for (const chunk of typewriterChunks(text)) {
+      accumulated += chunk;
+      setStreamingText(accumulated);
+      await new Promise((resolve) => setTimeout(resolve, typewriterDelayMs()));
+    }
+  }
+
   async function sendMessage(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!enrollment) return;
+    if (!enrollment || streaming) return;
     const text = message.trim();
     if (!text) return;
     setMessage("");
+    setMessages((current) => [...current, { role: "student", text }]);
+    setStreaming(true);
+    setStreamingProgress(null);
+    setStreamingText("");
     try {
-      const response = await api.sendChatMessage(enrollment.id, text);
-      setMessages((current) => [...current, { role: "student", text: response.studentMessage.text }, { role: "tutor", text: response.tutorMessage.text }]);
+      const response = await api.streamChatMessage(enrollment.id, text);
+      if (!response.body) throw new Error("The tutor is unavailable.");
+
+      let tutorText: string | null = null;
+      for await (const frame of parseSseStream(response.body)) {
+        const parsed = JSON.parse(frame.data) as ChatStreamFrame;
+        if (parsed.type === "progress") {
+          const label = progressLabel(parsed.event, parsed.data);
+          if (label) setStreamingProgress(label);
+        } else {
+          tutorText = parsed.tutorMessage.text;
+        }
+      }
+
+      if (tutorText === null) throw new Error("The tutor is unavailable.");
+      await revealTutorText(tutorText);
+      setMessages((current) => [...current, { role: "tutor", text: tutorText! }]);
     } catch (caught) {
-      setMessages((current) => [...current, { role: "student", text }, { role: "tutor", text: caught instanceof Error ? caught.message : "The tutor is unavailable." }]);
+      setMessages((current) => [...current, { role: "tutor", text: caught instanceof Error ? caught.message : "The tutor is unavailable." }]);
+    } finally {
+      setStreaming(false);
+      setStreamingProgress(null);
+      setStreamingText("");
     }
   }
 
@@ -470,7 +516,7 @@ export default function WorkspacePage() {
           )}
         </main>
 
-        <aside className={`lab-tutor-rail ${tutorCollapsed ? "collapsed" : ""}`} aria-label="AI teacher">{tutorCollapsed ? <button className="lab-tutor-expand" type="button" onClick={() => setTutorCollapsed(false)} aria-label="Expand AI teacher"><span className="bot-mark">AI</span><i className="collapse-glyph points-left" aria-hidden="true" /></button> : <><header><div className="tutor-heading"><span className="bot-mark">AI</span><div><strong>AIVir Teacher</strong><small><i /> Online</small></div></div><div className="tutor-header-actions"><button className={`tutor-refresh ${refreshing ? "refreshing" : ""}`} type="button" onClick={refreshTutor} aria-label="Refresh tutor conversation"><img src="/refresh-icon.png" alt="" aria-hidden="true" /></button><button className="lab-rail-toggle points-right" type="button" onClick={() => setTutorCollapsed(true)} aria-label="Collapse AI teacher"><span aria-hidden="true" /></button></div></header><div className={`messages ${refreshing ? "refreshing" : ""}`}>{messages.map((item, index) => <article className={`message ${item.role}`} key={`${item.role}-${index}`}><div><p>{item.text}</p><small>{index === messages.length - 1 ? "Just now" : "Earlier"}</small></div></article>)}</div><form className="message-form" onSubmit={sendMessage}><input value={message} onChange={(event) => setMessage(event.target.value)} aria-label="Ask the tutor for help" placeholder="Ask about this step..." /><button aria-label="Send message">Send</button></form></> }</aside>
+        <aside className={`lab-tutor-rail ${tutorCollapsed ? "collapsed" : ""}`} aria-label="AI teacher">{tutorCollapsed ? <button className="lab-tutor-expand" type="button" onClick={() => setTutorCollapsed(false)} aria-label="Expand AI teacher"><span className="bot-mark">AI</span><i className="collapse-glyph points-left" aria-hidden="true" /></button> : <><header><div className="tutor-heading"><span className="bot-mark">AI</span><div><strong>AIVir Teacher</strong><small><i /> Online</small></div></div><div className="tutor-header-actions"><button className={`tutor-refresh ${refreshing ? "refreshing" : ""}`} type="button" onClick={refreshTutor} aria-label="Refresh tutor conversation"><img src="/refresh-icon.png" alt="" aria-hidden="true" /></button><button className="lab-rail-toggle points-right" type="button" onClick={() => setTutorCollapsed(true)} aria-label="Collapse AI teacher"><span aria-hidden="true" /></button></div></header><div className={`messages ${refreshing ? "refreshing" : ""}`}>{messages.map((item, index) => <article className={`message ${item.role}`} key={`${item.role}-${index}`}><div>{item.role === "tutor" ? <Markdown extensions={markdownExtensions}>{item.text}</Markdown> : <p>{item.text}</p>}<small>{index === messages.length - 1 && !streaming ? "Just now" : "Earlier"}</small></div></article>)}{streaming && <article className="message tutor pending"><div>{streamingText ? <Markdown extensions={markdownExtensions}>{streamingText}</Markdown> : <p className="tutor-progress">{streamingProgress ?? "..."}</p>}<small>Just now</small></div></article>}</div><form className="message-form" onSubmit={sendMessage}><input value={message} onChange={(event) => setMessage(event.target.value)} aria-label="Ask the tutor for help" placeholder="Ask about this step..." disabled={streaming} /><button aria-label="Send message" disabled={streaming}>Send</button></form></> }</aside>
       </div>
       {vmEnvOpen && <div className="vm-env-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setVmEnvOpen(false); }}>
         <section className="vm-env-dialog" role="dialog" aria-modal="true" aria-labelledby="vm-env-title" aria-describedby="vm-env-description">
