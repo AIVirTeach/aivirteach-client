@@ -354,7 +354,28 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ data }),
     }),
+  stopWorkspace: (enrollmentId: string) =>
+    request<ApiWorkspace>("/workspaces/" + encodeURIComponent(enrollmentId) + "/stop", {
+      method: "POST",
+      body: JSON.stringify({ reason: "manual" }),
+    }),
+  startWorkspace: (enrollmentId: string) =>
+    request<ApiWorkspace>("/workspaces/" + encodeURIComponent(enrollmentId) + "/start", { method: "POST" }),
+  workspaceHeartbeat: (enrollmentId: string) =>
+    request<ApiWorkspace>("/workspaces/" + encodeURIComponent(enrollmentId) + "/heartbeat", { method: "POST" }),
 };
+
+// 关标签页那一刻用 navigator.sendBeacon 打，不走 fetch——页面正在被卸载，fetch 请求经常来不及
+// 发出去就被浏览器砍掉。sendBeacon 不能带自定义请求头，所以 token 放 query string（服务端
+// JwtAuthGuard 会在没有 Authorization 头时回退读这个），reason 放 body。
+export function beaconStopWorkspace(enrollmentId: string, token: string | null): void {
+  if (!token) return;
+  if (typeof navigator === "undefined" || typeof navigator.sendBeacon !== "function") return;
+
+  const url = `${API_BASE_URL}/workspaces/${encodeURIComponent(enrollmentId)}/stop?token=${encodeURIComponent(token)}`;
+  const body = new Blob([JSON.stringify({ reason: "beacon" })], { type: "application/json" });
+  navigator.sendBeacon(url, body);
+}
 
 export function courseAssetUrl(courseId: string, assetId: string) {
   return `${API_BASE_URL}/courses/${encodeURIComponent(courseId)}/assets/${encodeURIComponent(assetId)}`;
