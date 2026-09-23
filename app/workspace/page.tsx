@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { type CSSProperties, type FormEvent, type KeyboardEvent, type PointerEvent as ReactPointerEvent, useCallback, useEffect, useRef, useState } from "react";
+import { type ComponentPropsWithoutRef, type CSSProperties, type FormEvent, type KeyboardEvent, type PointerEvent as ReactPointerEvent, useCallback, useEffect, useRef, useState } from "react";
 import { Markdown } from "@tanstack/markdown/react";
 import { streamingMarkdownExtension } from "@tanstack/markdown/extensions/streaming";
 import { AccountMenu } from "../components/AccountMenu";
@@ -14,19 +14,22 @@ import { subscribeWorkspace } from "../lib/ws";
 import { ConsoleViewer } from "./console-viewer";
 import { progressLabel } from "./chat-progress";
 import { heartbeatIntervalMs, isHeartbeatDue } from "./heartbeat";
+import { parseChatStreamFrame } from "./chat-stream-frame";
+import { isSafeMarkdownHref } from "./markdown-safety";
 import { typewriterChunks, typewriterDelayMs } from "./typewriter";
 
 type Message = { role: "tutor" | "student"; text: string };
-
-type ChatStreamFrame =
-  | { type: "progress"; event: string; data: Record<string, unknown> }
-  | { type: "complete"; studentMessage: { text: string }; tutorMessage: { text: string } };
 
 const initialMessages: Message[] = [
   { role: "tutor", text: "I am ready to help with this course step. Tell me what you are trying to do or where the result differs from the lesson." },
 ];
 
 const markdownExtensions = [streamingMarkdownExtension()];
+
+function SafeAnchor({ href, children, ...rest }: ComponentPropsWithoutRef<"a">) {
+  return <a {...rest} href={isSafeMarkdownHref(href) ? href : undefined}>{children}</a>;
+}
+const markdownComponents = { a: SafeAnchor };
 
 const courseRailWidthStorageKey = "aivirteach.lab.courseRailWidth.v1";
 const minCourseRailWidth = 320;
@@ -73,6 +76,11 @@ export default function WorkspacePage() {
   const consolePollCancelled = useRef(false);
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const vmEnvCloseButtonRef = useRef<HTMLButtonElement>(null);
+  const chatAbortRef = useRef<AbortController | null>(null);
+
+  // 组件卸载时中止还在飞的聊天流：sendMessage 是表单回调不是 effect，没有天然的
+  // cleanup 时机，靠这个 mount-only effect 补上，避免卸载后还在读流、还在 setState。
+  useEffect(() => () => chatAbortRef.current?.abort(), []);
 
   useEffect(() => {
     let active = true;
@@ -300,9 +308,10 @@ export default function WorkspacePage() {
     }
   }
 
-  async function revealTutorText(text: string) {
+  async function revealTutorText(text: string, signal: AbortSignal) {
     let accumulated = "";
     for (const chunk of typewriterChunks(text)) {
+      if (signal.aborted) return;
       accumulated += chunk;
       setStreamingText(accumulated);
       await new Promise((resolve) => setTimeout(resolve, typewriterDelayMs()));
@@ -319,13 +328,16 @@ export default function WorkspacePage() {
     setStreaming(true);
     setStreamingProgress(null);
     setStreamingText("");
+    const controller = new AbortController();
+    chatAbortRef.current = controller;
     try {
-      const response = await api.streamChatMessage(enrollment.id, text);
+      const response = await api.streamChatMessage(enrollment.id, text, controller.signal);
       if (!response.body) throw new Error("The tutor is unavailable.");
 
       let tutorText: string | null = null;
       for await (const frame of parseSseStream(response.body)) {
-        const parsed = JSON.parse(frame.data) as ChatStreamFrame;
+        const parsed = parseChatStreamFrame(frame.data);
+        if (!parsed) continue;
         if (parsed.type === "progress") {
           const label = progressLabel(parsed.event, parsed.data);
           if (label) setStreamingProgress(label);
@@ -335,14 +347,18 @@ export default function WorkspacePage() {
       }
 
       if (tutorText === null) throw new Error("The tutor is unavailable.");
-      await revealTutorText(tutorText);
+      await revealTutorText(tutorText, controller.signal);
+      if (controller.signal.aborted) return;
       setMessages((current) => [...current, { role: "tutor", text: tutorText! }]);
     } catch (caught) {
+      if (controller.signal.aborted) return;
       setMessages((current) => [...current, { role: "tutor", text: caught instanceof Error ? caught.message : "The tutor is unavailable." }]);
     } finally {
-      setStreaming(false);
-      setStreamingProgress(null);
-      setStreamingText("");
+      if (!controller.signal.aborted) {
+        setStreaming(false);
+        setStreamingProgress(null);
+        setStreamingText("");
+      }
     }
   }
 
@@ -516,7 +532,7 @@ export default function WorkspacePage() {
           )}
         </main>
 
-        <aside className={`lab-tutor-rail ${tutorCollapsed ? "collapsed" : ""}`} aria-label="AI teacher">{tutorCollapsed ? <button className="lab-tutor-expand" type="button" onClick={() => setTutorCollapsed(false)} aria-label="Expand AI teacher"><span className="bot-mark">AI</span><i className="collapse-glyph points-left" aria-hidden="true" /></button> : <><header><div className="tutor-heading"><span className="bot-mark">AI</span><div><strong>AIVir Teacher</strong><small><i /> Online</small></div></div><div className="tutor-header-actions"><button className={`tutor-refresh ${refreshing ? "refreshing" : ""}`} type="button" onClick={refreshTutor} aria-label="Refresh tutor conversation"><img src="/refresh-icon.png" alt="" aria-hidden="true" /></button><button className="lab-rail-toggle points-right" type="button" onClick={() => setTutorCollapsed(true)} aria-label="Collapse AI teacher"><span aria-hidden="true" /></button></div></header><div className={`messages ${refreshing ? "refreshing" : ""}`}>{messages.map((item, index) => <article className={`message ${item.role}`} key={`${item.role}-${index}`}><div>{item.role === "tutor" ? <Markdown extensions={markdownExtensions}>{item.text}</Markdown> : <p>{item.text}</p>}<small>{index === messages.length - 1 && !streaming ? "Just now" : "Earlier"}</small></div></article>)}{streaming && <article className="message tutor pending"><div>{streamingText ? <Markdown extensions={markdownExtensions}>{streamingText}</Markdown> : <p className="tutor-progress">{streamingProgress ?? "..."}</p>}<small>Just now</small></div></article>}</div><form className="message-form" onSubmit={sendMessage}><input value={message} onChange={(event) => setMessage(event.target.value)} aria-label="Ask the tutor for help" placeholder="Ask about this step..." disabled={streaming} /><button aria-label="Send message" disabled={streaming}>Send</button></form></> }</aside>
+        <aside className={`lab-tutor-rail ${tutorCollapsed ? "collapsed" : ""}`} aria-label="AI teacher">{tutorCollapsed ? <button className="lab-tutor-expand" type="button" onClick={() => setTutorCollapsed(false)} aria-label="Expand AI teacher"><span className="bot-mark">AI</span><i className="collapse-glyph points-left" aria-hidden="true" /></button> : <><header><div className="tutor-heading"><span className="bot-mark">AI</span><div><strong>AIVir Teacher</strong><small><i /> Online</small></div></div><div className="tutor-header-actions"><button className={`tutor-refresh ${refreshing ? "refreshing" : ""}`} type="button" onClick={refreshTutor} aria-label="Refresh tutor conversation"><img src="/refresh-icon.png" alt="" aria-hidden="true" /></button><button className="lab-rail-toggle points-right" type="button" onClick={() => setTutorCollapsed(true)} aria-label="Collapse AI teacher"><span aria-hidden="true" /></button></div></header><div className={`messages ${refreshing ? "refreshing" : ""}`}>{messages.map((item, index) => <article className={`message ${item.role}`} key={`${item.role}-${index}`}><div>{item.role === "tutor" ? <Markdown extensions={markdownExtensions} components={markdownComponents}>{item.text}</Markdown> : <p>{item.text}</p>}<small>{index === messages.length - 1 && !streaming ? "Just now" : "Earlier"}</small></div></article>)}{streaming && <article className="message tutor pending"><div>{streamingText ? <Markdown extensions={markdownExtensions} components={markdownComponents}>{streamingText}</Markdown> : <p className="tutor-progress">{streamingProgress ?? "..."}</p>}<small>Just now</small></div></article>}</div><form className="message-form" onSubmit={sendMessage}><input value={message} onChange={(event) => setMessage(event.target.value)} aria-label="Ask the tutor for help" placeholder="Ask about this step..." disabled={streaming} /><button aria-label="Send message" disabled={streaming}>Send</button></form></> }</aside>
       </div>
       {vmEnvOpen && <div className="vm-env-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setVmEnvOpen(false); }}>
         <section className="vm-env-dialog" role="dialog" aria-modal="true" aria-labelledby="vm-env-title" aria-describedby="vm-env-description">

@@ -121,4 +121,17 @@ describe("api.streamChatMessage", () => {
 
     await expect(api.streamChatMessage("enroll-1", "你好")).rejects.toBeInstanceOf(ApiError);
   });
+
+  it("传入 AbortSignal 时透传给 fetch，调用方可以中止还没读完的流", async () => {
+    const body = new ReadableStream();
+    vi.mocked(fetch).mockResolvedValue(new Response(body, { status: 200 }));
+    const controller = new AbortController();
+
+    await api.streamChatMessage("enroll-1", "你好", controller.signal);
+
+    expect(fetch).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ signal: controller.signal }),
+    );
+  });
 });

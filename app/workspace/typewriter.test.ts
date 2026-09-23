@@ -8,6 +8,13 @@ describe("typewriterChunks", () => {
     expect(chunks.length).toBeGreaterThan(1);
   });
 
+  it("连续中文（没有任何空格）也要切成多个片段，不能整段一次性甩出来", () => {
+    const text = "工作区正在初始化，请稍候片刻，我们正在为你准备诊断结果和后续步骤建议。";
+    const chunks = typewriterChunks(text);
+    expect(chunks.join("")).toBe(text);
+    expect(chunks.length).toBeGreaterThan(1);
+  });
+
   it("空字符串返回空数组", () => {
     expect(typewriterChunks("")).toEqual([]);
   });
