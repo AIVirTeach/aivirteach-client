@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { type ComponentPropsWithoutRef, type CSSProperties, type FormEvent, type KeyboardEvent, type PointerEvent as ReactPointerEvent, useCallback, useEffect, useRef, useState } from "react";
+import { type ComponentPropsWithoutRef, type CSSProperties, type FormEvent, type KeyboardEvent, type PointerEvent as ReactPointerEvent, useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Markdown } from "@tanstack/markdown/react";
 import { streamingMarkdownExtension } from "@tanstack/markdown/extensions/streaming";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,8 @@ import { parseChatStreamFrame } from "./chat-stream-frame";
 import { isSafeMarkdownHref } from "./markdown-safety";
 import { typewriterChunks, typewriterDelayMs } from "./typewriter";
 import { upstreamErrorMessage, type UpstreamErrorMessages } from "./upstream-error";
+import { getServerInterfaceVersion, getStoredInterfaceVersion, subscribeToInterfaceVersion } from "../lib/interface-version";
+import { WorkspaceV2 } from "./workspace-v2";
 
 type Message = { role: "tutor" | "student"; text: string };
 
@@ -67,6 +69,11 @@ function formatElapsed(totalSeconds: number) {
 }
 
 export default function WorkspacePage() {
+  const interfaceVersion = useSyncExternalStore(subscribeToInterfaceVersion, getStoredInterfaceVersion, getServerInterfaceVersion);
+  return interfaceVersion === "v1" ? <WorkspaceV1 /> : <WorkspaceV2 />;
+}
+
+function WorkspaceV1() {
   const router = useRouter();
   const [course, setCourse] = useState<ApiCourseDetail | null>(null);
   const [enrollment, setEnrollment] = useState<ApiEnrollment | null>(null);

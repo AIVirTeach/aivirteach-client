@@ -230,6 +230,17 @@ export type ApiCourseWelcome = {
   finalOutcome: { heading: string; description: string };
 };
 
+export type ApiCourseDesign = {
+  id: string;
+  label: string;
+  url: string;
+};
+
+export type ApiCourseDesignPackage = {
+  course: { id: "ai-daily-briefing"; title: "AI Daily Briefing" };
+  themes: ApiCourseDesign[];
+};
+
 export type ApiEnrollment = {
   id: string;
   userId: string;
@@ -351,6 +362,11 @@ export const api = {
   notifications: () => request<ApiNotification[]>("/notifications"),
   markAllNotificationsRead: () => request<{ updated: number; readAt: string }>("/notifications/read-all", { method: "POST" }),
   courses: () => request<ApiCourse[]>("/courses"),
+  courseDesigns: async () => {
+    const response = await fetch("/courses/new_design", { cache: "no-store" });
+    if (!response.ok) throw await responseError(response);
+    return response.json() as Promise<ApiCourseDesignPackage>;
+  },
   course: (courseId: string) => request<ApiCourseDetail>("/courses/" + encodeURIComponent(courseId)),
   courseWelcome: (courseId: string) => request<ApiCourseWelcome>("/courses/" + encodeURIComponent(courseId) + "/welcome"),
   lesson: (courseId: string, lessonId: string) => request<ApiLesson>("/courses/" + encodeURIComponent(courseId) + "/lessons/" + encodeURIComponent(lessonId)),
@@ -402,4 +418,8 @@ export function beaconStopWorkspace(enrollmentId: string, token: string | null):
 
 export function courseAssetUrl(courseId: string, assetId: string) {
   return `${API_BASE_URL}/courses/${encodeURIComponent(courseId)}/assets/${encodeURIComponent(assetId)}`;
+}
+
+export function courseDesignUrl(design: ApiCourseDesign) {
+  return design.url;
 }

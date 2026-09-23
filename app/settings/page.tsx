@@ -9,11 +9,13 @@ import { Sidebar } from "../components/Sidebar";
 import { api } from "../lib/api";
 import { applyInterfaceVersion, getServerInterfaceVersion, getStoredInterfaceVersion, subscribeToInterfaceVersion, type InterfaceVersion } from "../lib/interface-version";
 import { applyTheme, getServerTheme, getStoredTheme, subscribeToTheme, type Theme } from "../lib/theme";
+import { applyScrollbarPreference, getServerScrollbarPreference, getStoredScrollbarPreference, subscribeToScrollbarPreference, type ScrollbarPreference } from "../lib/scrollbar-preference";
 
 export default function SettingsPage() {
   const router = useRouter();
   const theme = useSyncExternalStore(subscribeToTheme, getStoredTheme, getServerTheme);
   const interfaceVersion = useSyncExternalStore(subscribeToInterfaceVersion, getStoredInterfaceVersion, getServerInterfaceVersion);
+  const scrollbarPreference = useSyncExternalStore(subscribeToScrollbarPreference, getStoredScrollbarPreference, getServerScrollbarPreference);
 
   useLayoutEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -26,6 +28,10 @@ export default function SettingsPage() {
 
   function chooseInterfaceVersion(nextVersion: InterfaceVersion) {
     applyInterfaceVersion(nextVersion);
+  }
+
+  function chooseScrollbarPreference(nextPreference: ScrollbarPreference) {
+    applyScrollbarPreference(nextPreference);
   }
 
   function logOut() {
@@ -69,6 +75,14 @@ export default function SettingsPage() {
             <div className="theme-choice" role="group" aria-label="Color theme">
               <Button variant="ghost" className={theme === "light" ? "active" : ""} type="button" onClick={() => chooseTheme("light")} aria-pressed={theme === "light"}>Light</Button>
               <Button variant="ghost" className={theme === "dark" ? "active" : ""} type="button" onClick={() => chooseTheme("dark")} aria-pressed={theme === "dark"}>Dark</Button>
+            </div>
+          </Card>
+
+          <Card as="article" className="settings-card">
+            <div><span className="settings-card-icon" aria-hidden="true">↕</span><div><h2>Scrollbars</h2><p>Keep thin scrollbars visible for orientation, or hide them for a cleaner workspace.</p></div></div>
+            <div className="theme-choice" role="group" aria-label="Scrollbar visibility">
+              <Button variant="ghost" className={scrollbarPreference === "visible" ? "active" : ""} type="button" onClick={() => chooseScrollbarPreference("visible")} aria-pressed={scrollbarPreference === "visible"}>Visible</Button>
+              <Button variant="ghost" className={scrollbarPreference === "hidden" ? "active" : ""} type="button" onClick={() => chooseScrollbarPreference("hidden")} aria-pressed={scrollbarPreference === "hidden"}>Hidden</Button>
             </div>
           </Card>
 
