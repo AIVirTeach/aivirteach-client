@@ -107,7 +107,15 @@ async function refreshSession() {
   return refreshPromise;
 }
 
-async function request<T>(path: string, init?: RequestInit, retry = true): Promise<T> {
+// request() 和 streamRequest() 共享的部分：读 session、临过期时主动刷新、拼 header、
+// 401 时刷新重试一次。两者只在"怎么处理最终 Response"上分叉（转 JSON vs 原样返回给
+// 调用方去读 event-stream body），所以提成一个辅助函数，不能各自维护一份、容易漏改。
+async function authorizedFetch(
+  path: string,
+  init: RequestInit,
+  extraHeaders: Record<string, string>,
+  retry = true,
+): Promise<Response> {
   let session = backendConfig.mode === "remote" ? readSession() : null;
   if (backendConfig.mode === "remote" && !session) throw new ApiError(401, "Please log in to continue.");
   if (session && session.expiresAt <= Date.now() + 15_000) session = await refreshSession();
@@ -119,14 +127,28 @@ async function request<T>(path: string, init?: RequestInit, retry = true): Promi
       "Content-Type": "application/json",
       ...(session ? { Authorization: `Bearer ${session.accessToken}` } : {}),
       "X-Demo-User-Id": getDemoUserId(),
-      ...init?.headers,
+      ...extraHeaders,
+      ...init.headers,
     },
   });
 
   if (backendConfig.mode === "remote" && response.status === 401 && retry) {
     await refreshSession();
-    return request<T>(path, init, false);
+    return authorizedFetch(path, init, extraHeaders, false);
   }
+  return response;
+}
+
+// SSE 端点：调用方需要拿到原始 Response 去读 .body（ReadableStream），不能走 request()——
+// 那边固定 response.json()，会把 event-stream 当 JSON 解析炸掉。
+async function streamRequest(path: string, init?: RequestInit): Promise<Response> {
+  const response = await authorizedFetch(path, init ?? {}, { Accept: "text/event-stream" });
+  if (!response.ok) throw await responseError(response);
+  return response;
+}
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await authorizedFetch(path, init ?? {}, {});
   if (!response.ok) throw await responseError(response);
   if (response.status === 204) return undefined as T;
 
@@ -343,6 +365,7 @@ export const api = {
   completeLesson: (lessonId: string) => request("/lessons/" + encodeURIComponent(lessonId) + "/complete", { method: "POST" }),
   chatMessages: (enrollmentId: string) => request<ApiChatMessage[]>("/workspaces/" + encodeURIComponent(enrollmentId) + "/chat/messages"),
   sendChatMessage: (enrollmentId: string, text: string) => request<{ studentMessage: ApiChatMessage; tutorMessage: ApiChatMessage }>("/workspaces/" + encodeURIComponent(enrollmentId) + "/chat/messages", { method: "POST", body: JSON.stringify({ text }) }),
+  streamChatMessage: (enrollmentId: string, text: string, signal?: AbortSignal) => streamRequest("/workspaces/" + encodeURIComponent(enrollmentId) + "/chat/messages/stream", { method: "POST", body: JSON.stringify({ text }), signal }),
   workspace: (enrollmentId: string) => request<ApiWorkspace>("/workspaces/" + encodeURIComponent(enrollmentId)),
   createWorkspace: (enrollmentId: string) => request<ApiWorkspace>("/workspaces", { method: "POST", body: JSON.stringify({ enrollmentId }) }),
   consoleSession: (enrollmentId: string) =>

@@ -1,21 +1,52 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { type CSSProperties, type FormEvent, type KeyboardEvent, type PointerEvent as ReactPointerEvent, useCallback, useEffect, useRef, useState } from "react";
+import { type ComponentPropsWithoutRef, type CSSProperties, type FormEvent, type KeyboardEvent, type PointerEvent as ReactPointerEvent, useCallback, useEffect, useRef, useState } from "react";
+import { Markdown } from "@tanstack/markdown/react";
+import { streamingMarkdownExtension } from "@tanstack/markdown/extensions/streaming";
 import { AccountMenu } from "../components/AccountMenu";
 import { BrandLogo } from "../components/BrandLogo";
 import { CourseLessonContent } from "../components/CourseLessonContent";
 import { Sidebar } from "../components/Sidebar";
 import { api, ApiError, beaconStopWorkspace, getAccessToken, type ApiConsoleSession, type ApiCourseDetail, type ApiEnrollment, type ApiLesson, type ApiWorkspace } from "../lib/api";
+import { parseSseStream } from "../lib/sse";
 import { subscribeWorkspace } from "../lib/ws";
 import { ConsoleViewer } from "./console-viewer";
+import { progressLabel } from "./chat-progress";
 import { heartbeatIntervalMs, isHeartbeatDue } from "./heartbeat";
+import { parseChatStreamFrame } from "./chat-stream-frame";
+import { isSafeMarkdownHref } from "./markdown-safety";
+import { typewriterChunks, typewriterDelayMs } from "./typewriter";
+import { upstreamErrorMessage, type UpstreamErrorMessages } from "./upstream-error";
 
 type Message = { role: "tutor" | "student"; text: string };
 
 const initialMessages: Message[] = [
   { role: "tutor", text: "I am ready to help with this course step. Tell me what you are trying to do or where the result differs from the lesson." },
 ];
+
+// 面向学生的文案，按"重试是否有用"分两档，不透出任何上游响应内容或内部服务名——
+// 跟 aivirteach-server 的 VM_MESSAGES/REMOTE_DESKTOP_MESSAGES/AGENT_MESSAGES 保持同一套文案，
+// 不管这次报错是服务端已经分档好再传下来的，还是本地按 ApiError.status 现分档的，学生看到的都一样。
+const VM_MESSAGES: UpstreamErrorMessages = {
+  retryable: "学习环境暂时连接不上，请稍后重试。",
+  unavailable: "学习环境暂时无法使用，请稍后再试或联系客服。",
+};
+const REMOTE_DESKTOP_MESSAGES: UpstreamErrorMessages = {
+  retryable: "远程桌面连接失败，请稍后重试。",
+  unavailable: "远程桌面暂时无法使用，请联系客服。",
+};
+const AGENT_MESSAGES: UpstreamErrorMessages = {
+  retryable: "助教暂时没有回应，请重试一次。",
+  unavailable: "助教服务暂时不可用，请联系客服。",
+};
+
+const markdownExtensions = [streamingMarkdownExtension()];
+
+function SafeAnchor({ href, children, ...rest }: ComponentPropsWithoutRef<"a">) {
+  return <a {...rest} href={isSafeMarkdownHref(href) ? href : undefined}>{children}</a>;
+}
+const markdownComponents = { a: SafeAnchor };
 
 const courseRailWidthStorageKey = "aivirteach.lab.courseRailWidth.v1";
 const minCourseRailWidth = 320;
@@ -42,6 +73,9 @@ export default function WorkspacePage() {
   const [completionStatus, setCompletionStatus] = useState("");
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState<Message[]>(initialMessages);
+  const [streaming, setStreaming] = useState(false);
+  const [streamingProgress, setStreamingProgress] = useState<string | null>(null);
+  const [streamingText, setStreamingText] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const [courseSummaryCollapsed, setCourseSummaryCollapsed] = useState(false);
   const [tutorCollapsed, setTutorCollapsed] = useState(false);
@@ -59,6 +93,11 @@ export default function WorkspacePage() {
   const consolePollCancelled = useRef(false);
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const vmEnvCloseButtonRef = useRef<HTMLButtonElement>(null);
+  const chatAbortRef = useRef<AbortController | null>(null);
+
+  // 组件卸载时中止还在飞的聊天流：sendMessage 是表单回调不是 effect，没有天然的
+  // cleanup 时机，靠这个 mount-only effect 补上，避免卸载后还在读流、还在 setState。
+  useEffect(() => () => chatAbortRef.current?.abort(), []);
 
   useEffect(() => {
     let active = true;
@@ -75,8 +114,8 @@ export default function WorkspacePage() {
       setEnrollment(activeEnrollment);
       setCourse(courseData);
       setSelectedLessonId(initialLesson?.id ?? null);
-    }).catch((caught) => {
-      if (active) setContentError(caught instanceof Error ? caught.message : "Could not load the course.");
+    }).catch(() => {
+      if (active) setContentError("Could not load the course.");
     }).finally(() => { if (active) setCourseChecked(true); });
     return () => { active = false; };
   }, []);
@@ -100,7 +139,7 @@ export default function WorkspacePage() {
     }
 
     ensureWorkspace().catch((caught) => {
-      if (active) setContentError(caught instanceof Error ? caught.message : "Could not prepare the workspace.");
+      if (active) setContentError(upstreamErrorMessage(caught, VM_MESSAGES));
     });
 
     return () => { active = false; unsubscribe?.(); };
@@ -179,8 +218,8 @@ export default function WorkspacePage() {
       if (!active) return;
       setLesson(lessonData);
       window.localStorage.setItem(`aivirteach.course.lesson.${course.id}`, selectedLessonId);
-    }).catch((caught) => {
-      if (active) setContentError(caught instanceof Error ? caught.message : "Could not load this step.");
+    }).catch(() => {
+      if (active) setContentError("Could not load this step.");
     }).finally(() => { if (active) setLessonLoading(false); });
     return () => { active = false; };
   }, [course, selectedLessonId]);
@@ -281,22 +320,65 @@ export default function WorkspacePage() {
       setEnrollment((current) => current ? { ...current, ...result.enrollment } : current);
       setCompletionStatus("Step completed");
       if (lesson.navigation.nextLessonId) selectLesson(lesson.navigation.nextLessonId);
-    } catch (caught) {
-      setCompletionStatus(caught instanceof Error ? caught.message : "Could not complete this step.");
+    } catch {
+      setCompletionStatus("Could not complete this step.");
+    }
+  }
+
+  async function revealTutorText(text: string, signal: AbortSignal) {
+    let accumulated = "";
+    for (const chunk of typewriterChunks(text)) {
+      if (signal.aborted) return;
+      accumulated += chunk;
+      setStreamingText(accumulated);
+      await new Promise((resolve) => setTimeout(resolve, typewriterDelayMs()));
     }
   }
 
   async function sendMessage(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!enrollment) return;
+    if (!enrollment || streaming) return;
     const text = message.trim();
     if (!text) return;
     setMessage("");
+    setMessages((current) => [...current, { role: "student", text }]);
+    setStreaming(true);
+    setStreamingProgress(null);
+    setStreamingText("");
+    const controller = new AbortController();
+    chatAbortRef.current = controller;
     try {
-      const response = await api.sendChatMessage(enrollment.id, text);
-      setMessages((current) => [...current, { role: "student", text: response.studentMessage.text }, { role: "tutor", text: response.tutorMessage.text }]);
+      const response = await api.streamChatMessage(enrollment.id, text, controller.signal);
+      if (!response.body) throw new Error("The tutor is unavailable.");
+
+      let tutorText: string | null = null;
+      for await (const frame of parseSseStream(response.body)) {
+        const parsed = parseChatStreamFrame(frame.data);
+        if (!parsed) continue;
+        if (parsed.type === "progress") {
+          const label = progressLabel(parsed.event, parsed.data);
+          if (label) setStreamingProgress(label);
+        } else {
+          tutorText = parsed.tutorMessage.text;
+        }
+      }
+
+      if (tutorText === null) throw new Error("The tutor is unavailable.");
+      await revealTutorText(tutorText, controller.signal);
+      if (controller.signal.aborted) return;
+      setMessages((current) => [...current, { role: "tutor", text: tutorText! }]);
     } catch (caught) {
-      setMessages((current) => [...current, { role: "student", text }, { role: "tutor", text: caught instanceof Error ? caught.message : "The tutor is unavailable." }]);
+      // 上面两处 throw new Error(...) 不是 ApiError，upstreamErrorMessage 会把它们归为
+      // retryable（提示重试）而不是 unavailable——这是有意为之：响应体缺失/流结束却没有最终
+      // 消息通常是瞬时的网络或流式问题，值得让用户重试，不该直接判定为服务不可用。
+      if (controller.signal.aborted) return;
+      setMessages((current) => [...current, { role: "tutor", text: upstreamErrorMessage(caught, AGENT_MESSAGES) }]);
+    } finally {
+      if (!controller.signal.aborted) {
+        setStreaming(false);
+        setStreamingProgress(null);
+        setStreamingText("");
+      }
     }
   }
 
@@ -304,7 +386,7 @@ export default function WorkspacePage() {
     if (!enrollment || retrying) return;
     setRetrying(true);
     void api.createWorkspace(enrollment.id).then(setWorkspace).catch((caught) => {
-      setContentError(caught instanceof Error ? caught.message : "Could not restart the workspace.");
+      setContentError(upstreamErrorMessage(caught, VM_MESSAGES));
     }).finally(() => setRetrying(false));
   }
 
@@ -313,7 +395,7 @@ export default function WorkspacePage() {
     if (!window.confirm("Close the learning environment? You can resume it anytime.")) return;
     setStopping(true);
     void api.stopWorkspace(enrollment.id).then(setWorkspace).catch((caught) => {
-      setContentError(caught instanceof Error ? caught.message : "Could not close the environment.");
+      setContentError(upstreamErrorMessage(caught, VM_MESSAGES));
     }).finally(() => setStopping(false));
   }
 
@@ -321,7 +403,7 @@ export default function WorkspacePage() {
     if (!enrollment || resuming) return;
     setResuming(true);
     void api.startWorkspace(enrollment.id).then(setWorkspace).catch((caught) => {
-      setContentError(caught instanceof Error ? caught.message : "Could not resume the environment.");
+      setContentError(upstreamErrorMessage(caught, VM_MESSAGES));
     }).finally(() => setResuming(false));
   }
 
@@ -359,7 +441,7 @@ export default function WorkspacePage() {
         consolePollTimer.current = setTimeout(() => void poll(), consolePollIntervalMs);
       } catch (caught) {
         if (consolePollCancelled.current) return;
-        setConsoleError(caught instanceof Error ? caught.message : "无法启动远程桌面");
+        setConsoleError(upstreamErrorMessage(caught, REMOTE_DESKTOP_MESSAGES));
         setConsoleLoading(false);
       }
     }
@@ -470,7 +552,7 @@ export default function WorkspacePage() {
           )}
         </main>
 
-        <aside className={`lab-tutor-rail ${tutorCollapsed ? "collapsed" : ""}`} aria-label="AI teacher">{tutorCollapsed ? <button className="lab-tutor-expand" type="button" onClick={() => setTutorCollapsed(false)} aria-label="Expand AI teacher"><span className="bot-mark">AI</span><i className="collapse-glyph points-left" aria-hidden="true" /></button> : <><header><div className="tutor-heading"><span className="bot-mark">AI</span><div><strong>AIVir Teacher</strong><small><i /> Online</small></div></div><div className="tutor-header-actions"><button className={`tutor-refresh ${refreshing ? "refreshing" : ""}`} type="button" onClick={refreshTutor} aria-label="Refresh tutor conversation"><img src="/refresh-icon.png" alt="" aria-hidden="true" /></button><button className="lab-rail-toggle points-right" type="button" onClick={() => setTutorCollapsed(true)} aria-label="Collapse AI teacher"><span aria-hidden="true" /></button></div></header><div className={`messages ${refreshing ? "refreshing" : ""}`}>{messages.map((item, index) => <article className={`message ${item.role}`} key={`${item.role}-${index}`}><div><p>{item.text}</p><small>{index === messages.length - 1 ? "Just now" : "Earlier"}</small></div></article>)}</div><form className="message-form" onSubmit={sendMessage}><input value={message} onChange={(event) => setMessage(event.target.value)} aria-label="Ask the tutor for help" placeholder="Ask about this step..." /><button aria-label="Send message">Send</button></form></> }</aside>
+        <aside className={`lab-tutor-rail ${tutorCollapsed ? "collapsed" : ""}`} aria-label="AI teacher">{tutorCollapsed ? <button className="lab-tutor-expand" type="button" onClick={() => setTutorCollapsed(false)} aria-label="Expand AI teacher"><span className="bot-mark">AI</span><i className="collapse-glyph points-left" aria-hidden="true" /></button> : <><header><div className="tutor-heading"><span className="bot-mark">AI</span><div><strong>AIVir Teacher</strong><small><i /> Online</small></div></div><div className="tutor-header-actions"><button className={`tutor-refresh ${refreshing ? "refreshing" : ""}`} type="button" onClick={refreshTutor} aria-label="Refresh tutor conversation"><img src="/refresh-icon.png" alt="" aria-hidden="true" /></button><button className="lab-rail-toggle points-right" type="button" onClick={() => setTutorCollapsed(true)} aria-label="Collapse AI teacher"><span aria-hidden="true" /></button></div></header><div className={`messages ${refreshing ? "refreshing" : ""}`}>{messages.map((item, index) => <article className={`message ${item.role}`} key={`${item.role}-${index}`}><div>{item.role === "tutor" ? <Markdown extensions={markdownExtensions} components={markdownComponents}>{item.text}</Markdown> : <p>{item.text}</p>}<small>{index === messages.length - 1 && !streaming ? "Just now" : "Earlier"}</small></div></article>)}{streaming && <article className="message tutor pending"><div>{streamingText ? <Markdown extensions={markdownExtensions} components={markdownComponents}>{streamingText}</Markdown> : <p className="tutor-progress">{streamingProgress ?? "..."}</p>}<small>Just now</small></div></article>}</div><form className="message-form" onSubmit={sendMessage}><input value={message} onChange={(event) => setMessage(event.target.value)} aria-label="Ask the tutor for help" placeholder="Ask about this step..." disabled={streaming} /><button aria-label="Send message" disabled={streaming}>Send</button></form></> }</aside>
       </div>
       {vmEnvOpen && <div className="vm-env-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setVmEnvOpen(false); }}>
         <section className="vm-env-dialog" role="dialog" aria-modal="true" aria-labelledby="vm-env-title" aria-describedby="vm-env-description">
