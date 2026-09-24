@@ -3,6 +3,12 @@
 import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Alert } from "@/components/ui/alert";
+import { Card } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { BrandLogo } from "../components/BrandLogo";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { api, setDemoUserId } from "../lib/api";
@@ -53,29 +59,29 @@ export default function CreateAccountPage() {
           <h1 id="create-account-title">{isLocal ? "Create a local demo account" : "Activate your learner account"}</h1>
           <p>{isLocal ? "Create a development profile in your local backend." : "Use the one-time invitation token supplied by AIVirTeach."}</p>
         </header>
-        <div className="login-card">
+        <Card className="login-card">
           <form onSubmit={submit}>
             {isLocal ? <>
-              <label htmlFor="name">Full name</label>
-              <input id="name" name="name" type="text" placeholder="Your name" autoComplete="name" required />
-              <label className="auth-spaced-label" htmlFor="signup-email">Email</label>
-              <input id="signup-email" name="email" type="email" placeholder="name@example.com" autoComplete="email" required />
+              <Label htmlFor="name">Full name</Label>
+              <Input id="name" name="name" type="text" placeholder="Your name" autoComplete="name" required />
+              <Label className="auth-spaced-label" htmlFor="signup-email">Email</Label>
+              <Input id="signup-email" name="email" type="email" placeholder="name@example.com" autoComplete="email" required />
             </> : <>
-              <label htmlFor="invitation-token">Invitation token</label>
-              <input id="invitation-token" name="token" type="text" placeholder="Paste your invitation token" autoComplete="off" required />
+              <Label htmlFor="invitation-token">Invitation token</Label>
+              <Input id="invitation-token" name="token" type="text" placeholder="Paste your invitation token" autoComplete="off" required />
             </>}
             {!isLocal && <>
-              <label className="auth-spaced-label" htmlFor="signup-password">Password</label>
-              <input id="signup-password" name="password" type="password" placeholder="At least 8 characters" autoComplete="new-password" minLength={8} required />
-              <label className="auth-spaced-label" htmlFor="confirmation">Confirm password</label>
-              <input id="confirmation" name="confirmation" type="password" placeholder="Repeat your password" autoComplete="new-password" minLength={8} required />
-              <label className="remember signup-terms"><input type="checkbox" required /> <span>I agree to the Terms and Privacy Policy</span></label>
+              <Label className="auth-spaced-label" htmlFor="signup-password">Password</Label>
+              <Input id="signup-password" name="password" type="password" placeholder="At least 8 characters" autoComplete="new-password" minLength={8} required />
+              <Label className="auth-spaced-label" htmlFor="confirmation">Confirm password</Label>
+              <Input id="confirmation" name="confirmation" type="password" placeholder="Repeat your password" autoComplete="new-password" minLength={8} required />
+              <Label className="remember signup-terms"><Checkbox required /> <span>I agree to the Terms and Privacy Policy</span></Label>
             </>}
-            {error && <p className="auth-error" role="alert">{error}</p>}
-            <button className="primary-button login-submit" type="submit" disabled={submitting}>{submitting ? (isLocal ? "Creating account…" : "Activating account…") : (isLocal ? "Create demo account" : "Activate account")}</button>
+            {error && <Alert className="auth-error" variant="destructive">{error}</Alert>}
+            <Button className="primary-button login-submit" size="lg" type="submit" disabled={submitting}>{submitting ? (isLocal ? "Creating account…" : "Activating account…") : (isLocal ? "Create demo account" : "Activate account")}</Button>
           </form>
-        </div>
-        <p className="signup-copy">{isLocal ? "Already have a demo profile?" : "Already activated?"} <Link className="text-button" href="/login">Log in</Link></p>
+        </Card>
+        <p className="signup-copy">{isLocal ? "Already have a demo profile?" : "Already activated?"} <Button render={<Link href="/login" />} className="text-button" variant="link">Log in</Button></p>
       </section>
     </main>
   );

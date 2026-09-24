@@ -1,39 +1,28 @@
 "use client";
 
 import Link from "next/link";
-import { type FormEvent, useEffect, useRef, useState } from "react";
+import { type FormEvent, useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Alert } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
+import { NotificationMenu } from "../components/NotificationMenu";
 import { Sidebar } from "../components/Sidebar";
 import { useLearnerProfile } from "../hooks/useLearnerProfile";
 import { activateCourse, courseCatalog } from "../lib/courses";
 
 export default function DashboardPage() {
-  const { profile, loading, error, recordPractice, markNotificationsRead } = useLearnerProfile();
-  const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const [notificationsRead, setNotificationsRead] = useState(false);
-  const [highlightUnread, setHighlightUnread] = useState(false);
+  const { profile, loading, error, recordPractice } = useLearnerProfile();
   const [searchQuery, setSearchQuery] = useState("");
   const [searchFeedback, setSearchFeedback] = useState("");
-  const notificationRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!searchFeedback) return;
     const timer = window.setTimeout(() => setSearchFeedback(""), 5000);
     return () => window.clearTimeout(timer);
   }, [searchFeedback]);
-
-  useEffect(() => {
-    if (!notificationsOpen) return;
-
-    function dismissNotifications(event: PointerEvent) {
-      if (!notificationRef.current?.contains(event.target as Node)) {
-        setNotificationsOpen(false);
-        setHighlightUnread(false);
-      }
-    }
-
-    document.addEventListener("pointerdown", dismissNotifications);
-    return () => document.removeEventListener("pointerdown", dismissNotifications);
-  }, [notificationsOpen]);
 
   const firstName = profile.name.split(" ")[0];
   const isAllClear = profile.accountType === "all-clear";
@@ -58,55 +47,34 @@ export default function DashboardPage() {
     setSearchFeedback(match ? `Found: ${match}` : `No results for “${query}”.`);
   }
 
-  function toggleNotifications() {
-    if (notificationsOpen) {
-      setNotificationsOpen(false);
-      setHighlightUnread(false);
-      return;
-    }
-
-    setHighlightUnread(!notificationsRead && profile.notifications.length > 0);
-    setNotificationsRead(true);
-    void markNotificationsRead();
-    setNotificationsOpen(true);
-  }
-
-  function closeNotifications() {
-    setNotificationsOpen(false);
-    setHighlightUnread(false);
-  }
-
   return (
     <div className="app-shell dashboard-shell">
       <Sidebar active="dashboard" />
       <main className={`dashboard page-content ${loading ? "data-loading" : ""}`}>
-        {error && <p className="auth-error" role="alert">Backend unavailable: {error}</p>}
+        {error && <Alert className="auth-error" variant="destructive">Backend unavailable: {error}</Alert>}
         <header className="dashboard-toolbar">
           <form className="search-box" role="search" onSubmit={submitSearch}>
-            <input aria-label="Search courses and skills" placeholder="Search..." value={searchQuery} onChange={(event) => { setSearchQuery(event.target.value); setSearchFeedback(""); }} />
-            <button className="search-button" type="submit" aria-label="Search"><span className="search-glyph" aria-hidden="true" /></button>
+            <Input aria-label="Search courses and skills" placeholder="Search..." value={searchQuery} onChange={(event) => { setSearchQuery(event.target.value); setSearchFeedback(""); }} />
+            <Button className="search-button" variant="ghost" size="icon" type="submit" aria-label="Search"><span className="search-glyph" aria-hidden="true" /></Button>
             {searchFeedback && <output className="search-feedback" aria-live="polite">{searchFeedback}</output>}
           </form>
-          <div className="notification-wrap" ref={notificationRef}>
-            <button className="notification-button" aria-label={notificationsRead ? "Notifications" : "Notifications, new items"} aria-expanded={notificationsOpen} onClick={toggleNotifications}><span className="bell-icon" aria-hidden="true" />{!notificationsRead && <span className="notification-dot" />}</button>
-            {notificationsOpen && <section className="notification-popover"><header><strong>Notifications</strong><button onClick={closeNotifications} aria-label="Close notifications">×</button></header>{profile.notifications.map((notification) => <p className={highlightUnread ? "unread" : ""} key={notification}>{highlightUnread && <span className="new-label">New</span>}{notification}</p>)}</section>}
-          </div>
+          <NotificationMenu placement="dashboard" />
         </header>
         <section className="welcome-copy">
           <h1>{isAllClear ? `Hi, ${firstName}! You're all clear.` : `Hi, ${firstName}! You're making great progress.`}</h1>
           <p>{isAllClear ? "You have completed every available lesson. Keep your skills fresh or explore what is next." : "Pick up where you left off or explore new concepts."}</p>
         </section>
         <section className="dashboard-grid" aria-label="Current learning overview">
-          <article className="course-card">
-            <span className="course-chip">◇ &nbsp; {profile.course.category}</span>
+          <Card as="article" className="course-card">
+            <Badge className="course-chip" variant="secondary">◇ &nbsp; {profile.course.category}</Badge>
             <h2>{profile.course.title}</h2>
             <p>{profile.course.module}</p>
             <div className="course-progress-label"><strong>{profile.course.progress}% Completed</strong></div>
-            <div className="progress-track"><span style={{ width: `${profile.course.progress}%` }} /></div>
-          <Link className="primary-button resume-button" href={isAllClear ? "/courses" : "/workspace"} onClick={() => { if (!isAllClear) { activateCourse(currentCatalogCourse.id); void recordPractice(15); } }}>{isAllClear ? "Explore Courses" : "Resume Session"} <span>→</span></Link>
-          </article>
+            <Progress className="progress-track" value={profile.course.progress} aria-label={`${profile.course.progress}% completed`} />
+          <Button render={<Link href={isAllClear ? "/courses" : "/workspace"} />} className="primary-button resume-button" size="lg" onClick={() => { if (!isAllClear) { activateCourse(currentCatalogCourse.id); void recordPractice(15); } }}>{isAllClear ? "Explore Courses" : "Resume Session"} <span>→</span></Button>
+          </Card>
           <div className="stat-stack">
-            {stats.map((stat) => <article className="stat-card" key={stat.label}><span className={`stat-icon ${stat.tone}`} aria-hidden="true"><i className={`stat-glyph ${stat.icon}`} /></span><div><strong>{stat.value}</strong><span>{stat.label}</span></div></article>)}
+            {stats.map((stat) => <Card as="article" className="stat-card" key={stat.label}><span className={`stat-icon ${stat.tone}`} aria-hidden="true"><i className={`stat-glyph ${stat.icon}`} /></span><div><strong>{stat.value}</strong><span>{stat.label}</span></div></Card>)}
           </div>
         </section>
       </main>

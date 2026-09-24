@@ -2,6 +2,10 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
 import { Sidebar } from "../components/Sidebar";
 import { useLearnerProfile } from "../hooks/useLearnerProfile";
 
@@ -28,26 +32,26 @@ export default function AnalysisPage() {
         <header className="analysis-head">
           <div><h1>Learning Analytics</h1><p>Track your mastery and learning progression.</p></div>
           <div className="analysis-head-actions">
-            <Link className="analysis-v2-link" href="/analysis/v2">View v2</Link>
+            <Button render={<Link href="/analysis/v2" />} className="analysis-v2-link" variant="outline">View v2</Button>
             <div className="range-toggle" aria-label="Analytics date range">
-              <button className={range === "30" ? "active" : ""} onClick={() => setRange("30")}>Last 30 Days</button>
-              <button className={range === "all" ? "active" : ""} onClick={() => setRange("all")}>All Time</button>
+              <Button variant="ghost" type="button" className={range === "30" ? "active" : ""} onClick={() => setRange("30")}>Last 30 Days</Button>
+              <Button variant="ghost" type="button" className={range === "all" ? "active" : ""} onClick={() => setRange("all")}>All Time</Button>
             </div>
           </div>
         </header>
 
         <section className="metric-grid">
           {metrics.map((metric) => (
-            <article className="metric-card" key={metric.label}>
-              <div className="metric-top"><span className={`metric-icon ${metric.tone}`}>{metric.icon}</span><span className="delta">{metric.delta}</span></div>
+            <Card as="article" className="metric-card" key={metric.label}>
+              <div className="metric-top"><span className={`metric-icon ${metric.tone}`}>{metric.icon}</span><Badge className="delta" variant="outline">{metric.delta}</Badge></div>
               <span className="metric-label">{metric.label}</span><strong>{metric.value}</strong>
-              {metric.label === "Weekly Goal" && <div className="progress-track slim"><span style={{ width: `${profile.stats.weeklyGoalPercent}%` }} /></div>}
-            </article>
+              {metric.label === "Weekly Goal" && <Progress className="progress-track slim" value={profile.stats.weeklyGoalPercent} aria-label={`${profile.stats.weeklyGoalPercent}% weekly goal`} />}
+            </Card>
           ))}
         </section>
 
         <section className="analytics-layout">
-          <article className="chart-card">
+          <Card as="article" className="chart-card">
             <h2>Weekly Learning Hours</h2>
             <div className="weekly-chart" role="img" aria-label={`Learning hours from Monday to Sunday: ${profile.weeklyHours.join(", ")} hours`}>
               <div className="weekly-chart-scale" aria-hidden="true"><span>{maxWeeklyHours}h</span><span>{maxWeeklyHours / 2}h</span><span>0h</span></div>
@@ -62,19 +66,19 @@ export default function AnalysisPage() {
                 ))}
               </div>
             </div>
-          </article>
+          </Card>
 
           <aside className="analytics-side">
-            <article className="insight-card">
+            <Card as="article" className="insight-card">
               <div className="insight-title"><span>●</span><h2>AI Insight</h2></div>
               <p>&ldquo;{profile.analytics.insight}&rdquo;{insightExpanded && <small className="insight-detail">{profile.analytics.insightDetail}</small>}</p>
-              <button type="button" onClick={() => setInsightExpanded((value) => !value)}>{insightExpanded ? "Hide detail" : "View detail"} &nbsp;→</button>
-            </article>
-            <article className="mastery-card"><h2>Skill Mastery</h2>{profile.skills.map((skill, index) => <div className="skill-row" key={skill.name}><div><span>{skill.name}</span><strong>{skill.value}%</strong></div><div className="progress-track slim"><span className={index === 1 ? "amber" : index === 2 ? "sand" : "teal"} style={{ width: `${skill.value}%` }} /></div></div>)}</article>
+              <Button variant="link" type="button" onClick={() => setInsightExpanded((value) => !value)}>{insightExpanded ? "Hide detail" : "View detail"} &nbsp;→</Button>
+            </Card>
+            <Card as="article" className="mastery-card"><h2>Skill Mastery</h2>{profile.skills.map((skill, index) => <div className="skill-row" key={skill.name}><div><span>{skill.name}</span><strong>{skill.value}%</strong></div><Progress className="progress-track slim" indicatorClassName={index === 1 ? "amber" : index === 2 ? "sand" : "teal"} value={skill.value} aria-label={`${skill.name}: ${skill.value}% mastery`} /></div>)}</Card>
           </aside>
         </section>
 
-        <section className="achievements"><h2>Recent Achievements</h2><div className="achievement-row">{profile.achievements.map((achievement) => <article className={achievement.unlocked ? "" : "locked"} key={achievement.title}><span>{achievement.icon}</span><div><strong>{achievement.title}</strong><small>{achievement.subtitle}</small></div></article>)}</div></section>
+        <section className="achievements"><h2>Recent Achievements</h2><div className="achievement-row">{profile.achievements.map((achievement) => <Card as="article" className={achievement.unlocked ? "" : "locked"} key={achievement.title}><span>{achievement.icon}</span><div><strong>{achievement.title}</strong><small>{achievement.subtitle}</small></div></Card>)}</div></section>
       </main>
     </div>
   );

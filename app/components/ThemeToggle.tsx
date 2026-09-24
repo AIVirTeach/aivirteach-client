@@ -1,30 +1,26 @@
 "use client";
 
-import { useLayoutEffect, useState } from "react";
-
-type Theme = "light" | "dark";
+import { useLayoutEffect, useSyncExternalStore } from "react";
+import { Button } from "@/components/ui/button";
+import { applyTheme, getServerTheme, getStoredTheme, subscribeToTheme } from "../lib/theme";
 
 export function ThemeToggle() {
-  const [theme, setTheme] = useState<Theme>("light");
+  const theme = useSyncExternalStore(subscribeToTheme, getStoredTheme, getServerTheme);
 
   useLayoutEffect(() => {
-    const savedTheme: Theme = window.localStorage.getItem("aivir-theme") === "dark" ? "dark" : "light";
-    setTheme(savedTheme);
-    document.documentElement.dataset.theme = savedTheme;
-  }, []);
+    document.documentElement.dataset.theme = theme;
+    document.documentElement.classList.toggle("dark", theme === "dark");
+  }, [theme]);
 
   function toggleTheme() {
-    const nextTheme: Theme = theme === "dark" ? "light" : "dark";
-    setTheme(nextTheme);
-    document.documentElement.dataset.theme = nextTheme;
-    window.localStorage.setItem("aivir-theme", nextTheme);
+    applyTheme(theme === "dark" ? "light" : "dark");
   }
 
   const nextTheme = theme === "dark" ? "light" : "dark";
 
   return (
-    <button className="auth-theme-toggle" type="button" onClick={toggleTheme} aria-label={`Switch to ${nextTheme} theme`} title={`Switch to ${nextTheme} theme`}>
+    <Button className="auth-theme-toggle" variant="ghost" size="icon" type="button" onClick={toggleTheme} aria-label={`Switch to ${nextTheme} theme`} title={`Switch to ${nextTheme} theme`}>
       <span className={theme === "dark" ? "theme-sun" : "theme-moon"} aria-hidden="true" />
-    </button>
+    </Button>
   );
 }

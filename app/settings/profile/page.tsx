@@ -3,6 +3,10 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Avatar } from "../../components/Avatar";
 import { Sidebar } from "../../components/Sidebar";
 import { useLearnerProfile } from "../../hooks/useLearnerProfile";
@@ -44,13 +48,13 @@ export default function ProfileSettingsPage() {
       <Sidebar active="settings" />
       <main className="profile-settings-page page-content">
         <header className="profile-settings-head">
-          <Link href="/settings">← Settings</Link>
+          <Button render={<Link href="/settings" />} variant="link">← Settings</Button>
           <p className="eyebrow">ACCOUNT</p>
           <h1>Your profile</h1>
           <p>Manage the learner identity used throughout your demo experience.</p>
         </header>
 
-        <section className="profile-settings-card">
+        <Card as="section" className="profile-settings-card">
           <div className="profile-settings-summary">
             <Avatar size="large" name={profile.name} src={profile.avatar} />
             <div><h2>{profile.name}</h2><p>{profile.plan} Learner · Level {profile.level}</p><small>{profile.email}</small></div>
@@ -62,17 +66,17 @@ export default function ProfileSettingsPage() {
           </div>
 
           <form key={`${profile.name}-${profile.role}`} onSubmit={saveProfile}>
-            <label>Name<input name="name" defaultValue={profile.name} autoComplete="name" /></label>
-            <label>Email<input value={profile.email} readOnly /></label>
-            <label>Learning focus<input name="role" defaultValue={profile.role} /></label>
+            <Label>Name<Input name="name" defaultValue={profile.name} autoComplete="name" /></Label>
+            <Label>Email<Input value={profile.email} readOnly /></Label>
+            <Label>Learning focus<Input name="role" defaultValue={profile.role} /></Label>
             <div className="profile-form-actions">
-              <button className="primary-button" type="submit">Save profile</button>
-              <button className="profile-reset-button" type="button" onClick={resetDemoProfile}>Reset demo data</button>
-              <button className="profile-logout-button" type="button" onClick={() => void api.logout().finally(() => router.replace("/login"))}>Log out</button>
+              <Button className="primary-button" size="lg" type="submit">Save profile</Button>
+              <Button className="profile-reset-button" variant="destructive" size="lg" type="button" onClick={resetDemoProfile}>Reset demo data</Button>
+              <Button className="profile-logout-button" variant="destructive" size="lg" type="button" onClick={() => void api.logout().finally(() => router.replace("/login"))}>Log out</Button>
             </div>
             {status && <p className="profile-save-status" role="status">{status}</p>}
           </form>
-        </section>
+        </Card>
       </main>
     </div>
   );

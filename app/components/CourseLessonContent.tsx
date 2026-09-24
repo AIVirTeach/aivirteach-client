@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import { Button } from "@/components/ui/button";
 
 type Block =
   | { type: "heading"; level: number; text: string }
@@ -116,7 +117,7 @@ function CodeBlock({ language, text }: { language: string; text: string }) {
     window.setTimeout(() => setStatus("Copy"), 1800);
   }
 
-  return <div className="lesson-code-block"><header><span>{language || "code"}</span><button type="button" onClick={() => void copyCode()}>{status}</button></header><pre><code data-language={language}>{text}</code></pre></div>;
+  return <div className="lesson-code-block"><header><span>{language || "code"}</span><Button variant="outline" size="xs" type="button" onClick={() => void copyCode()}>{status}</Button></header><pre><code data-language={language}>{text}</code></pre></div>;
 }
 
 function inline(text: string) {
