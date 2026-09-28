@@ -17,7 +17,7 @@ export default function CoursesPage() {
   const router = useRouter();
   const [activeCourseId, setActiveCourseId] = useState<string | null>(null);
   const [courses, setCourses] = useState<DemoCourse[]>([]);
-  const [statusByCourse, setStatusByCourse] = useState<Record<string, EnrollmentStatus>>({});
+  const [statusByCourse, setStatusByCourse] = useState<Record<string, EnrollmentStatus | undefined>>({});
   const [error, setError] = useState("");
   const [pendingCourse, setPendingCourse] = useState<DemoCourse | null>(null);
   const [starting, setStarting] = useState(false);
@@ -155,12 +155,14 @@ export default function CoursesPage() {
       return;
     }
     try {
-      await api.restartCourse(restartCourseTarget.id);
+      const enrollment = await api.restartCourse(restartCourseTarget.id);
       clearCourseProgressCache(restartCourseTarget.id);
+      // Apply the server's answer directly: the restarted course is now the
+      // active one and its card flips back to "Start course".
+      setStatusByCourse((previous) => ({ ...previous, [enrollment.courseId]: enrollment.status }));
+      activateCourse(enrollment.courseId);
+      setActiveCourseId(enrollment.courseId);
       setRestartCourseTarget(null);
-      // Re-read status from the server instead of guessing locally, so the
-      // card flips back to "Start course" only once the reset is real.
-      await loadCatalog();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not restart this course.");
       setRestartCourseTarget(null);
@@ -173,6 +175,7 @@ export default function CoursesPage() {
     ? [...courses].sort((left, right) => Number(right.id === activeCourseId) - Number(left.id === activeCourseId))
     : courses;
   const catalogModalOpen = Boolean(pendingCourse || restartCourseTarget || previewCourse);
+  const pendingIsResume = pendingCourse ? statusByCourse[pendingCourse.id] === "in_progress" : false;
 
   return (
     <>
@@ -237,11 +240,11 @@ export default function CoursesPage() {
         {pendingCourse && (
           <DialogContent className="course-confirm-dialog" showCloseButton={false}>
             <span className="course-confirm-mark" aria-hidden="true">!</span>
-            <DialogTitle id="course-confirm-title">Start {pendingCourse.title}?</DialogTitle>
-            <DialogDescription id="course-confirm-description">{pendingCourse.localOnly ? "This short practice course runs entirely in your browser. Progress and learning analytics are saved only on this device." : "Starting a new course will pause your current course. Its Learning Lab may be terminated after 3 days, and you may need to restart that lab from the beginning."}</DialogDescription>
+            <DialogTitle id="course-confirm-title">{pendingIsResume ? "Continue" : "Start"} {pendingCourse.title}?</DialogTitle>
+            <DialogDescription id="course-confirm-description">{pendingCourse.localOnly ? "This short practice course runs entirely in your browser. Progress and learning analytics are saved only on this device." : `${pendingIsResume ? "Switching to this course" : "Starting a new course"} will pause your current course. ${PAUSE_LAB_WARNING}`}</DialogDescription>
             <div className="course-confirm-actions">
               <Button variant="outline" size="lg" type="button" onClick={() => setPendingCourse(null)} disabled={starting}>Cancel</Button>
-              <Button className="primary-button" size="lg" type="button" onClick={() => void confirmStartCourse()} disabled={starting} ref={confirmButtonRef}>{starting ? "Starting..." : "Start new course"}</Button>
+              <Button className="primary-button" size="lg" type="button" onClick={() => void confirmStartCourse()} disabled={starting} ref={confirmButtonRef}>{starting ? (pendingIsResume ? "Switching..." : "Starting...") : (pendingIsResume ? "Switch course" : "Start new course")}</Button>
             </div>
           </DialogContent>
         )}
@@ -251,7 +254,7 @@ export default function CoursesPage() {
           <DialogContent className="course-confirm-dialog course-restart-dialog" showCloseButton={false}>
             <span className="course-confirm-mark restart" aria-hidden="true">!</span>
             <DialogTitle id="course-restart-title">Restart {restartCourseTarget.title}?</DialogTitle>
-            <DialogDescription id="course-restart-description">{restartCourseTarget.localOnly ? "This removes the Python course progress, answers, and learning time saved in this browser." : "This resets your saved progress, chat history, and Learning Lab. You'll start the course from the beginning."}</DialogDescription>
+            <DialogDescription id="course-restart-description">{restartCourseTarget.localOnly ? "This removes the Python course progress, answers, and learning time saved in this browser." : `This resets your saved progress, chat history, and Learning Lab. You'll start the course from the beginning.${restartCourseTarget.id === activeCourseId ? "" : ` It will also pause your current course. ${PAUSE_LAB_WARNING}`}`}</DialogDescription>
             <div className="course-confirm-actions">
               <Button variant="outline" size="lg" type="button" onClick={() => setRestartCourseTarget(null)} disabled={restarting}>Cancel</Button>
               <Button className="restart-confirm-button" variant="destructive" size="lg" type="button" onClick={() => void confirmRestartCourse()} disabled={restarting} ref={restartConfirmButtonRef}>{restarting ? "Restarting..." : "Restart course"}</Button>
@@ -270,6 +273,8 @@ export default function CoursesPage() {
     </>
   );
 }
+
+const PAUSE_LAB_WARNING = "Its Learning Lab may be terminated after 3 days, and you may need to restart that lab from the beginning.";
 
 // A course with saved progress resumes in the workspace; a fresh (or just
 // restarted) one goes through the welcome intro first.

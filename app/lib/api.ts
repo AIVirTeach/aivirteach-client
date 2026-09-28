@@ -249,7 +249,8 @@ export type ApiEnrollment = {
   courseId: string;
   active: boolean;
   progressPercent: number;
-  status: EnrollmentStatus;
+  // Only the enrollment endpoints send this; the dashboard (and older servers) omit it.
+  status?: EnrollmentStatus;
   currentModule: string;
   enrolledAt: string;
   course: ApiCourse;
