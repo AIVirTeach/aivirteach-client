@@ -10,6 +10,7 @@ const logoPath = fileURLToPath(new URL("../../design/logo only.png", import.meta
 const publicLogoPath = fileURLToPath(new URL("../public/logo-only.png", import.meta.url));
 
 function listThemes() {
+  if (!existsSync(designsDirectory)) return [];
   return readdirSync(designsDirectory)
     .filter((fileName) => fileName.startsWith("ai-daily-briefing-") && fileName.toLowerCase().endsWith(".html"))
     .sort()
@@ -25,7 +26,7 @@ export function localCourseDesigns(): Plugin {
   return {
     name: "aivirteach-local-course-designs",
     configResolved() {
-      copyFileSync(logoPath, publicLogoPath);
+      if (existsSync(logoPath)) copyFileSync(logoPath, publicLogoPath);
     },
     configureServer(server) {
       server.watcher.add(logoPath);
@@ -36,7 +37,7 @@ export function localCourseDesigns(): Plugin {
       server.middlewares.use((request, response, next) => {
         const pathname = new URL(request.url ?? "/", "http://localhost").pathname;
 
-        if (pathname === "/logo-only.png") {
+        if (pathname === "/logo-only.png" && existsSync(logoPath)) {
           response.statusCode = 200;
           response.setHeader("Content-Type", "image/png");
           response.setHeader("Cache-Control", "no-store");
