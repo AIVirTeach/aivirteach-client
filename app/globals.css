@@ -568,6 +568,7 @@ html[data-theme="dark"] .profile-settings-card { border-color: var(--outline); b
 .catalog-course-info { min-width: 0; }
 .catalog-label-row { min-height: 25px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .catalog-label-row > span { color: var(--primary); font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.catalog-badges { display: flex; align-items: center; gap: 6px; }
 .catalog-label-row strong { border-radius: 12px; padding: 4px 8px; background: var(--primary-pale); color: var(--primary); font-size: 10px; }
 .catalog-card h2 { margin: 6px 0 0; font-size: 20px; line-height: 1.25; }
 .catalog-card p { min-height: 44px; margin: 0; color: var(--ink-soft); font-size: 14px; line-height: 1.55; }
