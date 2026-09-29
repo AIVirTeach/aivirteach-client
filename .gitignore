@@ -51,3 +51,6 @@ next-env.d.ts
 
 # Local development logs
 /dev-server*.log
+
+# Local tooling
+.superpowers/
