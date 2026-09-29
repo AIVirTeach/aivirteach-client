@@ -18,8 +18,8 @@ import { api, ApiError, beaconStopWorkspace, getAccessToken, type ApiConsoleSess
 import { parseSseStream } from "../lib/sse";
 import { subscribeWorkspace } from "../lib/ws";
 import { ConsoleViewer } from "./console-viewer";
-import { progressLabel } from "./chat-progress";
 import { heartbeatIntervalMs, isHeartbeatDue } from "./heartbeat";
+import { TypingIndicator } from "./typing-indicator";
 import { parseChatStreamFrame } from "./chat-stream-frame";
 import { isSafeMarkdownHref } from "./markdown-safety";
 import { typewriterChunks, typewriterDelayMs } from "./typewriter";
@@ -87,7 +87,6 @@ function WorkspaceV1() {
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [streaming, setStreaming] = useState(false);
-  const [streamingProgress, setStreamingProgress] = useState<string | null>(null);
   const [streamingText, setStreamingText] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const [courseSummaryCollapsed, setCourseSummaryCollapsed] = useState(false);
@@ -356,7 +355,6 @@ function WorkspaceV1() {
     setMessage("");
     setMessages((current) => [...current, { role: "student", text }]);
     setStreaming(true);
-    setStreamingProgress(null);
     setStreamingText("");
     const controller = new AbortController();
     chatAbortRef.current = controller;
@@ -367,13 +365,8 @@ function WorkspaceV1() {
       let tutorText: string | null = null;
       for await (const frame of parseSseStream(response.body)) {
         const parsed = parseChatStreamFrame(frame.data);
-        if (!parsed) continue;
-        if (parsed.type === "progress") {
-          const label = progressLabel(parsed.event, parsed.data);
-          if (label) setStreamingProgress(label);
-        } else {
-          tutorText = parsed.tutorMessage.text;
-        }
+        if (!parsed || parsed.type === "progress") continue;
+        tutorText = parsed.tutorMessage.text;
       }
 
       if (tutorText === null) throw new Error("The tutor is unavailable.");
@@ -389,7 +382,6 @@ function WorkspaceV1() {
     } finally {
       if (!controller.signal.aborted) {
         setStreaming(false);
-        setStreamingProgress(null);
         setStreamingText("");
       }
     }
@@ -565,7 +557,7 @@ function WorkspaceV1() {
           )}
         </main>
 
-        <Card as="aside" className={`lab-tutor-rail ${tutorCollapsed ? "collapsed" : ""}`} aria-label="AI teacher">{tutorCollapsed ? <Button className="lab-tutor-expand" variant="ghost" size="icon" type="button" onClick={() => setTutorCollapsed(false)} aria-label="Expand AI teacher"><span className="bot-mark">AI</span><i className="collapse-glyph points-left" aria-hidden="true" /></Button> : <><header><div className="tutor-heading"><span className="bot-mark">AI</span><div><strong>AIVir Teacher</strong><small><i /> Online</small></div></div><div className="tutor-header-actions"><Button className={`tutor-refresh ${refreshing ? "refreshing" : ""}`} variant="ghost" size="icon" type="button" onClick={refreshTutor} aria-label="Refresh tutor conversation"><img src="/refresh-icon.png" alt="" aria-hidden="true" /></Button><Button className="lab-rail-toggle points-right" variant="ghost" size="icon" type="button" onClick={() => setTutorCollapsed(true)} aria-label="Collapse AI teacher"><span aria-hidden="true" /></Button></div></header><div className={`messages ${refreshing ? "refreshing" : ""}`}>{messages.map((item, index) => <article className={`message ${item.role}`} key={`${item.role}-${index}`}><div>{item.role === "tutor" ? <Markdown extensions={markdownExtensions} components={markdownComponents}>{item.text}</Markdown> : <p>{item.text}</p>}<small>{index === messages.length - 1 && !streaming ? "Just now" : "Earlier"}</small></div></article>)}{streaming && <article className="message tutor pending"><div>{streamingText ? <Markdown extensions={markdownExtensions} components={markdownComponents}>{streamingText}</Markdown> : <p className="tutor-progress">{streamingProgress ?? "..."}</p>}<small>Just now</small></div></article>}</div><form className="message-form" onSubmit={sendMessage}><Input value={message} onChange={(event) => setMessage(event.target.value)} aria-label="Ask the tutor for help" placeholder="Ask about this step..." disabled={streaming} /><Button size="icon" type="submit" aria-label="Send message" disabled={streaming}>Send</Button></form></> }</Card>
+        <Card as="aside" className={`lab-tutor-rail ${tutorCollapsed ? "collapsed" : ""}`} aria-label="AI teacher">{tutorCollapsed ? <Button className="lab-tutor-expand" variant="ghost" size="icon" type="button" onClick={() => setTutorCollapsed(false)} aria-label="Expand AI teacher"><span className="bot-mark">AI</span><i className="collapse-glyph points-left" aria-hidden="true" /></Button> : <><header><div className="tutor-heading"><span className="bot-mark">AI</span><div><strong>AIVir Teacher</strong><small><i /> Online</small></div></div><div className="tutor-header-actions"><Button className={`tutor-refresh ${refreshing ? "refreshing" : ""}`} variant="ghost" size="icon" type="button" onClick={refreshTutor} aria-label="Refresh tutor conversation"><img src="/refresh-icon.png" alt="" aria-hidden="true" /></Button><Button className="lab-rail-toggle points-right" variant="ghost" size="icon" type="button" onClick={() => setTutorCollapsed(true)} aria-label="Collapse AI teacher"><span aria-hidden="true" /></Button></div></header><div className={`messages ${refreshing ? "refreshing" : ""}`}>{messages.map((item, index) => <article className={`message ${item.role}`} key={`${item.role}-${index}`}><div>{item.role === "tutor" ? <Markdown extensions={markdownExtensions} components={markdownComponents}>{item.text}</Markdown> : <p>{item.text}</p>}<small>{index === messages.length - 1 && !streaming ? "Just now" : "Earlier"}</small></div></article>)}{streaming && <article className="message tutor pending"><div>{streamingText ? <Markdown extensions={markdownExtensions} components={markdownComponents}>{streamingText}</Markdown> : <TypingIndicator />}<small>Just now</small></div></article>}</div><form className="message-form" onSubmit={sendMessage}><Input value={message} onChange={(event) => setMessage(event.target.value)} aria-label="Ask the tutor for help" placeholder="Ask about this step..." disabled={streaming} /><Button size="icon" type="submit" aria-label="Send message" disabled={streaming}>Send</Button></form></> }</Card>
       </div>
       <Dialog open={vmEnvOpen} onOpenChange={setVmEnvOpen}>
         {vmEnvOpen && <DialogContent className="vm-env-dialog" showCloseButton={false}>

@@ -241,12 +241,16 @@ export type ApiCourseDesignPackage = {
   themes: ApiCourseDesign[];
 };
 
+export type EnrollmentStatus = "not_started" | "in_progress" | "completed";
+
 export type ApiEnrollment = {
   id: string;
   userId: string;
   courseId: string;
   active: boolean;
   progressPercent: number;
+  // Only the enrollment endpoints send this; the dashboard (and older servers) omit it.
+  status?: EnrollmentStatus;
   currentModule: string;
   enrolledAt: string;
   course: ApiCourse;
