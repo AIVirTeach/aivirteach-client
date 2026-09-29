@@ -14,13 +14,25 @@ const actionsByStatus: Record<EnrollmentStatus, CourseCardAction[]> = {
   completed: ["restart"],
 };
 
+// The one place a status off the wire becomes a trusted EnrollmentStatus.
+// Anything unrecognised falls back instead of crashing the catalog. A current
+// course with no status means the server predates `status`; treat it as in
+// progress so its Continue/Restart buttons survive. Keep raw server values out
+// of component state: store what this returns.
+export function resolveEnrollmentStatus(status: unknown, isCurrent: boolean): EnrollmentStatus {
+  if (typeof status === "string" && Object.hasOwn(actionsByStatus, status)) return status as EnrollmentStatus;
+  return isCurrent && status === undefined ? "in_progress" : "not_started";
+}
+
 // Buttons follow the server's progress status; "current" (the active
-// enrollment) is only a highlight layered on top. The status comes off the
-// wire, so anything unrecognised falls back instead of crashing the catalog.
-// A current course with no status means the server predates `status`; keep
-// its Continue/Restart buttons rather than dropping to Start.
+// enrollment) is only a highlight layered on top.
 export function courseCardState(status: EnrollmentStatus | undefined, isCurrent: boolean): CourseCardState {
-  const known = typeof status === "string" && Object.hasOwn(actionsByStatus, status);
-  const resolved: EnrollmentStatus = known ? status : isCurrent && status == null ? "in_progress" : "not_started";
+  const resolved = resolveEnrollmentStatus(status, isCurrent);
   return { status: resolved, isCurrent, actions: actionsByStatus[resolved] };
+}
+
+// A course with saved progress resumes in the workspace; a new (or freshly
+// restarted) one goes through the welcome intro first.
+export function courseEntryPath(status: EnrollmentStatus | undefined): "/workspace" | "/courses/welcome" {
+  return status === "in_progress" ? "/workspace" : "/courses/welcome";
 }

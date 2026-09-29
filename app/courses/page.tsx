@@ -9,7 +9,7 @@ import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Sidebar } from "../components/Sidebar";
 import { api, courseAssetUrl, type ApiCourse, type EnrollmentStatus } from "../lib/api";
-import { courseCardState } from "../lib/course-card-state";
+import { courseCardState, courseEntryPath, resolveEnrollmentStatus } from "../lib/course-card-state";
 import { activateCourse, clearActiveCourse, clearCourseProgressCache, type DemoCourse } from "../lib/courses";
 import { resetMockCourseProgress, startMockCourse } from "../lib/mock-course";
 
@@ -34,10 +34,11 @@ export default function CoursesPage() {
     window.requestAnimationFrame(() => previewTriggerRef.current?.focus());
   }, []);
 
-  const loadCatalog = useCallback(() => {
-    return Promise.all([api.courses(), api.enrollments()]).then(([courseData, enrollments]) => {
+  useEffect(() => {
+    Promise.all([api.courses(), api.enrollments()]).then(([courseData, enrollments]) => {
       setCourses(courseData.map(toDemoCourse));
-      setStatusByCourse(Object.fromEntries(enrollments.map((enrollment) => [enrollment.courseId, enrollment.status])));
+      // Keep only resolved statuses in state so no consumer sees a raw server value.
+      setStatusByCourse(Object.fromEntries(enrollments.map((enrollment) => [enrollment.courseId, resolveEnrollmentStatus(enrollment.status, enrollment.active)])));
       const activeEnrollment = enrollments.find((enrollment) => enrollment.active);
       if (activeEnrollment) {
         activateCourse(activeEnrollment.courseId);
@@ -51,10 +52,6 @@ export default function CoursesPage() {
       setError(caught instanceof Error ? caught.message : "Could not load courses.");
     });
   }, []);
-
-  useEffect(() => {
-    void loadCatalog();
-  }, [loadCatalog]);
 
   useEffect(() => {
     if (!pendingCourse) return;
@@ -125,11 +122,13 @@ export default function CoursesPage() {
       return;
     }
     try {
-      await api.enroll(course.id);
+      const enrollment = await api.enroll(course.id);
       activateCourse(course.id);
       setActiveCourseId(course.id);
       setPendingCourse(null);
-      router.push(courseEntryPath(statusByCourse[course.id]));
+      // The enroll response is fresher than the status loaded with the page (progress
+      // may have changed in another tab); fall back to the loaded one for older servers.
+      router.push(courseEntryPath(resolveEnrollmentStatus(enrollment.status ?? statusByCourse[course.id], false)));
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not start this course.");
       setPendingCourse(null);
@@ -158,11 +157,14 @@ export default function CoursesPage() {
       const enrollment = await api.restartCourse(restartCourseTarget.id);
       clearCourseProgressCache(restartCourseTarget.id);
       // Apply the server's answer directly: the restarted course card flips
-      // back to "Start course", and it is current only if the server says so.
-      setStatusByCourse((previous) => ({ ...previous, [enrollment.courseId]: enrollment.status }));
+      // back to "Start course" (a restart always ends not started, even if an older
+      // server omits the status), and it is current only if the server says so.
+      setStatusByCourse((previous) => ({ ...previous, [enrollment.courseId]: resolveEnrollmentStatus(enrollment.status ?? "not_started", enrollment.active) }));
       if (enrollment.active) {
         activateCourse(enrollment.courseId);
         setActiveCourseId(enrollment.courseId);
+      } else {
+        setActiveCourseId((current) => (current === enrollment.courseId ? null : current));
       }
       setRestartCourseTarget(null);
     } catch (caught) {
@@ -227,7 +229,7 @@ export default function CoursesPage() {
                     <div className="catalog-meta"><span>{course.level}</span></div>
                   </div>
                   <div className="catalog-actions">
-                    {card.actions.includes("restart") && <Button className="restart-course-button" variant="destructive" size="lg" type="button" onClick={() => setRestartCourseTarget(course)}>Restart course</Button>}
+                    {card.actions.includes("restart") && <Button className="restart-course-button" variant="destructive" size="lg" type="button" onClick={() => setRestartCourseTarget(course)} disabled={starting}>Restart course</Button>}
                     {card.actions.includes("continue") && <Button className="continue-course-button" variant="secondary" size="lg" type="button" onClick={() => selectCourse(course)} disabled={starting}>Continue course</Button>}
                     {card.actions.includes("start") && <Button className="primary-button" size="lg" type="button" onClick={() => selectCourse(course)} disabled={starting}>Start course</Button>}
                   </div>
@@ -256,7 +258,7 @@ export default function CoursesPage() {
           <DialogContent className="course-confirm-dialog course-restart-dialog" showCloseButton={false}>
             <span className="course-confirm-mark restart" aria-hidden="true">!</span>
             <DialogTitle id="course-restart-title">Restart {restartCourseTarget.title}?</DialogTitle>
-            <DialogDescription id="course-restart-description">{restartCourseTarget.localOnly ? "This removes the Python course progress, answers, and learning time saved in this browser." : `This resets your saved progress, chat history, and Learning Lab. You'll start the course from the beginning.${restartCourseTarget.id === activeCourseId ? "" : ` It will also pause your current course. ${PAUSE_LAB_WARNING}`}`}</DialogDescription>
+            <DialogDescription id="course-restart-description">{restartCourseTarget.localOnly ? "This removes the Python course progress, answers, and learning time saved in this browser." : `This resets your saved progress, chat history, and Learning Lab. You'll start the course from the beginning.${activeCourseId && restartCourseTarget.id !== activeCourseId ? ` It will also pause your current course. ${PAUSE_LAB_WARNING}` : ""}`}</DialogDescription>
             <div className="course-confirm-actions">
               <Button variant="outline" size="lg" type="button" onClick={() => setRestartCourseTarget(null)} disabled={restarting}>Cancel</Button>
               <Button className="restart-confirm-button" variant="destructive" size="lg" type="button" onClick={() => void confirmRestartCourse()} disabled={restarting} ref={restartConfirmButtonRef}>{restarting ? "Restarting..." : "Restart course"}</Button>
@@ -277,12 +279,6 @@ export default function CoursesPage() {
 }
 
 const PAUSE_LAB_WARNING = "Its Learning Lab may be terminated after 3 days, and you may need to restart that lab from the beginning.";
-
-// A course with saved progress resumes in the workspace; a fresh (or just
-// restarted) one goes through the welcome intro first.
-function courseEntryPath(status: EnrollmentStatus | undefined) {
-  return status === "in_progress" ? "/workspace" : "/courses/welcome";
-}
 
 function toDemoCourse(course: ApiCourse): DemoCourse {
   const tone = course.id === "ai-daily-briefing" ? "blue" : "indigo";
