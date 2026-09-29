@@ -157,11 +157,13 @@ export default function CoursesPage() {
     try {
       const enrollment = await api.restartCourse(restartCourseTarget.id);
       clearCourseProgressCache(restartCourseTarget.id);
-      // Apply the server's answer directly: the restarted course is now the
-      // active one and its card flips back to "Start course".
+      // Apply the server's answer directly: the restarted course card flips
+      // back to "Start course", and it is current only if the server says so.
       setStatusByCourse((previous) => ({ ...previous, [enrollment.courseId]: enrollment.status }));
-      activateCourse(enrollment.courseId);
-      setActiveCourseId(enrollment.courseId);
+      if (enrollment.active) {
+        activateCourse(enrollment.courseId);
+        setActiveCourseId(enrollment.courseId);
+      }
       setRestartCourseTarget(null);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not restart this course.");
