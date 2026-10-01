@@ -4,30 +4,19 @@ import { BlockErrorBoundary } from "./BlockErrorBoundary";
 import { CourseLessonContent } from "./CourseLessonContent";
 import { LessonBlocks } from "./LessonBlocks";
 import type { RawLessonBlock } from "../lib/lesson-blocks/types";
+import canonicalFixture from "../lib/lesson-blocks/__fixtures__/canonical-lesson.json";
 
-const blocks: RawLessonBlock[] = [
-  { id: "h", type: "heading", props: { level: 2, text: "Heading" } },
-  { id: "p", type: "paragraph", props: { text: "Paragraph" } },
-  { id: "ul", type: "bulletList", props: { items: ["Bullet"] } },
-  { id: "ol", type: "numberedList", props: { items: ["Numbered"] } },
-  { id: "code", type: "code", props: { kind: "plain", code: "const x = 1" } },
-  { id: "step", type: "step", props: { number: 1, title: "Step" } },
-  { id: "callout", type: "callout", props: { variant: "tip", body: "Tip" } },
-  { id: "table", type: "table", props: { columns: ["A"], rows: [["B"]] } },
-  { id: "image", type: "image", props: { assetId: "asset", alt: "Picture" } },
-  { id: "link", type: "resourceLink", props: { url: "https://example.com", title: "Link" } },
-  { id: "divider", type: "divider", props: {} },
-  { id: "annotated", type: "annotatedCode", props: { steps: [{ label: "Run", code: "go", terms: [] }] } },
-  { id: "diagram", type: "diagram", props: { nodes: [{ id: "n", title: "Node" }], connections: [] } },
-];
+const canonical = canonicalFixture.valid;
+const canonicalBlocks = canonical.blocks as RawLessonBlock[];
 
 describe("LessonBlocks", () => {
   it("dispatches all canonical block types", () => {
-    const html = renderToStaticMarkup(<LessonBlocks blocks={blocks} assets={{ asset: { url: "/picture.png" } }} mode="learner" />);
+    const html = renderToStaticMarkup(<LessonBlocks blocks={canonicalBlocks} assets={canonicalFixture.assets} mode="learner" />);
     expect(html).toContain('class="lesson-blocks"');
-    for (const marker of ["Heading", "Paragraph", "Bullet", "Numbered", "const x = 1", "Step", "Tip", "课程表格", "Picture", "Link", "divider", "STEP 1", "Node"]) {
+    for (const marker of ["deploy-heading", "deploy-intro", "deploy-prerequisites", "deploy-sequence", 'data-kind="terminal"', 'data-kind="file"', 'data-kind="plain"', "deploy-step-one", "deploy-tip", "deploy-warning", "deploy-note", "deploy-settings-table", "deploy-terminal-image", "deploy-runbook-link", "deploy-divider", "deploy-annotated-config", "deploy-flow"]) {
       expect(html).toContain(marker);
     }
+    expect(new Set(canonicalBlocks.map((block) => block.type)).size).toBe(13);
   });
 
   it("skips unknown blocks and null props in learner mode while rendering valid siblings", () => {
@@ -52,6 +41,15 @@ describe("LessonBlocks", () => {
     expect(html).not.toContain("lb-invalid");
   });
 
+  it("skips malformed annotated code terms before SSR can throw", () => {
+    const html = renderToStaticMarkup(<LessonBlocks blocks={[
+      { id: "bad", type: "annotatedCode", props: { steps: [{ label: "Bad term", code: "run", terms: [null] }] } },
+      { id: "after", type: "paragraph", props: { text: "after" } },
+    ]} assets={{}} mode="learner" />);
+    expect(html).toContain("after");
+    expect(html).not.toContain("Bad term");
+  });
+
   it("shows preview placeholders with matching problem messages for invalid blocks", () => {
     const html = renderToStaticMarkup(<LessonBlocks blocks={[{ id: "bad", type: "heading", props: null }]} assets={{}} mode="preview" problems={[{ blockId: "bad", level: "error", message: "标题字段无效" }]} />);
     expect(html).toContain("lb-invalid");
@@ -59,7 +57,7 @@ describe("LessonBlocks", () => {
   });
 
   it("renders preview warnings beside their block", () => {
-    const html = renderToStaticMarkup(<LessonBlocks blocks={[blocks[1]]} assets={{}} mode="preview" problems={[{ blockId: "p", level: "warning", message: "内容较短" }]} />);
+    const html = renderToStaticMarkup(<LessonBlocks blocks={[canonicalBlocks[1]!]} assets={{}} mode="preview" problems={[{ blockId: "deploy-intro", level: "warning", message: "内容较短" }]} />);
     expect(html).toContain("内容较短");
     expect(html).toContain("lb-warning");
   });

@@ -31,21 +31,32 @@ export type LessonBlocksProps = {
 function validProps(block: RawLessonBlock) {
   if (!block.props || typeof block.props !== "object" || Array.isArray(block.props)) return false;
   const props = block.props as Record<string, unknown>;
+  const record = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === "object" && !Array.isArray(value);
   const string = (key: string) => typeof props[key] === "string";
+  const optionalString = (key: string) => props[key] === undefined || string(key);
   const strings = (key: string) => Array.isArray(props[key]) && props[key].every((item) => typeof item === "string");
   switch (block.type) {
     case "heading": return (props.level === 2 || props.level === 3) && string("text");
     case "paragraph": return string("text");
     case "bulletList": case "numberedList": return strings("items");
-    case "code": return ["terminal", "file", "plain"].includes(String(props.kind)) && string("code");
+    case "code": return ["terminal", "file", "plain"].includes(String(props.kind)) && string("code") && optionalString("language") && optionalString("label") && optionalString("description");
     case "step": return typeof props.number === "number" && string("title") && (props.body === undefined || string("body"));
-    case "callout": return ["tip", "warning", "note"].includes(String(props.variant)) && string("body");
+    case "callout": return ["tip", "warning", "note"].includes(String(props.variant)) && string("body") && optionalString("title");
     case "table": return strings("columns") && Array.isArray(props.rows) && props.rows.every((row) => Array.isArray(row) && row.every((cell) => typeof cell === "string"));
     case "image": return string("assetId") && string("alt") && (props.caption === undefined || string("caption"));
     case "resourceLink": return string("url") && string("title") && (props.description === undefined || string("description"));
     case "divider": return true;
-    case "annotatedCode": return Array.isArray(props.steps) && props.steps.every((step) => step && typeof step.label === "string" && typeof step.code === "string" && Array.isArray(step.terms));
-    case "diagram": return Array.isArray(props.nodes) && props.nodes.every((node) => node && typeof node.id === "string" && typeof node.title === "string") && Array.isArray(props.connections) && props.connections.every((edge) => edge && typeof edge.from === "string" && typeof edge.to === "string");
+    case "annotatedCode": return optionalString("title") && optionalString("fileLabel") && Array.isArray(props.steps) && props.steps.every((step) => record(step)
+      && typeof step.label === "string" && typeof step.code === "string"
+      && (step.explanationTitle === undefined || typeof step.explanationTitle === "string")
+      && (step.explanation === undefined || typeof step.explanation === "string")
+      && Array.isArray(step.terms) && step.terms.every((term) => record(term) && typeof term.term === "string" && typeof term.description === "string"));
+    case "diagram": return optionalString("title") && Array.isArray(props.nodes) && props.nodes.every((node) => record(node)
+      && typeof node.id === "string" && typeof node.title === "string"
+      && (node.description === undefined || typeof node.description === "string"))
+      && Array.isArray(props.connections) && props.connections.every((edge) => record(edge)
+        && typeof edge.from === "string" && typeof edge.to === "string"
+        && (edge.label === undefined || typeof edge.label === "string"));
     default: return false;
   }
 }
@@ -53,6 +64,10 @@ function validProps(block: RawLessonBlock) {
 function safeRender(block: RawLessonBlock, assets: LessonAssets): ReactNode | null {
   try {
     if (typeof block.id !== "string" || !validProps(block)) return null;
+    if (block.type === "image") {
+      const asset = (assets as unknown as Record<string, unknown>)[(block.props as { assetId: string }).assetId];
+      if (asset !== undefined && (!asset || typeof asset !== "object" || Array.isArray(asset) || typeof (asset as Record<string, unknown>).url !== "string")) return null;
+    }
     switch (block.type) {
       case "heading": return <HeadingBlock id={block.id} props={block.props as Parameters<typeof HeadingBlock>[0]["props"]} />;
       case "paragraph": return <ParagraphBlock id={block.id} props={block.props as Parameters<typeof ParagraphBlock>[0]["props"]} />;
