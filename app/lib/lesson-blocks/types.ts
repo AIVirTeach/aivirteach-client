@@ -1,4 +1,4 @@
-// Keep this client copy of canonical-lesson.json aligned with
+// Keep this client copy of __fixtures__/canonical-lesson.json aligned with
 // aivirteach-server/packages/lesson-blocks/fixtures/canonical-lesson.json.
 
 export type HeadingBlock = {
