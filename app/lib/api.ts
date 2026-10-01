@@ -1,4 +1,5 @@
 import { API_BASE_URL, backendConfig } from "./config";
+import type { LessonAssets, RawLessonBlock } from "./lesson-blocks/types";
 
 const demoUserStorageKey = "aivirteach.demoUserId.v1";
 const authStorageKey = "aivirteach.auth.v1";
@@ -215,6 +216,8 @@ export type ApiLesson = {
   module: { id: string; title: string; position: number };
   lesson: ApiCourseLessonSummary;
   markdown: string;
+  blocks?: RawLessonBlock[] | null;
+  assets?: LessonAssets;
   assessment: null | { id: string; type: string; question: string; options?: string[]; criteria?: string[] };
   navigation: { previousLessonId: string | null; nextLessonId: string | null; index: number; total: number };
 };

@@ -2,6 +2,8 @@
 
 import { useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
+import { LessonBlocks } from "./LessonBlocks";
+import type { LessonAssets, RawLessonBlock } from "../lib/lesson-blocks/types";
 
 type Block =
   | { type: "heading"; level: number; text: string }
@@ -10,8 +12,9 @@ type Block =
   | { type: "list"; ordered: boolean; items: string[] }
   | { type: "rule" };
 
-export function CourseLessonContent({ markdown }: { markdown: string }) {
-  return <div className="lesson-markdown">{parseBlocks(markdown).map(renderBlock)}</div>;
+export function CourseLessonContent({ markdown, blocks, assets = {} }: { markdown?: string; blocks?: RawLessonBlock[] | null; assets?: LessonAssets }) {
+  if (Array.isArray(blocks)) return <LessonBlocks blocks={blocks} assets={assets} mode="learner" />;
+  return <div className="lesson-markdown">{parseBlocks(markdown ?? "").map(renderBlock)}</div>;
 }
 
 function parseBlocks(markdown: string): Block[] {

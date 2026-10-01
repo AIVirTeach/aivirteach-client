@@ -2907,6 +2907,9 @@ html[data-interface-version="neubrutal"] :is(.progress-track, .slim) > span {
 
 /* Simple lesson blocks */
 .lesson-blocks { --lesson-success: color-mix(in srgb, var(--ink) 70%, #138a55); container-type: inline-size; }
+.lesson-blocks .lb-invalid { display: grid; gap: 5px; margin: 12px 0; border: 2px dashed var(--destructive); border-radius: 4px; padding: 10px 12px; color: var(--destructive); }
+.lesson-blocks .lb-invalid small { color: var(--ink-soft); }
+.lesson-blocks .lb-warning { display: inline-block; margin: 4px 0; color: var(--amber); font-size: 11px; font-weight: 800; }
 .lesson-blocks .lesson-code-block { margin-block: 18px 24px; }
 .lesson-blocks .lesson-code-block pre { max-width: 100%; overflow-x: auto; white-space: pre; }
 .lesson-blocks .lesson-copy-button:focus-visible { outline: 3px solid var(--primary-light); outline-offset: 3px; }

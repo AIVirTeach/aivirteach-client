@@ -509,7 +509,7 @@ function WorkspaceV1() {
             {lessonLoading || !lesson ? <p className="sidebar-lesson-loading" role="status">Loading course step...</p> : <section className="sidebar-lesson">
               <header className="sidebar-lesson-header"><span>{lesson.module.position}.{lesson.lesson.position}</span><div><small>{lesson.module.title}</small><h2>{lesson.lesson.title}</h2><p>{lesson.lesson.estimatedMinutes} minutes</p></div></header>
               {contentError && <Alert className="auth-error" variant="destructive">{contentError}</Alert>}
-              <CourseLessonContent markdown={lesson.markdown} />
+              <CourseLessonContent markdown={lesson.markdown} blocks={lesson.blocks} assets={lesson.assets} />
               <Card as="section" className="lesson-activity sidebar-lesson-activity"><small>{t("STEP CHECK", "步骤检查")}</small><h3>{lesson.lesson.activity.prompt}</h3><Button className="primary-button" size="lg" type="button" onClick={() => void completeStep()} disabled={completionStatus === "Saving..."}>{lesson.navigation.nextLessonId ? t("Complete and continue", "完成并继续") : t("Complete course", "完成课程")}</Button>{completionStatus && <p role="status">{completionStatus}</p>}</Card>
             </section>}
           </div>}
