@@ -4,6 +4,7 @@ const scrollbarStorageKey = "aivirteach.scrollbars";
 const scrollbarChangeEvent = "aivirteach:scrollbars-change";
 
 export function getStoredScrollbarPreference(): ScrollbarPreference {
+  if (window.location.pathname === "/preview/lesson") return "visible";
   return window.localStorage.getItem(scrollbarStorageKey) === "hidden" ? "hidden" : "visible";
 }
 

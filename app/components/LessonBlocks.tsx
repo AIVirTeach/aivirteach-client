@@ -95,16 +95,21 @@ function InvalidBlock({ messages }: { messages: string[] }) {
 
 export function LessonBlocks({ blocks, assets, mode, problems = [] }: LessonBlocksProps) {
   return <div className="lesson-blocks">{blocks.map((block, index) => {
-    const rendered = safeRender(block, assets);
-    const blockProblems = problems.filter((problem) => problem.blockId === block.id);
+    const candidate = block as unknown;
+    const blockRecord = candidate !== null && typeof candidate === "object" && !Array.isArray(candidate)
+      ? candidate as Record<string, unknown>
+      : null;
+    const blockId = typeof blockRecord?.id === "string" ? blockRecord.id : undefined;
+    const rendered = blockRecord ? safeRender(block, assets) : null;
+    const blockProblems = problems.filter((problem) => problem.blockId === blockId);
     const errors = blockProblems.filter((problem) => problem.level === "error");
     const warningLabels = mode === "preview" ? blockProblems.filter((problem) => problem.level === "warning") : [];
     if (!rendered || (mode === "preview" && errors.length > 0)) {
       if (mode === "learner") return null;
       const messages = errors.map((problem) => problem.message);
-      return <div className="lb-block" key={`${block.id}-${index}`}><InvalidBlock messages={messages.length ? messages : ["该块无法渲染"]} />{warningLabels.map((warning, warningIndex) => <small className="lb-warning" key={`${warningIndex}-${warning.message}`}>{warning.message}</small>)}</div>;
+      return <div className="lb-block" key={`${blockId ?? "invalid"}-${index}`}><InvalidBlock messages={messages.length ? messages : ["该块无法渲染"]} />{warningLabels.map((warning, warningIndex) => <small className="lb-warning" key={`${warningIndex}-${warning.message}`}>{warning.message}</small>)}</div>;
     }
     const fallback = mode === "preview" ? <InvalidBlock messages={errors.map((problem) => problem.message)} /> : null;
-    return <div className="lb-block" key={`${block.id}-${index}`}><BlockErrorBoundary fallback={fallback}>{rendered}</BlockErrorBoundary>{warningLabels.map((warning, warningIndex) => <small className="lb-warning" key={`${warningIndex}-${warning.message}`}>{warning.message}</small>)}</div>;
+    return <div className="lb-block" key={`${blockId ?? "invalid"}-${index}`}><BlockErrorBoundary fallback={fallback}>{rendered}</BlockErrorBoundary>{warningLabels.map((warning, warningIndex) => <small className="lb-warning" key={`${warningIndex}-${warning.message}`}>{warning.message}</small>)}</div>;
   })}</div>;
 }
