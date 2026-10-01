@@ -1,5 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { handleImageLightboxKeyDown } from "./ImageLightbox";
 import {
   AnnotatedCodeBlock,
   DiagramBlock,
@@ -9,6 +10,30 @@ import {
 } from "./ComplexBlocks";
 
 describe("complex lesson blocks", () => {
+  it("contains forward and reverse Tab navigation inside the image lightbox", () => {
+    const first = { focus: () => undefined };
+    const last = { focus: () => undefined };
+    const firstFocus = vi.spyOn(first, "focus");
+    const lastFocus = vi.spyOn(last, "focus");
+    const dialog = { querySelectorAll: () => [first, last], focus: vi.fn() };
+    const onClose = vi.fn();
+    const forward = { key: "Tab", shiftKey: false, preventDefault: vi.fn() };
+    handleImageLightboxKeyDown(forward, dialog, last, onClose);
+    expect(forward.preventDefault).toHaveBeenCalledOnce();
+    expect(firstFocus).toHaveBeenCalledOnce();
+
+    const reverse = { key: "Tab", shiftKey: true, preventDefault: vi.fn() };
+    handleImageLightboxKeyDown(reverse, dialog, first, onClose);
+    expect(reverse.preventDefault).toHaveBeenCalledOnce();
+    expect(lastFocus).toHaveBeenCalledOnce();
+  });
+
+  it("closes the image lightbox on Escape", () => {
+    const onClose = vi.fn();
+    handleImageLightboxKeyDown({ key: "Escape", shiftKey: false, preventDefault: vi.fn() }, { querySelectorAll: () => [], focus: vi.fn() }, null, onClose);
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
   it("renders table headings, rows, and inline formatting", () => {
     const html = renderToStaticMarkup(<TableBlock id="table" props={{ columns: ["Name", "Detail"], rows: [["Ada", "**bold**"]] }} />);
     expect(html).toContain('<th scope="col">Name</th><th scope="col">Detail</th>');
