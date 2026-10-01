@@ -27,10 +27,10 @@ export function PreviewClient({ adminOrigin }: { adminOrigin?: string }) {
   return (
     <main className="preview-page">
       <header className="preview-header">
-        <p>{preview.moduleTitle}</p>
-        <h1>{preview.lessonTitle}</h1>
+        <p>{preview.lesson.moduleTitle}</p>
+        <h1>{preview.lesson.title}</h1>
       </header>
-      <LessonBlocks blocks={preview.blocks} assets={preview.assets} problems={preview.problems} mode="preview" />
+      <LessonBlocks blocks={preview.lesson.blocks} assets={preview.assets} problems={preview.problems} mode="preview" />
     </main>
   );
 }

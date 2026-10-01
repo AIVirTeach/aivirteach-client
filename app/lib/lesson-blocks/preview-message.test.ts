@@ -4,9 +4,11 @@ import { parsePreviewMessage, previewHeaders } from "./preview-message";
 const origin = "https://admin.example.com";
 const payload = {
   type: "lesson-preview",
-  lessonTitle: "Lesson",
-  moduleTitle: "Module",
-  blocks: [{ id: "one", type: "paragraph", props: { text: "Hello" } }],
+  lesson: {
+    title: "Lesson",
+    moduleTitle: "Module",
+    blocks: [{ id: "one", type: "paragraph", props: { text: "Hello" } }],
+  },
   assets: { image: { url: "https://cdn.example.com/image.png" } },
   problems: [{ blockId: "one", level: "warning", message: "Review" }],
 };
@@ -30,11 +32,18 @@ describe("parsePreviewMessage", () => {
     expect(parsePreviewMessage({ origin, data }, origin)).toBeNull();
   });
 
-  it("normalizes missing or malformed fields while retaining malformed block entries", () => {
-    expect(parsePreviewMessage({ origin, data: { type: "lesson-preview", blocks: [null, 1] } }, origin)).toEqual({
-      lessonTitle: "",
-      moduleTitle: "",
-      blocks: [null, 1],
+  it("normalizes missing or malformed nested lesson fields while retaining malformed block entries", () => {
+    expect(parsePreviewMessage({ origin, data: { type: "lesson-preview", lesson: { blocks: [null, 1] } } }, origin)).toEqual({
+      lesson: { title: "", moduleTitle: "", blocks: [null, 1] },
+      assets: {},
+      problems: [],
+    });
+  });
+
+  it("normalizes non-object lesson content from the canonical invalid fixture", () => {
+    const invalidContent = "not a lesson object";
+    expect(parsePreviewMessage({ origin, data: { type: "lesson-preview", lesson: invalidContent } }, origin)).toEqual({
+      lesson: { title: "", moduleTitle: "", blocks: [] },
       assets: {},
       problems: [],
     });
@@ -42,9 +51,7 @@ describe("parsePreviewMessage", () => {
 
   it("accepts an exact origin and returns valid fields", () => {
     expect(parsePreviewMessage({ origin, data: payload }, origin)).toEqual({
-      lessonTitle: "Lesson",
-      moduleTitle: "Module",
-      blocks: payload.blocks,
+      lesson: payload.lesson,
       assets: payload.assets,
       problems: payload.problems,
     });
