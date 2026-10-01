@@ -68,7 +68,7 @@ export function AnnotatedCodeBlock({ id, props }: BlockProps<AnnotatedCodeModel>
     {props.fileLabel ? <div className="lb-annotated-file">{renderInline(props.fileLabel)}</div> : null}
     <div className="lb-code-steps">{props.steps.map((step, index) => <article className="lb-code-step" key={`${index}-${step.label}`}>
       <div className="lb-code-source">
-        <header><span>STEP {index + 1}</span><CopyButton text={step.code} /></header>
+        <header><span>STEP {index + 1} · {renderInline(step.label)}</span><CopyButton text={step.code} /></header>
         <pre><code>{step.code}</code></pre>
       </div>
       <div className="lb-code-explanation">

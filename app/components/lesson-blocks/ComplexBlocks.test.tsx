@@ -44,6 +44,8 @@ describe("complex lesson blocks", () => {
     ] }} />);
     expect(html).toContain("STEP 1");
     expect(html).toContain("STEP 2");
+    expect(html).toContain("STEP 1 · first");
+    expect(html).toContain("STEP 2 · second");
     expect((html.match(/Copy code to clipboard/g) ?? []).length).toBe(2);
     expect(html).toContain("<strong>this</strong>");
     expect(html).toContain("<em>binding</em>");
