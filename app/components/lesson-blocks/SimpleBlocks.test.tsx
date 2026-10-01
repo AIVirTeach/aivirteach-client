@@ -16,7 +16,7 @@ import {
 describe("simple lesson blocks", () => {
   it("renders heading levels with stable ids and omits empty headings", () => {
     expect(renderToStaticMarkup(<><HeadingBlock id="h2" props={{ level: 2, text: "Title" }} /><HeadingBlock id="h3" props={{ level: 3, text: "Sub" }} /><HeadingBlock id="empty" props={{ level: 2, text: " " }} /></>))
-      .toBe('<h2 id="h2">Title</h2><h3 id="h3">Sub</h3>');
+      .toBe('<div class="lesson-markdown"><h2 id="h2">Title</h2></div><div class="lesson-markdown"><h3 id="h3">Sub</h3></div>');
   });
 
   it("renders paragraph inline formatting in lesson markdown", () => {
@@ -58,15 +58,18 @@ describe("simple lesson blocks", () => {
   });
 
   it("gives the copy button its clipboard label", () => {
-    expect(renderToStaticMarkup(<CopyButton code="hello" />)).toContain('aria-label="Copy code to clipboard"');
+    expect(renderToStaticMarkup(<CopyButton text="hello" />)).toContain('aria-label="Copy code to clipboard"');
   });
 
   it("keeps new lesson CSS selectors inside the lesson blocks container", () => {
     const css = readFileSync(resolve(process.cwd(), "app/globals.css"), "utf8");
     const start = css.lastIndexOf("/* Simple lesson blocks */");
     const additions = css.slice(start, css.indexOf("/* End simple lesson blocks */", start));
-    const selectors = [...additions.matchAll(/^\s*(\.lesson-blocks[^{}]+)\s*\{/gm)].map((match) => match[1]!.trim());
+    const selectors = additions.split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.includes("{") && !line.startsWith("@") && !line.startsWith("/*"))
+      .flatMap((line) => line.slice(0, line.indexOf("{")).split(",").map((selector) => selector.trim()));
     expect(selectors.length).toBeGreaterThan(0);
-    expect(selectors.every((selector) => selector.startsWith(".lesson-blocks"))).toBe(true);
+    expect(selectors.every((selector) => /^\.lesson-blocks(?:\b|[ >.#:[\]])/.test(selector) || /^\.lb-[\w-]+(?:\b|[ >.#:[\]])/.test(selector))).toBe(true);
   });
 });

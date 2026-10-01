@@ -17,8 +17,9 @@ type BlockProps<Block extends { id: string; props: unknown }> = Pick<Block, "id"
 
 export function HeadingBlock({ id, props }: BlockProps<HeadingModel>) {
   if (!props.text.trim()) return null;
-  if (props.level === 2) return <h2 id={id}>{renderInline(props.text)}</h2>;
-  return <h3 id={id}>{renderInline(props.text)}</h3>;
+  return <div className="lesson-markdown">
+    {props.level === 2 ? <h2 id={id}>{renderInline(props.text)}</h2> : <h3 id={id}>{renderInline(props.text)}</h3>}
+  </div>;
 }
 
 export function ParagraphBlock({ id, props }: BlockProps<ParagraphModel>) {
@@ -40,9 +41,9 @@ export function ListBlock({ id, props, ordered }: ListProps) {
   return <ul id={id} className="lesson-markdown">{items.map((item, index) => <li key={`${index}-${item}`}>{renderInline(item)}</li>)}</ul>;
 }
 
-type CopyButtonProps = { code: string };
+type CopyButtonProps = { text: string };
 
-export function CopyButton({ code }: CopyButtonProps) {
+export function CopyButton({ text }: CopyButtonProps) {
   const [state, setState] = useState<"ready" | "copied" | "failed">("ready");
 
   useEffect(() => {
@@ -54,7 +55,7 @@ export function CopyButton({ code }: CopyButtonProps) {
   async function copy() {
     try {
       if (!navigator.clipboard?.writeText) throw new Error("Clipboard unavailable");
-      await navigator.clipboard.writeText(code);
+      await navigator.clipboard.writeText(text);
       setState("copied");
     } catch {
       setState("failed");
@@ -72,7 +73,7 @@ export function CodeBlock({ props }: BlockProps<CodeModel>) {
       : props.language ?? "";
 
   return <div className="lesson-code-block" data-kind={props.kind}>
-    <header><span>{heading}</span><CopyButton code={props.code} /></header>
+    <header><span>{heading}</span><CopyButton text={props.code} /></header>
     <pre><code>{props.code}</code></pre>
   </div>;
 }
