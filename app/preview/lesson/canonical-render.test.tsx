@@ -54,4 +54,18 @@ describe("preview renderer canonical fixture", () => {
     expect(() => renderToStaticMarkup(<LessonBlocks blocks={parsed!.lesson.blocks} assets={parsed!.assets} mode="preview" />)).not.toThrow();
     expect(() => renderToStaticMarkup(<LessonBlocks blocks={parsed!.lesson.blocks} assets={parsed!.assets} mode="learner" />)).not.toThrow();
   });
+
+  it("renders safely when same-origin messages contain malformed problem entries", () => {
+    const parsed = parsePreviewMessage({
+      origin: "https://admin.example.com",
+      data: {
+        type: "lesson-preview",
+        lesson: { title: "Lesson", moduleTitle: "Module", blocks: [{ id: "one", type: "paragraph", props: { text: "Hello" } }] },
+        assets: {},
+        problems: [null, { blockId: 9, level: "error", message: "bad id" }, { blockId: "one", level: "warning", message: "valid warning" }],
+      },
+    }, "https://admin.example.com");
+    expect(() => renderToStaticMarkup(<LessonBlocks blocks={parsed!.lesson.blocks} assets={parsed!.assets} problems={parsed!.problems} mode="preview" />)).not.toThrow();
+    expect(renderToStaticMarkup(<LessonBlocks blocks={parsed!.lesson.blocks} assets={parsed!.assets} problems={parsed!.problems} mode="preview" />)).toContain("valid warning");
+  });
 });

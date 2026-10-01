@@ -49,6 +49,22 @@ describe("parsePreviewMessage", () => {
     });
   });
 
+  it("discards malformed problem entries before the renderer consumes them", () => {
+    const problems = [
+      null,
+      { blockId: 4, level: "error", message: "bad id" },
+      { blockId: "one", level: "fatal", message: "bad level" },
+      { blockId: "one", level: "warning", message: 5 },
+      { blockId: "one", level: "warning", message: "valid warning" },
+      { level: "error", message: "valid lesson error" },
+    ];
+    const parsed = parsePreviewMessage({ origin, data: { ...payload, problems } }, origin);
+    expect(parsed?.problems).toEqual([
+      { blockId: "one", level: "warning", message: "valid warning" },
+      { level: "error", message: "valid lesson error" },
+    ]);
+  });
+
   it("accepts an exact origin and returns valid fields", () => {
     expect(parsePreviewMessage({ origin, data: payload }, origin)).toEqual({
       lesson: payload.lesson,

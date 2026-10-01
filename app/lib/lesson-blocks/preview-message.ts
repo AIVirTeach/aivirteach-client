@@ -11,6 +11,14 @@ export type PreviewPayload = {
   problems: LessonBlockProblem[];
 };
 
+function isLessonBlockProblem(value: unknown): value is LessonBlockProblem {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const problem = value as Record<string, unknown>;
+  return (problem.blockId === undefined || typeof problem.blockId === "string")
+    && (problem.level === "error" || problem.level === "warning")
+    && typeof problem.message === "string";
+}
+
 export function parsePreviewMessage(
   event: { origin: string; data: unknown },
   adminOrigin: string | undefined,
@@ -29,7 +37,7 @@ export function parsePreviewMessage(
       blocks: Array.isArray(lesson.blocks) ? lesson.blocks as RawLessonBlock[] : [],
     },
     assets: data.assets && typeof data.assets === "object" && !Array.isArray(data.assets) ? data.assets as LessonAssets : {},
-    problems: Array.isArray(data.problems) ? data.problems as LessonBlockProblem[] : [],
+    problems: Array.isArray(data.problems) ? data.problems.filter(isLessonBlockProblem) : [],
   };
 }
 
