@@ -15,6 +15,16 @@ function findClosing(text: string, delimiter: string, from: number): number {
   return -1;
 }
 
+function findLinkUrlEnd(text: string, from: number): number {
+  let depth = 1;
+  for (let index = from; index < text.length; index += 1) {
+    if (escapedAt(text, index)) continue;
+    if (text[index] === "(") depth += 1;
+    if (text[index] === ")" && --depth === 0) return index;
+  }
+  return -1;
+}
+
 export function isAllowedInlineHref(href: string): boolean {
   try {
     const parsed = new URL(href);
@@ -48,21 +58,23 @@ function parse(text: string): ReactNode[] {
     if (text[index] === "[") {
       const labelEnd = findClosing(text, "]", index + 1);
       if (labelEnd !== -1 && text[labelEnd + 1] === "(") {
-        const urlEnd = findClosing(text, ")", labelEnd + 2);
+        const urlEnd = findLinkUrlEnd(text, labelEnd + 2);
         if (urlEnd !== -1) {
           const href = text.slice(labelEnd + 2, urlEnd);
+          const label = parse(text.slice(index + 1, labelEnd));
+          flush();
           if (isAllowedInlineHref(href)) {
-            flush();
-            const label = parse(text.slice(index + 1, labelEnd));
             const isWeb = /^https?:/i.test(href);
             nodes.push(
-              <a key={`link-${index}`} href={href} {...(isWeb ? { target: "_blank", rel: "noopener noreferrer" } : {})}>
+              <a key={`link-${index}`} href={href} {...(isWeb ? { target: "_blank" } : {})} rel="noopener noreferrer">
                 {label}
               </a>,
             );
-            index = urlEnd + 1;
-            continue;
+          } else {
+            nodes.push(...label);
           }
+          index = urlEnd + 1;
+          continue;
         }
       }
     }

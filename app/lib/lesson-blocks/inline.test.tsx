@@ -10,13 +10,13 @@ describe("inline lesson markdown", () => {
 
   it("renders safe web and mail links with the right attributes", () => {
     expect(renderToStaticMarkup(<>{renderInline("[web](HTTPS://example.com) [mail](mailto:a@example.com)")}</>))
-      .toBe('<a href="HTTPS://example.com" target="_blank" rel="noopener noreferrer">web</a> <a href="mailto:a@example.com">mail</a>');
+      .toBe('<a href="HTTPS://example.com" target="_blank" rel="noopener noreferrer">web</a> <a href="mailto:a@example.com" rel="noopener noreferrer">mail</a>');
   });
 
   it("rejects unsafe and non-absolute link targets", () => {
     for (const href of ["javascript:alert(1)", "data:text/html,x", "/relative", "//example.com"]) {
       expect(isAllowedInlineHref(href)).toBe(false);
-      expect(renderToStaticMarkup(<>{renderInline(`[x](${href})`)}</>)).toBe(`[x](${href})`);
+      expect(renderToStaticMarkup(<>{renderInline(`[x](${href})`)}</>)).toBe("x");
     }
   });
 
