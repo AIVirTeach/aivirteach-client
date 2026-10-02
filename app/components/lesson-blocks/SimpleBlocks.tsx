@@ -73,6 +73,7 @@ export function CodeBlock({ props }: BlockProps<CodeModel>) {
   return <div className="lesson-code-block" data-kind={props.kind}>
     <header><span>{heading}</span><CopyButton text={props.code} /></header>
     <pre><code>{props.code}</code></pre>
+    {props.description ? <p>{renderInline(props.description)}</p> : null}
   </div>;
 }
 

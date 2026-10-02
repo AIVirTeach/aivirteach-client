@@ -72,4 +72,17 @@ describe("simple lesson blocks", () => {
     expect(selectors.length).toBeGreaterThan(0);
     expect(selectors.every((selector) => /^\.lesson-blocks(?:\b|[ >.#:[\]])/.test(selector) || /^\.lb-[\w-]+(?:\b|[ >.#:[\]])/.test(selector))).toBe(true);
   });
+
+  it("renders the optional code description under the code, with inline markdown", () => {
+    const html = renderToStaticMarkup(<CodeBlock id="code" props={{ kind: "plain", code: "ls", description: "列出 **当前** 目录" }} />);
+    expect(html).toContain("<strong>当前</strong>");
+    expect(html.indexOf("</pre>")).toBeLessThan(html.indexOf("列出"));
+  });
+
+  it("keeps the warning callout background readable in the dark theme", () => {
+    const css = readFileSync(resolve(process.cwd(), "app/globals.css"), "utf8");
+    const rule = css.split("\n").find((line) => line.startsWith(".lesson-blocks .lesson-callout--warning {")) ?? "";
+    expect(rule).not.toContain("var(--peach)");
+    expect(rule).toContain("color-mix");
+  });
 });

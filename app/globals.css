@@ -2922,7 +2922,7 @@ html[data-interface-version="neubrutal"] :is(.progress-track, .slim) > span {
 .lesson-blocks .lesson-callout p { margin: 0; }
 .lesson-blocks .lesson-callout--primary { --lesson-callout-color: var(--primary); --lesson-callout-bg: var(--primary-pale); }
 .lesson-blocks .lesson-callout--success { --lesson-callout-color: var(--lesson-success); --lesson-callout-bg: color-mix(in srgb, var(--lesson-success) 10%, var(--surface-lowest)); }
-.lesson-blocks .lesson-callout--warning { --lesson-callout-color: var(--amber); --lesson-callout-bg: var(--peach); }
+.lesson-blocks .lesson-callout--warning { --lesson-callout-color: var(--amber); --lesson-callout-bg: color-mix(in srgb, var(--amber) 14%, var(--surface-lowest)); }
 .lesson-blocks .lb-table-scroll { max-width: 100%; overflow-x: auto; border: 2px solid var(--ink); border-radius: 4px; }
 .lesson-blocks .lb-table { width: 100%; border-collapse: collapse; }
 .lesson-blocks .lb-table th, .lesson-blocks .lb-table td { min-width: 112px; border: 1px solid var(--outline); padding: 10px 12px; text-align: left; vertical-align: top; }
