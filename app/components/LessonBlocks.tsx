@@ -94,7 +94,7 @@ function InvalidBlock({ messages }: { messages: string[] }) {
 }
 
 export function LessonBlocks({ blocks, assets, mode, problems = [] }: LessonBlocksProps) {
-  return <div className="lesson-blocks">{blocks.map((block, index) => {
+  return <div className="lesson-blocks lesson-markdown">{blocks.map((block, index) => {
     const candidate = block as unknown;
     const blockRecord = candidate !== null && typeof candidate === "object" && !Array.isArray(candidate)
       ? candidate as Record<string, unknown>

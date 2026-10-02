@@ -16,17 +16,17 @@ import {
 describe("simple lesson blocks", () => {
   it("renders heading levels with stable ids and omits empty headings", () => {
     expect(renderToStaticMarkup(<><HeadingBlock id="h2" props={{ level: 2, text: "Title" }} /><HeadingBlock id="h3" props={{ level: 3, text: "Sub" }} /><HeadingBlock id="empty" props={{ level: 2, text: " " }} /></>))
-      .toBe('<div class="lesson-markdown"><h2 id="h2">Title</h2></div><div class="lesson-markdown"><h3 id="h3">Sub</h3></div>');
+      .toBe('<h2 id="h2">Title</h2><h3 id="h3">Sub</h3>');
   });
 
   it("renders paragraph inline formatting in lesson markdown", () => {
     expect(renderToStaticMarkup(<ParagraphBlock id="p" props={{ text: "Use **bold** and [safe](https://example.com)." }} />))
-      .toBe('<p id="p" class="lesson-markdown">Use <strong>bold</strong> and <a href="https://example.com" target="_blank" rel="noopener noreferrer">safe</a>.</p>');
+      .toBe('<p id="p">Use <strong>bold</strong> and <a href="https://example.com" target="_blank" rel="noopener noreferrer">safe</a>.</p>');
   });
 
   it("filters empty list items and uses the requested list kind", () => {
     expect(renderToStaticMarkup(<><ListBlock id="ul" ordered={false} props={{ items: ["first", "", "second"] }} /><ListBlock id="ol" ordered props={{ items: ["one"] }} /></>))
-      .toBe('<ul id="ul" class="lesson-markdown"><li>first</li><li>second</li></ul><ol id="ol" class="lesson-markdown"><li>one</li></ol>');
+      .toBe('<ul id="ul"><li>first</li><li>second</li></ul><ol id="ol"><li>one</li></ol>');
     expect(renderToStaticMarkup(<ListBlock id="empty" ordered={false} props={{ items: ["", "   "] }} />)).toBe("");
   });
 
@@ -54,7 +54,7 @@ describe("simple lesson blocks", () => {
   });
 
   it("renders a divider with the existing markdown rule class", () => {
-    expect(renderToStaticMarkup(<DividerBlock id="rule" props={{}} />)).toBe('<hr id="rule" class="lesson-markdown"/>');
+    expect(renderToStaticMarkup(<DividerBlock id="rule" props={{}} />)).toBe('<hr id="rule"/>');
   });
 
   it("gives the copy button its clipboard label", () => {

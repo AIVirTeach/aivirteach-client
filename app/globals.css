@@ -2929,7 +2929,7 @@ html[data-interface-version="neubrutal"] :is(.progress-track, .slim) > span {
 .lesson-blocks .lb-table th { background: var(--surface-container); font-weight: 800; }
 .lesson-blocks .lb-image { margin: 20px 0; text-align: center; }
 .lesson-blocks .lb-image-trigger { max-width: 100%; border: 0; padding: 0; background: transparent; }
-.lesson-blocks .lb-image img { display: block; max-width: 100%; max-height: 560px; margin-inline: auto; border-radius: 4px; object-fit: contain; }
+.lesson-blocks .lb-image img { display: block; width: auto; height: auto; max-width: 100%; max-height: 560px; margin-inline: auto; border-radius: 4px; object-fit: contain; }
 .lesson-blocks .lb-image figcaption { margin-top: 8px; color: var(--ink-soft); font-size: 13px; }
 .lesson-blocks .lb-image-missing { display: grid; min-height: 140px; place-items: center; border: 2px dashed var(--outline); border-radius: 4px; color: var(--ink-soft); }
 .lesson-blocks .lb-lightbox { position: fixed; z-index: 1000; inset: 0; display: grid; place-items: center; padding: 48px; background: rgb(0 0 0 / 85%); }

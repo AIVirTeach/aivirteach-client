@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { handleImageLightboxKeyDown } from "./ImageLightbox";
@@ -10,6 +12,14 @@ import {
 } from "./ComplexBlocks";
 
 describe("complex lesson blocks", () => {
+  it("lets images keep their own aspect ratio instead of the fixed width/height attributes", () => {
+    const css = readFileSync(resolve(process.cwd(), "app/globals.css"), "utf8");
+    const rule = css.split("\n").find((line) => line.startsWith(".lesson-blocks .lb-image img {")) ?? "";
+    expect(rule).toContain("height: auto");
+    expect(rule).toContain("width: auto");
+  });
+
+
   it("contains forward and reverse Tab navigation inside the image lightbox", () => {
     const first = { focus: () => undefined };
     const last = { focus: () => undefined };

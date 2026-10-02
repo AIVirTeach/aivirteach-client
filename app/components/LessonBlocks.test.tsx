@@ -12,7 +12,7 @@ const canonicalBlocks = canonical.blocks as RawLessonBlock[];
 describe("LessonBlocks", () => {
   it("dispatches all canonical block types", () => {
     const html = renderToStaticMarkup(<LessonBlocks blocks={canonicalBlocks} assets={canonicalFixture.assets} mode="learner" />);
-    expect(html).toContain('class="lesson-blocks"');
+    expect(html).toContain('class="lesson-blocks lesson-markdown"');
     for (const marker of ["deploy-heading", "deploy-intro", "deploy-prerequisites", "deploy-sequence", 'data-kind="terminal"', 'data-kind="file"', 'data-kind="plain"', "deploy-step-one", "deploy-tip", "deploy-warning", "deploy-note", "deploy-settings-table", "deploy-terminal-image", "deploy-runbook-link", "deploy-divider", "deploy-annotated-config", "deploy-flow"]) {
       expect(html).toContain(marker);
     }
@@ -69,7 +69,7 @@ describe("LessonBlocks", () => {
   });
 
   it("renders an empty blocks array without falling back to markdown", () => {
-    expect(renderToStaticMarkup(<CourseLessonContent markdown="# Original" blocks={[]} assets={{}} />)).toBe('<div class="lesson-blocks"></div>');
+    expect(renderToStaticMarkup(<CourseLessonContent markdown="# Original" blocks={[]} assets={{}} />)).toBe('<div class="lesson-blocks lesson-markdown"></div>');
   });
 
   it("preserves the existing markdown HTML when blocks are absent or null", () => {
