@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import Guacamole from "guacamole-common-js";
 import { Button } from "@/components/ui/button";
 import { api } from "../lib/api";
@@ -12,6 +12,10 @@ interface ConsoleViewerProps {
   onError: (message: string) => void;
 }
 
+export interface ConsoleViewerHandle {
+  writeClipboard(text: string): boolean;
+}
+
 /**
  * Wraps the Guacamole web client (`guacamole-common-js`) as a React
  * component. `data` is the opaque, encrypted Guacamole JSON-auth ticket
@@ -21,13 +25,27 @@ interface ConsoleViewerProps {
  * instead. The WebSocket tunnel itself isn't subject to CORS, so it connects
  * straight to the address the server returns.
  */
-export function ConsoleViewer({ data, labId, enrollmentId, onError }: ConsoleViewerProps) {
+export const ConsoleViewer = forwardRef<ConsoleViewerHandle, ConsoleViewerProps>(function ConsoleViewer(
+  { data, labId, enrollmentId, onError },
+  ref,
+) {
   const containerRef = useRef<HTMLDivElement>(null);
   const clientRef = useRef<Guacamole.Client | null>(null);
+  const connectedRef = useRef(false);
+
+  function writeClipboard(text: string): boolean {
+    const guacClient = clientRef.current;
+    if (!guacClient || !connectedRef.current || !text) return false;
+    const stream = guacClient.createClipboardStream("text/plain");
+    const writer = new Guacamole.StringWriter(stream);
+    writer.sendText(text);
+    writer.sendEnd();
+    return true;
+  }
+
+  useImperativeHandle(ref, () => ({ writeClipboard }), []);
 
   async function syncClipboardToVm() {
-    const guacClient = clientRef.current;
-    if (!guacClient) return;
     let text: string;
     try {
       text = await navigator.clipboard.readText();
@@ -35,10 +53,7 @@ export function ConsoleViewer({ data, labId, enrollmentId, onError }: ConsoleVie
       return;
     }
     if (!text) return;
-    const stream = guacClient.createClipboardStream("text/plain");
-    const writer = new Guacamole.StringWriter(stream);
-    writer.sendText(text);
-    writer.sendEnd();
+    writeClipboard(text);
   }
 
   useEffect(() => {
@@ -58,6 +73,9 @@ export function ConsoleViewer({ data, labId, enrollmentId, onError }: ConsoleVie
       const guacClient = new Guacamole.Client(tunnel);
       client = guacClient;
       clientRef.current = guacClient;
+      guacClient.onstatechange = (state) => {
+        connectedRef.current = state === Guacamole.Client.State.CONNECTED;
+      };
 
       guacClient.onerror = (status) => {
         if (cancelled) return;
@@ -147,6 +165,7 @@ export function ConsoleViewer({ data, labId, enrollmentId, onError }: ConsoleVie
         keyboard.reset();
       }
       client?.disconnect();
+      connectedRef.current = false;
       clientRef.current = null;
       if (container) container.innerHTML = "";
     };
@@ -164,4 +183,4 @@ export function ConsoleViewer({ data, labId, enrollmentId, onError }: ConsoleVie
       </Button>
     </div>
   );
-}
+});

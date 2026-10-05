@@ -12,7 +12,7 @@ import { BrandLogo } from "../components/BrandLogo";
 import { api, ApiError, courseDesignUrl, type ApiConsoleSession, type ApiCourseDesignPackage, type ApiCourseDetail, type ApiEnrollment, type ApiWorkspace } from "../lib/api";
 import { applyLearningLanguage, courseDesignMatchesLanguage, localize, useLearningLanguage } from "../lib/language";
 import { getServerScrollbarPreference, getStoredScrollbarPreference, subscribeToScrollbarPreference, type ScrollbarPreference } from "../lib/scrollbar-preference";
-import { ConsoleViewer } from "./console-viewer";
+import { ConsoleViewer, type ConsoleViewerHandle } from "./console-viewer";
 
 type Message = { role: "tutor" | "student"; text: string };
 type WorkspaceTab = "teacher" | "path";
@@ -38,7 +38,28 @@ function floatingPromptMinX() {
   return floatingViewportMargin + Math.max(0, floatingPromptWidth()) + floatingPromptGap;
 }
 
-function styleCourseFrameScrollbars(event: SyntheticEvent<HTMLIFrameElement>, preference: ScrollbarPreference) {
+function lessonCodeForButton(button: HTMLElement): string {
+  if (button.dataset.copyText) return button.dataset.copyText;
+  const directCode = button.closest("pre")?.querySelector<HTMLElement>("code");
+  if (button.classList.contains("step-copy-btn") && directCode) {
+    return directCode.dataset.rawCode ?? directCode.textContent ?? "";
+  }
+  const block = button.closest(".code-wrap");
+  if (block) {
+    return [...block.querySelectorAll<HTMLElement>("pre code")]
+      .filter((code) => code.closest(".code-wrap") === block)
+      .map((code) => code.dataset.rawCode ?? code.textContent ?? "")
+      .join("\n\n");
+  }
+  return directCode?.dataset.rawCode ?? directCode?.textContent ?? "";
+}
+
+function prepareCourseFrame(
+  event: SyntheticEvent<HTMLIFrameElement>,
+  preference: ScrollbarPreference,
+  language: "en" | "zh-CN",
+  copyToVm: (text: string) => boolean,
+) {
   const document = event.currentTarget.contentDocument;
   if (!document?.head) return;
   let style = document.getElementById("aivirteach-scrollbars") as HTMLStyleElement | null;
@@ -58,6 +79,52 @@ function styleCourseFrameScrollbars(event: SyntheticEvent<HTMLIFrameElement>, pr
     *::-webkit-scrollbar-thumb:hover { background: rgba(71, 85, 105, .9); background-clip: padding-box; }
     *::-webkit-scrollbar-corner { background: transparent; }
   `;
+
+  let vmCopyStyle = document.getElementById("aivirteach-vm-copy-style") as HTMLStyleElement | null;
+  if (!vmCopyStyle) {
+    vmCopyStyle = document.createElement("style");
+    vmCopyStyle.id = "aivirteach-vm-copy-style";
+    document.head.append(vmCopyStyle);
+  }
+  vmCopyStyle.textContent = `
+    .aivirteach-vm-copy-btn {
+      min-height: 30px; padding: 5px 9px; color: #f4f6f8; background: #1d2329;
+      border: 1px solid #64717d; border-radius: 6px; font: 700 10px/1.2 system-ui, sans-serif;
+      cursor: pointer; white-space: nowrap;
+    }
+    .aivirteach-vm-copy-btn:hover { border-color: #fff; background: #2b343d; }
+    .aivirteach-vm-copy-btn.is-copied { color: #fff; background: #1c8c68; border-color: #167355; }
+    pre > .aivirteach-vm-copy-btn {
+      position: absolute; top: 12px; right: 78px; z-index: 4; min-height: 25px; padding: 4px 8px;
+      font: 700 9px/1 "SFMono-Regular", Consolas, monospace;
+    }
+  `;
+
+  document.querySelectorAll<HTMLElement>(".copy-btn, .step-copy-btn").forEach((copyButton) => {
+    if (copyButton.dataset.vmCopyButton === "true") return;
+    const code = lessonCodeForButton(copyButton);
+    if (!code) return;
+    copyButton.dataset.vmCopyButton = "true";
+    const vmButton = document.createElement("button");
+    vmButton.type = "button";
+    vmButton.className = "aivirteach-vm-copy-btn";
+    const idleLabel = language === "zh-CN" ? "复制到虚拟机剪贴板" : "Copy to VM clipboard";
+    vmButton.textContent = idleLabel;
+    vmButton.setAttribute("aria-label", idleLabel);
+    vmButton.addEventListener("click", (clickEvent) => {
+      clickEvent.stopPropagation();
+      const sent = copyToVm(code);
+      vmButton.textContent = sent
+        ? (language === "zh-CN" ? "已复制到虚拟机" : "Copied to VM")
+        : (language === "zh-CN" ? "请先连接虚拟机" : "Connect VM first");
+      vmButton.classList.toggle("is-copied", sent);
+      window.setTimeout(() => {
+        vmButton.textContent = idleLabel;
+        vmButton.classList.remove("is-copied");
+      }, 1800);
+    });
+    copyButton.insertAdjacentElement("afterend", vmButton);
+  });
 }
 
 export function WorkspaceV2() {
@@ -68,6 +135,7 @@ export function WorkspaceV2() {
   const shellRef = useRef<HTMLDivElement>(null);
   const floatingPromptRef = useRef<HTMLInputElement>(null);
   const messagesRef = useRef<HTMLDivElement>(null);
+  const consoleViewerRef = useRef<ConsoleViewerHandle>(null);
   const floatingWasDraggedRef = useRef(false);
   const consolePollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const consolePollCancelled = useRef(false);
@@ -87,6 +155,7 @@ export function WorkspaceV2() {
   const [consoleError, setConsoleError] = useState("");
   const [consoleLoading, setConsoleLoading] = useState(false);
   const [retrying, setRetrying] = useState(false);
+  const [latency, setLatency] = useState<number | null>(null);
   const [envVariablesOpen, setEnvVariablesOpen] = useState(false);
   const [floatingPromptOpen, setFloatingPromptOpen] = useState(false);
   const [floatingPrompt, setFloatingPrompt] = useState("");
@@ -185,6 +254,25 @@ export function WorkspaceV2() {
     setConsoleSession(null);
     setConsoleLoading(false);
   }, [workspace?.status]);
+
+  useEffect(() => {
+    let active = true;
+    async function measureLatency() {
+      const startedAt = performance.now();
+      try {
+        await api.health();
+        if (active) setLatency(Math.max(1, Math.round(performance.now() - startedAt)));
+      } catch {
+        if (active) setLatency(null);
+      }
+    }
+    void measureLatency();
+    const interval = window.setInterval(() => void measureLatency(), 15000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, []);
 
   function startResize(event: ReactPointerEvent<HTMLDivElement>) {
     if (maximized || event.button !== 0) return;
@@ -371,6 +459,10 @@ export function WorkspaceV2() {
     setConsoleSession(null);
   }, []);
 
+  const copyLessonCodeToVm = useCallback((text: string) => {
+    return consoleViewerRef.current?.writeClipboard(text) ?? false;
+  }, []);
+
   if (!checked || !course || !enrollment) {
     return <main className="lab-v2-gate" role="status"><BrandLogo /><h1>{checked ? t("Choose a course first", "请先选择课程") : t("Opening Learning Lab V2...", "正在打开学习实验室 V2……")}</h1><p>{error || (checked ? t("Choose a course before opening its workspace.", "请先选择课程，再打开其工作区。") : t("Loading your course and new learning path designs.", "正在加载课程和新的学习路径设计。"))}</p>{checked && <Button type="button" onClick={() => router.replace("/courses")}>{t("Browse courses", "浏览课程")}</Button>}</main>;
   }
@@ -418,7 +510,7 @@ export function WorkspaceV2() {
         ) : (
           <div className="lab-v2-path" role="tabpanel">
             {error && <Alert variant="destructive">{error}</Alert>}
-            {selectedDesign ? <iframe className="lab-v2-course-frame" src={courseDesignUrl(selectedDesign)} title={`${course.title} — ${selectedDesign.label}`} onLoad={(event) => styleCourseFrameScrollbars(event, scrollbarPreference)} /> : <div className="lab-v2-path-empty" role="status"><h2>{t("No learning path designs found", "未找到学习路径设计")}</h2><p>{t("No bundled course HTML is available.", "没有可用的内置课程 HTML。")}</p></div>}
+            {selectedDesign ? <iframe className="lab-v2-course-frame" src={courseDesignUrl(selectedDesign)} title={`${course.title} — ${selectedDesign.label}`} onLoad={(event) => prepareCourseFrame(event, scrollbarPreference, learningLanguage, copyLessonCodeToVm)} /> : <div className="lab-v2-path-empty" role="status"><h2>{t("No learning path designs found", "未找到学习路径设计")}</h2><p>{t("No bundled course HTML is available.", "没有可用的内置课程 HTML。")}</p></div>}
           </div>
         )}
       </section>
@@ -426,8 +518,8 @@ export function WorkspaceV2() {
       {!maximized && <div className="lab-v2-resizer" role="separator" aria-label={t("Resize learning workspace", "调整学习工作区大小")} aria-orientation="vertical" aria-valuemin={minLeftWidth} aria-valuenow={leftWidth} tabIndex={0} onPointerDown={startResize} onKeyDown={resizeWithKeyboard} />}
 
       <main className="lab-v2-vm vm-workspace">
-        <header className="vm-toolbar"><div><span className="vm-status-dot" aria-hidden="true" /><strong>{t("Learning VM", "学习虚拟机")}</strong></div><small>{workspace?.status === "RUNNING" && consoleSession ? t("Connected workspace", "工作区已连接") : t("Awaiting connection", "等待连接")}</small></header>
-        {workspace?.status === "RUNNING" && consoleSession?.state === "ready" && consoleSession.data ? <ConsoleViewer data={consoleSession.data} labId={consoleSession.labId} enrollmentId={enrollment.id} onError={handleConsoleError} /> : workspace?.status === "RUNNING" ? <section className="vm-empty-state" role="status"><span className="vm-display-icon" aria-hidden="true" /><h2>Learning VM</h2>{consoleError && <Alert className="auth-error" variant="destructive">{consoleError}</Alert>}<Button size="lg" type="button" onClick={() => void startConsoleSession()} disabled={consoleLoading}>{consoleLoading ? "Starting..." : "Start remote desktop"}</Button></section> : workspace?.status === "ERROR" ? <section className="vm-empty-state" role="status"><span className="vm-display-icon" aria-hidden="true" /><h2>Learning VM</h2><p>{workspace.errorMessage || "Could not start your Learning VM."}</p><Button size="lg" type="button" onClick={retryWorkspace} disabled={retrying}>{retrying ? "Retrying..." : "Retry"}</Button></section> : <section className="vm-empty-state" role="status"><span className="vm-display-icon" aria-hidden="true" /><h2>Learning VM</h2><p>Preparing your Learning VM. This can take a few minutes.</p></section>}
+        <header className="vm-toolbar"><div><span className="vm-status-dot" aria-hidden="true" /><strong>{t("Learning VM", "学习虚拟机")}</strong></div><div className="lab-v2-vm-status"><small>{workspace?.status === "RUNNING" && consoleSession ? t("Connected workspace", "工作区已连接") : t("Awaiting connection", "等待连接")}</small><small className="lab-v2-latency" aria-live="polite">{latency === null ? t("Ping --", "延迟 --") : t(`Ping ${latency} ms`, `延迟 ${latency} 毫秒`)}</small></div></header>
+        {workspace?.status === "RUNNING" && consoleSession?.state === "ready" && consoleSession.data ? <ConsoleViewer ref={consoleViewerRef} data={consoleSession.data} labId={consoleSession.labId} enrollmentId={enrollment.id} onError={handleConsoleError} /> : workspace?.status === "RUNNING" ? <section className="vm-empty-state" role="status"><span className="vm-display-icon" aria-hidden="true" /><h2>Learning VM</h2>{consoleError && <Alert className="auth-error" variant="destructive">{consoleError}</Alert>}<Button size="lg" type="button" onClick={() => void startConsoleSession()} disabled={consoleLoading}>{consoleLoading ? "Starting..." : "Start remote desktop"}</Button></section> : workspace?.status === "ERROR" ? <section className="vm-empty-state" role="status"><span className="vm-display-icon" aria-hidden="true" /><h2>Learning VM</h2><p>{workspace.errorMessage || "Could not start your Learning VM."}</p><Button size="lg" type="button" onClick={retryWorkspace} disabled={retrying}>{retrying ? "Retrying..." : "Retry"}</Button></section> : <section className="vm-empty-state" role="status"><span className="vm-display-icon" aria-hidden="true" /><h2>Learning VM</h2><p>Preparing your Learning VM. This can take a few minutes.</p></section>}
       </main>
 
       <Dialog open={envVariablesOpen} onOpenChange={setEnvVariablesOpen}>

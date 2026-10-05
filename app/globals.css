@@ -2871,6 +2871,8 @@ html[data-interface-version="neubrutal"] :is(.progress-track, .slim) > span {
 .lab-v2-teacher .message-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; border-top: 1px solid var(--outline); padding: 12px; background: var(--surface-lowest); }
 .lab-v2-teacher .message-form button { min-width: 64px; }
 .lab-v2-vm { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.lab-v2-vm-status { display: flex; align-items: center; gap: 10px; }
+.lab-v2-latency { min-width: 66px; border-left: 1px solid #46515c; padding-left: 10px; font-variant-numeric: tabular-nums; }
 .lab-v2-env-dialog { width: min(calc(100vw - 32px), 520px); max-width: 520px; }
 .lab-v2-env-list { display: grid; gap: 8px; margin: 4px 0 8px; padding: 0; list-style: none; }
 .lab-v2-env-list li { min-height: 44px; display: grid; grid-template-columns: 26px minmax(0, 1fr); align-items: center; gap: 10px; border: 1px solid var(--outline); border-radius: var(--radius); padding: 8px 10px; }
