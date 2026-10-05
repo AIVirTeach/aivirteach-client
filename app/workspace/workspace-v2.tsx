@@ -80,50 +80,17 @@ function prepareCourseFrame(
     *::-webkit-scrollbar-corner { background: transparent; }
   `;
 
-  let vmCopyStyle = document.getElementById("aivirteach-vm-copy-style") as HTMLStyleElement | null;
-  if (!vmCopyStyle) {
-    vmCopyStyle = document.createElement("style");
-    vmCopyStyle.id = "aivirteach-vm-copy-style";
-    document.head.append(vmCopyStyle);
-  }
-  vmCopyStyle.textContent = `
-    .aivirteach-vm-copy-btn {
-      min-height: 30px; padding: 5px 9px; color: #f4f6f8; background: #1d2329;
-      border: 1px solid #64717d; border-radius: 6px; font: 700 10px/1.2 system-ui, sans-serif;
-      cursor: pointer; white-space: nowrap;
-    }
-    .aivirteach-vm-copy-btn:hover { border-color: #fff; background: #2b343d; }
-    .aivirteach-vm-copy-btn.is-copied { color: #fff; background: #1c8c68; border-color: #167355; }
-    pre > .aivirteach-vm-copy-btn {
-      position: absolute; top: 12px; right: 78px; z-index: 4; min-height: 25px; padding: 4px 8px;
-      font: 700 9px/1 "SFMono-Regular", Consolas, monospace;
-    }
-  `;
-
-  document.querySelectorAll<HTMLElement>(".copy-btn, .step-copy-btn").forEach((copyButton) => {
-    if (copyButton.dataset.vmCopyButton === "true") return;
+  document.querySelectorAll<HTMLElement>(".copy-btn, .step-copy-btn, .inline-copy-link[data-copy-text]").forEach((copyButton) => {
+    if (copyButton.dataset.vmClipboardBound === "true") return;
     const code = lessonCodeForButton(copyButton);
     if (!code) return;
-    copyButton.dataset.vmCopyButton = "true";
-    const vmButton = document.createElement("button");
-    vmButton.type = "button";
-    vmButton.className = "aivirteach-vm-copy-btn";
-    const idleLabel = language === "zh-CN" ? "复制到虚拟机剪贴板" : "Copy to VM clipboard";
-    vmButton.textContent = idleLabel;
-    vmButton.setAttribute("aria-label", idleLabel);
-    vmButton.addEventListener("click", (clickEvent) => {
-      clickEvent.stopPropagation();
-      const sent = copyToVm(code);
-      vmButton.textContent = sent
-        ? (language === "zh-CN" ? "已复制到虚拟机" : "Copied to VM")
-        : (language === "zh-CN" ? "请先连接虚拟机" : "Connect VM first");
-      vmButton.classList.toggle("is-copied", sent);
-      window.setTimeout(() => {
-        vmButton.textContent = idleLabel;
-        vmButton.classList.remove("is-copied");
-      }, 1800);
+    copyButton.dataset.vmClipboardBound = "true";
+    copyButton.title = language === "zh-CN"
+      ? "同时复制到已连接的虚拟机剪贴板"
+      : "Also copies to the connected VM clipboard";
+    copyButton.addEventListener("click", () => {
+      copyToVm(code);
     });
-    copyButton.insertAdjacentElement("afterend", vmButton);
   });
 }
 
