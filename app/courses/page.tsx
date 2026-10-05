@@ -9,8 +9,9 @@ import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Sidebar } from "../components/Sidebar";
 import { api, courseAssetUrl, type ApiCourse } from "../lib/api";
-import { activateCourse, clearActiveCourse, clearCourseProgressCache, type DemoCourse } from "../lib/courses";
+import { activateCourse, clearActiveCourse, type DemoCourse } from "../lib/courses";
 import { resetMockCourseProgress, startMockCourse } from "../lib/mock-course";
+import { localize, useLearningLanguage } from "../lib/language";
 
 export default function CoursesPage() {
   const router = useRouter();
@@ -26,6 +27,8 @@ export default function CoursesPage() {
   const restartConfirmButtonRef = useRef<HTMLButtonElement>(null);
   const previewTriggerRef = useRef<HTMLButtonElement>(null);
   const previewCloseRef = useRef<HTMLButtonElement>(null);
+  const language = useLearningLanguage();
+  const t = (english: string, chinese: string) => localize(language, english, chinese);
 
   const closePreview = useCallback(() => {
     setPreviewCourse(null);
@@ -149,12 +152,8 @@ export default function CoursesPage() {
     }
     try {
       await api.restartCourse(restartCourseTarget.id);
-      // The server keeps this enrollment active after a restart (it only
-      // resets progress to the first lesson) -- clearing activeCourseId here
-      // was optimistic UI that didn't match that, so re-entering the page
-      // (which re-derives activeCourseId from api.enrollments()) would flip
-      // it back to active and the "Restart course" button would reappear.
-      clearCourseProgressCache(restartCourseTarget.id);
+      clearActiveCourse(restartCourseTarget.id);
+      setActiveCourseId(null);
       setRestartCourseTarget(null);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not restart this course.");
@@ -175,12 +174,12 @@ export default function CoursesPage() {
         <Sidebar active="courses" />
         <main className="courses-page page-content">
         <header className="courses-head">
-          <p className="eyebrow">COURSE CATALOG</p>
-          <h1>Choose what to learn next</h1>
-          <p>Start a course and continue directly in your interactive Learning Lab.</p>
+          <p className="eyebrow">{t("COURSE CATALOG", "课程目录")}</p>
+          <h1>{t("Choose what to learn next", "选择接下来要学习的内容")}</h1>
+          <p>{t("Start a course and continue directly in your interactive Learning Lab.", "开始一门课程，并直接进入互动学习实验室继续学习。")}</p>
         </header>
         {error && <Alert className="auth-error" variant="destructive">{error}</Alert>}
-        <section className="course-catalog" aria-label="Available courses">
+        <section className="course-catalog" aria-label={t("Available courses", "可用课程")}>
           {orderedCourses.map((course) => {
             const isActive = activeCourseId === course.id;
             return (
@@ -205,13 +204,13 @@ export default function CoursesPage() {
                 ) : <div className={"catalog-art " + course.tone} aria-hidden="true"><span /></div>}
                 <div className="catalog-copy">
                   <div className="catalog-course-info">
-                    <div className="catalog-label-row"><span>{course.category}</span>{course.localOnly && <Badge variant="outline">Browser demo</Badge>}</div>
+                    <div className="catalog-label-row"><span>{course.category}</span>{course.localOnly && <Badge variant="outline">{t("Browser demo", "浏览器演示")}</Badge>}</div>
                     <h2>{course.title}</h2>
                     <div className="catalog-meta"><span>{course.level}</span></div>
                   </div>
                   <div className="catalog-actions">
-                    {isActive && <Button className="restart-course-button" variant="destructive" size="lg" type="button" onClick={() => setRestartCourseTarget(course)}>Restart course</Button>}
-                    <Button className={isActive ? "continue-course-button" : "primary-button"} variant={isActive ? "secondary" : "default"} size="lg" type="button" onClick={() => selectCourse(course)} disabled={starting}>{isActive ? "Continue course" : "Start course"}</Button>
+                    {isActive && <Button className="restart-course-button" variant="destructive" size="lg" type="button" onClick={() => setRestartCourseTarget(course)}>{t("Restart course", "重新开始课程")}</Button>}
+                    <Button className={isActive ? "continue-course-button" : "primary-button"} variant={isActive ? "secondary" : "default"} size="lg" type="button" onClick={() => selectCourse(course)} disabled={starting}>{isActive ? t("Continue course", "继续课程") : t("Start course", "开始课程")}</Button>
                   </div>
                 </div>
               </Card>
@@ -224,11 +223,11 @@ export default function CoursesPage() {
         {pendingCourse && (
           <DialogContent className="course-confirm-dialog" showCloseButton={false}>
             <span className="course-confirm-mark" aria-hidden="true">!</span>
-            <DialogTitle id="course-confirm-title">Start {pendingCourse.title}?</DialogTitle>
-            <DialogDescription id="course-confirm-description">{pendingCourse.localOnly ? "This short practice course runs entirely in your browser. Progress and learning analytics are saved only on this device." : "Starting a new course will pause your current course. Its Learning Lab may be terminated after 3 days, and you may need to restart that lab from the beginning."}</DialogDescription>
+            <DialogTitle id="course-confirm-title">{t(`Start ${pendingCourse.title}?`, `开始“${pendingCourse.title}”？`)}</DialogTitle>
+            <DialogDescription id="course-confirm-description">{pendingCourse.localOnly ? t("This short practice course runs entirely in your browser. Progress and learning analytics are saved only on this device.", "这门短期练习课程完全在浏览器中运行，进度和学习分析仅保存在此设备上。") : t("Starting a new course will pause your current course. Its Learning Lab may be terminated after 3 days, and you may need to restart that lab from the beginning.", "开始新课程会暂停当前课程。其学习实验室可能在 3 天后终止，届时你可能需要重新开始。")}</DialogDescription>
             <div className="course-confirm-actions">
-              <Button variant="outline" size="lg" type="button" onClick={() => setPendingCourse(null)} disabled={starting}>Cancel</Button>
-              <Button className="primary-button" size="lg" type="button" onClick={() => void confirmStartCourse()} disabled={starting} ref={confirmButtonRef}>{starting ? "Starting..." : "Start new course"}</Button>
+              <Button variant="outline" size="lg" type="button" onClick={() => setPendingCourse(null)} disabled={starting}>{t("Cancel", "取消")}</Button>
+              <Button className="primary-button" size="lg" type="button" onClick={() => void confirmStartCourse()} disabled={starting} ref={confirmButtonRef}>{starting ? t("Starting...", "正在开始……") : t("Start new course", "开始新课程")}</Button>
             </div>
           </DialogContent>
         )}
@@ -237,11 +236,11 @@ export default function CoursesPage() {
         {restartCourseTarget && (
           <DialogContent className="course-confirm-dialog course-restart-dialog" showCloseButton={false}>
             <span className="course-confirm-mark restart" aria-hidden="true">!</span>
-            <DialogTitle id="course-restart-title">Restart {restartCourseTarget.title}?</DialogTitle>
-            <DialogDescription id="course-restart-description">{restartCourseTarget.localOnly ? "This removes the Python course progress, answers, and learning time saved in this browser." : "This resets your saved progress back to the first lesson. You'll stay on this course and can continue right away."}</DialogDescription>
+            <DialogTitle id="course-restart-title">{t(`Restart ${restartCourseTarget.title}?`, `重新开始“${restartCourseTarget.title}”？`)}</DialogTitle>
+            <DialogDescription id="course-restart-description">{restartCourseTarget.localOnly ? "This removes the Python course progress, answers, and learning time saved in this browser. The course will return to a brand-new state." : "This clears your saved progress and returns the course to a brand-new state. You can start it again when you're ready."}</DialogDescription>
             <div className="course-confirm-actions">
-              <Button variant="outline" size="lg" type="button" onClick={() => setRestartCourseTarget(null)} disabled={restarting}>Cancel</Button>
-              <Button className="restart-confirm-button" variant="destructive" size="lg" type="button" onClick={() => void confirmRestartCourse()} disabled={restarting} ref={restartConfirmButtonRef}>{restarting ? "Restarting..." : "Restart course"}</Button>
+              <Button variant="outline" size="lg" type="button" onClick={() => setRestartCourseTarget(null)} disabled={restarting}>{t("Cancel", "取消")}</Button>
+              <Button className="restart-confirm-button" variant="destructive" size="lg" type="button" onClick={() => void confirmRestartCourse()} disabled={restarting} ref={restartConfirmButtonRef}>{restarting ? t("Restarting...", "正在重新开始……") : t("Restart course", "重新开始课程")}</Button>
             </div>
           </DialogContent>
         )}

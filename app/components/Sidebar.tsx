@@ -9,15 +9,16 @@ import { AccountMenu } from "./AccountMenu";
 import { BrandLogo } from "./BrandLogo";
 import { NotificationMenu } from "./NotificationMenu";
 import { TopbarSearch } from "./TopbarSearch";
+import { localize, useLearningLanguage } from "../lib/language";
 
 type SidebarProps = { active: "dashboard" | "courses" | "workspace" | "analysis" | "settings" };
 
 const items = [
-  { id: "dashboard", label: "Dashboard", href: "/dashboard", icon: "▦" },
-  { id: "courses", label: "Courses", href: "/courses", icon: "▤" },
-  { id: "workspace", label: "Learning Lab", href: "/workspace", icon: "‹›" },
-  { id: "analysis", label: "Progress", href: "/analysis", icon: "" },
-  { id: "settings", label: "Settings", href: "/settings", icon: "⚙" },
+  { id: "dashboard", label: ["Dashboard", "控制台"], href: "/dashboard", icon: "▦" },
+  { id: "courses", label: ["Courses", "课程"], href: "/courses", icon: "▤" },
+  { id: "workspace", label: ["Learning Lab", "学习实验室"], href: "/workspace", icon: "‹›" },
+  { id: "analysis", label: ["Progress", "学习进度"], href: "/analysis", icon: "" },
+  { id: "settings", label: ["Settings", "设置"], href: "/settings", icon: "⚙" },
 ] as const;
 
 const sidebarStorageKey = "aivir-sidebar-collapsed";
@@ -39,6 +40,8 @@ function getSidebarSnapshot() {
 export function Sidebar({ active }: SidebarProps) {
   const interfaceVersion = useSyncExternalStore(subscribeToInterfaceVersion, getStoredInterfaceVersion, getServerInterfaceVersion);
   const collapsed = useSyncExternalStore(subscribeToSidebar, getSidebarSnapshot, () => false);
+  const language = useLearningLanguage();
+  const t = (english: string, chinese: string) => localize(language, english, chinese);
 
   useLayoutEffect(() => {
     const savedTheme = window.localStorage.getItem("aivir-theme") === "dark" ? "dark" : "light";
@@ -58,23 +61,23 @@ export function Sidebar({ active }: SidebarProps) {
       <Card as="aside" className={`sidebar ${collapsed ? "sidebar-collapsed" : ""}`}>
         <header className="sidebar-brand-header">
           <BrandLogo className="sidebar-brand-logo" />
-          <Button className="sidebar-collapse-toggle" variant="ghost" size="icon" type="button" onClick={toggleSidebar} aria-label={collapsed ? "Expand navigation" : "Collapse navigation"} aria-expanded={!collapsed}><span aria-hidden="true" /></Button>
+          <Button className="sidebar-collapse-toggle" variant="ghost" size="icon" type="button" onClick={toggleSidebar} aria-label={collapsed ? t("Expand navigation", "展开导航") : t("Collapse navigation", "收起导航")} aria-expanded={!collapsed}><span aria-hidden="true" /></Button>
         </header>
 
-        <section className="sidebar-content-section" aria-label="Navigation">
-          <nav className="side-nav" aria-label="Primary navigation">
+        <section className="sidebar-content-section" aria-label={t("Navigation", "导航")}>
+          <nav className="side-nav" aria-label={t("Primary navigation", "主导航")}>
             {items.map((item) => (
-              <Button key={item.id} render={<Link href={item.href} />} variant="ghost" className={active === item.id ? "active" : ""} title={collapsed ? item.label : undefined}>
+              <Button key={item.id} render={<Link href={item.href} />} variant="ghost" className={active === item.id ? "active" : ""} title={collapsed ? t(...item.label) : undefined}>
                 <span className={`nav-icon ${item.id === "analysis" ? "progress-nav-icon" : ""} ${item.id === "workspace" ? "learning-lab-nav-icon" : ""}`} aria-hidden="true">
                   {item.id === "dashboard" ? <i className="home-nav-icon" /> : item.id === "analysis" ? <i><b /><b /><b /></i> : item.id === "workspace" ? <i className="lab-code-icon"><b /><b /></i> : item.icon}
                 </span>
-                <span className="nav-label">{item.label}</span>
+                <span className="nav-label">{t(...item.label)}</span>
               </Button>
             ))}
           </nav>
         </section>
 
-        <section className="sidebar-profile-section" aria-label="Learner profile">
+        <section className="sidebar-profile-section" aria-label={t("Learner profile", "学习者资料")}>
           <AccountMenu placement="sidebar" collapsed={collapsed} />
         </section>
       </Card>
@@ -84,14 +87,14 @@ export function Sidebar({ active }: SidebarProps) {
   return (
     <Card as="header" className="topbar">
       <div className="topbar-inner">
-        <Link className="topbar-brand" href="/dashboard" aria-label="AIVirTeach dashboard">
+        <Link className="topbar-brand" href="/dashboard" aria-label={t("AIVirTeach dashboard", "AIVirTeach 控制台")}>
           <BrandLogo className="topbar-brand-logo" />
         </Link>
 
-        <nav className="top-nav" aria-label="Primary navigation">
+        <nav className="top-nav" aria-label={t("Primary navigation", "主导航")}>
           {items.map((item) => (
             <Button key={item.id} render={<Link href={item.href} />} variant="ghost" className={active === item.id ? "active" : ""}>
-              <span className="nav-label">{item.label}</span>
+              <span className="nav-label">{t(...item.label)}</span>
             </Button>
           ))}
         </nav>
@@ -99,7 +102,7 @@ export function Sidebar({ active }: SidebarProps) {
         <div className="topbar-actions">
           <NotificationMenu placement="topbar" />
           <TopbarSearch />
-          <section className="topbar-profile" aria-label="Learner profile">
+          <section className="topbar-profile" aria-label={t("Learner profile", "学习者资料")}>
             <AccountMenu placement="topbar" />
           </section>
         </div>

@@ -16,7 +16,7 @@ async function request(path) {
 
 for (const [path, expected] of [
   ["/login", "Turn AI Learners into AI Builders"],
-  ["/dashboard", "Build an Agent using n8n"],
+  ["/dashboard", "Current Streak"],
   ["/analysis", "Learning Analytics"],
   ["/courses", "Choose what to learn next"],
   ["/courses/welcome", "Preparing your course"],

@@ -10,6 +10,7 @@ import { Sidebar } from "../../components/Sidebar";
 import { useLearnerProfile } from "../../hooks/useLearnerProfile";
 import { useMockCourseProgress } from "../../hooks/useMockCourseProgress";
 import { mockCourseCompletion, mockCourseLessons, mockCourseSkillScores, mockCourseStreak, mockCourseWeeklyHours } from "../../lib/mock-course";
+import { localize, useLearningLanguage } from "../../lib/language";
 
 const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -18,6 +19,8 @@ export default function AnalysisV2Page() {
   const [insightExpanded, setInsightExpanded] = useState(false);
   const { profile, loading, error } = useLearnerProfile();
   const { progress: mockProgress } = useMockCourseProgress();
+  const language = useLearningLanguage();
+  const t = (english: string, chinese: string) => localize(language, english, chinese);
   const hasMockCourseData = Boolean(mockProgress.startedAt);
   const mockCompletion = mockCourseCompletion(mockProgress);
   const mockSkills = mockCourseSkillScores(mockProgress);
@@ -55,10 +58,10 @@ export default function AnalysisV2Page() {
     : profile.achievements;
 
   const metrics = [
-    { label: "Practice time", value: `${practiceHours}h`, detail: hasMockCourseData ? "Tracked in this browser" : `+${profile.analytics.practiceTrend}% from before`, tone: "blue" },
-    { label: "Tasks completed", value: String(tasksCompleted), detail: hasMockCourseData ? `${mockProgress.attempts} total attempts` : `+${profile.analytics.taskTrend}% from before`, tone: "violet" },
-    { label: "Current streak", value: `${streakDays}d`, detail: "Keep the rhythm going", tone: "amber" },
-    { label: "Skills mastered", value: String(skillsMastered), detail: `${hasMockCourseData ? mockSkills.length : profile.skills.length} skill areas tracked`, tone: "cyan" },
+    { label: t("Practice time", "练习时间"), value: `${practiceHours}h`, detail: hasMockCourseData ? t("Tracked in this browser", "在此浏览器中记录") : t(`+${profile.analytics.practiceTrend}% from before`, `较之前 +${profile.analytics.practiceTrend}%`), tone: "blue" },
+    { label: t("Tasks completed", "已完成任务"), value: String(tasksCompleted), detail: hasMockCourseData ? t(`${mockProgress.attempts} total attempts`, `共尝试 ${mockProgress.attempts} 次`) : t(`+${profile.analytics.taskTrend}% from before`, `较之前 +${profile.analytics.taskTrend}%`), tone: "violet" },
+    { label: t("Current streak", "连续学习"), value: `${streakDays}d`, detail: t("Keep the rhythm going", "保持学习节奏"), tone: "amber" },
+    { label: t("Skills mastered", "已掌握技能"), value: String(skillsMastered), detail: t(`${hasMockCourseData ? mockSkills.length : profile.skills.length} skill areas tracked`, `正在追踪 ${hasMockCourseData ? mockSkills.length : profile.skills.length} 个技能领域`), tone: "cyan" },
   ];
 
   return (
@@ -69,15 +72,15 @@ export default function AnalysisV2Page() {
 
         <header className="analysis-v2-head">
           <div>
-            <div className="analysis-v2-kicker"><span>Learning Analytics</span><b>V2</b></div>
-            <h1>See where your learning is moving.</h1>
-            <p>A focused view of your progress, practice patterns, and next best action.</p>
+            <div className="analysis-v2-kicker"><span>{t("Learning Analytics", "学习分析")}</span><b>V2</b></div>
+            <h1>{t("See where your learning is moving.", "掌握你的学习进展。")}</h1>
+            <p>{t("A focused view of your progress, practice patterns, and next best action.", "集中查看学习进度、练习模式和下一步最佳行动。")}</p>
           </div>
           <div className="analysis-v2-head-actions">
-            <Button render={<Link href="/analysis" />} variant="ghost">Classic view</Button>
+            <Button render={<Link href="/analysis" />} variant="ghost">{t("Classic view", "经典视图")}</Button>
             <div className="analysis-v2-range" aria-label="Analytics date range">
-              <Button variant="ghost" className={range === "30" ? "active" : ""} type="button" onClick={() => setRange("30")}>30 days</Button>
-              <Button variant="ghost" className={range === "all" ? "active" : ""} type="button" onClick={() => setRange("all")}>All time</Button>
+              <Button variant="ghost" className={range === "30" ? "active" : ""} type="button" onClick={() => setRange("30")}>{t("30 days", "30 天")}</Button>
+              <Button variant="ghost" className={range === "all" ? "active" : ""} type="button" onClick={() => setRange("all")}>{t("All time", "全部时间")}</Button>
             </div>
           </div>
         </header>
@@ -90,12 +93,12 @@ export default function AnalysisV2Page() {
             <Progress className="analysis-v2-course-track" value={course.progress} aria-label={`${course.progress}% course completion`} />
           </div>
           <div className="analysis-v2-course-progress" style={courseProgressStyle} aria-label={`${course.progress}% complete`}>
-            <div><strong>{course.progress}%</strong><span>complete</span></div>
+            <div><strong>{course.progress}%</strong><span>{t("complete", "已完成")}</span></div>
           </div>
           <div className="analysis-v2-course-note">
-            <span>Next milestone</span>
-            <strong>{course.progress === 100 ? "Course complete" : `${Math.min(100, Math.ceil((course.progress + 1) / 10) * 10)}% completion`}</strong>
-            <Button render={<Link href={course.progress === 100 ? "/courses" : hasMockCourseData ? "/courses/python-basics" : "/workspace"} />} variant="link">{course.progress === 100 ? "Explore another course" : "Continue learning"}<span aria-hidden="true">→</span></Button>
+            <span>{t("Next milestone", "下一个里程碑")}</span>
+            <strong>{course.progress === 100 ? t("Course complete", "课程已完成") : t(`${Math.min(100, Math.ceil((course.progress + 1) / 10) * 10)}% completion`, `完成 ${Math.min(100, Math.ceil((course.progress + 1) / 10) * 10)}%`)}</strong>
+            <Button render={<Link href={course.progress === 100 ? "/courses" : hasMockCourseData ? "/courses/python-basics" : "/workspace"} />} variant="link">{course.progress === 100 ? t("Explore another course", "探索其他课程") : t("Continue learning", "继续学习")}<span aria-hidden="true">→</span></Button>
           </div>
         </Card>
 
@@ -111,8 +114,8 @@ export default function AnalysisV2Page() {
         <section className="analysis-v2-main-grid">
           <Card as="article" className="analysis-v2-panel analysis-v2-weekly">
             <header>
-              <div><span className="analysis-v2-label">THIS WEEK</span><h2>Learning activity</h2></div>
-              <div><strong>{weeklyTotal}h</strong><span>Total practice</span></div>
+              <div><span className="analysis-v2-label">{t("THIS WEEK", "本周")}</span><h2>{t("Learning activity", "学习活动")}</h2></div>
+              <div><strong>{weeklyTotal}h</strong><span>{t("Total practice", "总练习时长")}</span></div>
             </header>
             <div className="analysis-v2-chart" role="img" aria-label={`Learning hours from Monday to Sunday: ${weeklyHours.join(", ")} hours`}>
               {weeklyHours.map((hours, index) => (
@@ -128,16 +131,16 @@ export default function AnalysisV2Page() {
 
           <aside className="analysis-v2-side">
             <Card as="article" className="analysis-v2-insight">
-              <header><span aria-hidden="true">AI</span><div><small>PERSONAL INSIGHT</small><strong>Recommended focus</strong></div></header>
+              <header><span aria-hidden="true">AI</span><div><small>{t("PERSONAL INSIGHT", "个人洞察")}</small><strong>{t("Recommended focus", "建议重点")}</strong></div></header>
               <p>{analyticsInsight}</p>
               {insightExpanded && <p className="analysis-v2-insight-detail">{analyticsInsightDetail}</p>}
-              <Button variant="link" type="button" onClick={() => setInsightExpanded((expanded) => !expanded)}>{insightExpanded ? "Show less" : "Why this matters"}<span aria-hidden="true">→</span></Button>
+              <Button variant="link" type="button" onClick={() => setInsightExpanded((expanded) => !expanded)}>{insightExpanded ? t("Show less", "收起") : t("Why this matters", "为何重要")}<span aria-hidden="true">→</span></Button>
             </Card>
           </aside>
         </section>
 
         <section className="analysis-v2-achievements">
-          <header><div><span className="analysis-v2-label">MILESTONES</span><h2>Achievements</h2></div><span>{achievements.filter((achievement) => achievement.unlocked).length} of {achievements.length} unlocked</span></header>
+          <header><div><span className="analysis-v2-label">{t("MILESTONES", "里程碑")}</span><h2>{t("Achievements", "成就")}</h2></div><span>{t(`${achievements.filter((achievement) => achievement.unlocked).length} of ${achievements.length} unlocked`, `已解锁 ${achievements.filter((achievement) => achievement.unlocked).length}/${achievements.length}`)}</span></header>
           <div>
             {achievements.map((achievement, index) => (
               <Card as="article" className={achievement.unlocked ? "unlocked" : "locked"} key={achievement.title}>

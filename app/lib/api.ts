@@ -241,6 +241,22 @@ export type ApiCourseDesignPackage = {
   themes: ApiCourseDesign[];
 };
 
+const bundledCourseDesigns: ApiCourseDesignPackage = {
+  course: { id: "ai-daily-briefing", title: "AI Daily Briefing" },
+  themes: [
+    {
+      id: "ai-daily-briefing-v5-soft-neubrutalism",
+      label: "Soft Neubrutalism — English",
+      url: "/course-designs/ai-daily-briefing-v5-soft-neubrutalism.html",
+    },
+    {
+      id: "ai-daily-briefing-v5-soft-neubrutalism-zh-CN",
+      label: "Soft Neubrutalism — 简体中文",
+      url: "/course-designs/ai-daily-briefing-v5-soft-neubrutalism-zh-CN.html",
+    },
+  ],
+};
+
 export type ApiEnrollment = {
   id: string;
   userId: string;
@@ -362,11 +378,7 @@ export const api = {
   notifications: () => request<ApiNotification[]>("/notifications"),
   markAllNotificationsRead: () => request<{ updated: number; readAt: string }>("/notifications/read-all", { method: "POST" }),
   courses: () => request<ApiCourse[]>("/courses"),
-  courseDesigns: async () => {
-    const response = await fetch("/courses/new_design", { cache: "no-store" });
-    if (!response.ok) throw await responseError(response);
-    return response.json() as Promise<ApiCourseDesignPackage>;
-  },
+  courseDesigns: async () => bundledCourseDesigns,
   course: (courseId: string) => request<ApiCourseDetail>("/courses/" + encodeURIComponent(courseId)),
   courseWelcome: (courseId: string) => request<ApiCourseWelcome>("/courses/" + encodeURIComponent(courseId) + "/welcome"),
   lesson: (courseId: string, lessonId: string) => request<ApiLesson>("/courses/" + encodeURIComponent(courseId) + "/lessons/" + encodeURIComponent(lessonId)),

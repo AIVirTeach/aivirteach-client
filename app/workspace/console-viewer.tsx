@@ -48,6 +48,7 @@ export function ConsoleViewer({ data, labId, enrollmentId, onError }: ConsoleVie
     let cancelled = false;
     let client: Guacamole.Client | null = null;
     let keyboard: Guacamole.Keyboard | null = null;
+    let resizeObserver: ResizeObserver | null = null;
 
     async function connect(mountPoint: HTMLDivElement) {
       const { authToken, websocketUrl } = await api.exchangeConsoleToken(enrollmentId, data);
@@ -82,6 +83,20 @@ export function ConsoleViewer({ data, labId, enrollmentId, onError }: ConsoleVie
 
       const display = guacClient.getDisplay();
       mountPoint.appendChild(display.getElement());
+
+      // Keep the remote desktop's native aspect ratio while fitting it inside
+      // whichever split size the learner chooses. Guacamole's own scale()
+      // keeps mouse coordinates aligned with the scaled display.
+      const fitDisplay = () => {
+        const displayWidth = display.getWidth();
+        const displayHeight = display.getHeight();
+        if (!displayWidth || !displayHeight || !mountPoint.clientWidth || !mountPoint.clientHeight) return;
+        display.scale(Math.min(mountPoint.clientWidth / displayWidth, mountPoint.clientHeight / displayHeight));
+      };
+      display.onresize = fitDisplay;
+      resizeObserver = new ResizeObserver(fitDisplay);
+      resizeObserver.observe(mountPoint);
+      fitDisplay();
 
       // Mouse (unlike Keyboard below) uses guacamole-common-js's newer
       // Event.Target API (on/onEach), not direct onmousedown-style property
@@ -125,6 +140,7 @@ export function ConsoleViewer({ data, labId, enrollmentId, onError }: ConsoleVie
 
     return () => {
       cancelled = true;
+      resizeObserver?.disconnect();
       if (keyboard) {
         keyboard.onkeydown = null;
         keyboard.onkeyup = null;

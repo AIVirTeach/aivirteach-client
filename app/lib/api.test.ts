@@ -2,6 +2,24 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError, api, beaconStopWorkspace } from "./api";
 import { API_BASE_URL } from "./config";
 
+describe("api.courseDesigns", () => {
+  it("returns the HTML course designs bundled with the frontend", async () => {
+    const designs = await api.courseDesigns();
+
+    expect(designs.course.id).toBe("ai-daily-briefing");
+    expect(designs.themes).toEqual([
+      expect.objectContaining({
+        id: "ai-daily-briefing-v5-soft-neubrutalism",
+        url: "/course-designs/ai-daily-briefing-v5-soft-neubrutalism.html",
+      }),
+      expect.objectContaining({
+        id: "ai-daily-briefing-v5-soft-neubrutalism-zh-CN",
+        url: "/course-designs/ai-daily-briefing-v5-soft-neubrutalism-zh-CN.html",
+      }),
+    ]);
+  });
+});
+
 describe("api.stopWorkspace / startWorkspace / workspaceHeartbeat", () => {
   const originalFetch = global.fetch;
 

@@ -26,6 +26,7 @@ import { typewriterChunks, typewriterDelayMs } from "./typewriter";
 import { upstreamErrorMessage, type UpstreamErrorMessages } from "./upstream-error";
 import { getServerInterfaceVersion, getStoredInterfaceVersion, subscribeToInterfaceVersion } from "../lib/interface-version";
 import { WorkspaceV2 } from "./workspace-v2";
+import { localize, useLearningLanguage } from "../lib/language";
 
 type Message = { role: "tutor" | "student"; text: string };
 
@@ -75,6 +76,8 @@ export default function WorkspacePage() {
 
 function WorkspaceV1() {
   const router = useRouter();
+  const language = useLearningLanguage();
+  const t = (english: string, chinese: string) => localize(language, english, chinese);
   const [course, setCourse] = useState<ApiCourseDetail | null>(null);
   const [enrollment, setEnrollment] = useState<ApiEnrollment | null>(null);
   const [workspace, setWorkspace] = useState<ApiWorkspace | null>(null);
@@ -478,7 +481,7 @@ function WorkspaceV1() {
   }
 
   if (!courseChecked || !course || !enrollment) {
-    return <div className="app-shell"><Sidebar active="workspace" /><main className="course-required-page"><Card as="section" className="course-required-card" role="status"><h1>{courseChecked ? "Choose a course first" : "Opening Learning Lab..."}</h1><p>{contentError || (courseChecked ? "Choose a course before opening its project workspace." : "Checking for your active course.")}</p>{courseChecked && <Button className="primary-button" size="lg" type="button" onClick={() => router.replace("/courses")}>Browse courses</Button>}</Card></main></div>;
+    return <div className="app-shell"><Sidebar active="workspace" /><main className="course-required-page"><Card as="section" className="course-required-card" role="status"><h1>{courseChecked ? t("Choose a course first", "请先选择课程") : t("Opening Learning Lab...", "正在打开学习实验室……")}</h1><p>{contentError || (courseChecked ? t("Choose a course before opening its project workspace.", "请先选择课程，再打开项目工作区。") : t("Checking for your active course.", "正在检查进行中的课程。"))}</p>{courseChecked && <Button className="primary-button" size="lg" type="button" onClick={() => router.replace("/courses")}>{t("Browse courses", "浏览课程")}</Button>}</Card></main></div>;
   }
 
   const allLessons = course.modules.flatMap((module) => module.lessons.map((item) => ({ ...item, module })));
@@ -496,11 +499,11 @@ function WorkspaceV1() {
           {courseSummaryCollapsed && <Button className="lab-course-rail-expand" variant="ghost" size="icon" type="button" onClick={() => setCourseSummaryCollapsed(false)} aria-label="Expand course steps" />}
           {!courseSummaryCollapsed && <div className="lab-course-content">
             <section className="lab-step-navigation" aria-label="Step navigation">
-              <Button variant="outline" size="sm" type="button" onClick={() => selectLesson(lesson?.navigation.previousLessonId ?? null)} disabled={!lesson?.navigation.previousLessonId}>Previous step</Button>
+              <Button variant="outline" size="sm" type="button" onClick={() => selectLesson(lesson?.navigation.previousLessonId ?? null)} disabled={!lesson?.navigation.previousLessonId}>{t("Previous step", "上一步")}</Button>
               <span>Step {currentIndex + 1} of {allLessons.length}</span>
-              <Button variant="outline" size="sm" type="button" onClick={() => selectLesson(lesson?.navigation.nextLessonId ?? null)} disabled={!lesson?.navigation.nextLessonId}>Next step</Button>
+              <Button variant="outline" size="sm" type="button" onClick={() => selectLesson(lesson?.navigation.nextLessonId ?? null)} disabled={!lesson?.navigation.nextLessonId}>{t("Next step", "下一步")}</Button>
             </section>
-            <Collapsible className="course-outline-panel"><CollapsibleTrigger render={<Button className="course-outline-trigger" variant="ghost" type="button" />}>Course outline</CollapsibleTrigger><CollapsibleContent><nav className="chapter-timeline course-step-outline" aria-label="Course outline"><ol>{course.modules.map((module) => {
+            <Collapsible className="course-outline-panel"><CollapsibleTrigger render={<Button className="course-outline-trigger" variant="ghost" type="button" />}>{t("Course outline", "课程大纲")}</CollapsibleTrigger><CollapsibleContent><nav className="chapter-timeline course-step-outline" aria-label={t("Course outline", "课程大纲")}><ol>{course.modules.map((module) => {
               const moduleActive = module.lessons.some((item) => item.id === selectedLessonId);
               return <li className={moduleActive ? "active" : ""} key={module.id}>
                 <div className="chapter-row"><span>{module.position}</span><div><small>Module {module.position}</small><strong>{module.title}</strong></div></div>
@@ -515,17 +518,17 @@ function WorkspaceV1() {
               <header className="sidebar-lesson-header"><span>{lesson.module.position}.{lesson.lesson.position}</span><div><small>{lesson.module.title}</small><h2>{lesson.lesson.title}</h2><p>{lesson.lesson.estimatedMinutes} minutes</p></div></header>
               {contentError && <Alert className="auth-error" variant="destructive">{contentError}</Alert>}
               <CourseLessonContent markdown={lesson.markdown} />
-              <Card as="section" className="lesson-activity sidebar-lesson-activity"><small>STEP CHECK</small><h3>{lesson.lesson.activity.prompt}</h3><Button className="primary-button" size="lg" type="button" onClick={() => void completeStep()} disabled={completionStatus === "Saving..."}>{lesson.navigation.nextLessonId ? "Complete and continue" : "Complete course"}</Button>{completionStatus && <p role="status">{completionStatus}</p>}</Card>
+              <Card as="section" className="lesson-activity sidebar-lesson-activity"><small>{t("STEP CHECK", "步骤检查")}</small><h3>{lesson.lesson.activity.prompt}</h3><Button className="primary-button" size="lg" type="button" onClick={() => void completeStep()} disabled={completionStatus === "Saving..."}>{lesson.navigation.nextLessonId ? t("Complete and continue", "完成并继续") : t("Complete course", "完成课程")}</Button>{completionStatus && <p role="status">{completionStatus}</p>}</Card>
             </section>}
           </div>}
           <AccountMenu placement="lab" collapsed={courseSummaryCollapsed} onVmEnv={() => setVmEnvOpen(true)} />
           {!courseSummaryCollapsed && <div className="lab-course-resizer" role="separator" aria-label="Resize course sidebar" aria-orientation="vertical" aria-valuemin={minCourseRailWidth} aria-valuemax={maxCourseRailWidth} aria-valuenow={courseRailWidth} tabIndex={0} onPointerDown={startCourseRailResize} onKeyDown={resizeCourseRailWithKeyboard} />}
         </Card>
 
-        <header className="lab-project-header"><div className="lab-project-title"><small>COURSE</small><h1>{course.title}</h1></div><div className="lab-project-status"><div className="latency-status"><span className="latency-bars" aria-hidden="true">{[1,2,3,4].map((bar) => <i className={bar <= latencyBars ? "active" : ""} key={bar} />)}</span><span><small>SERVER</small><strong>{latency === null ? "Offline" : `${latency} ms`}</strong></span></div><div className="lab-active-timer"><span className="timer-glyph" aria-hidden="true" /><span><small>ACTIVE TIME</small><strong>{formatElapsed(elapsedSeconds)}</strong></span></div></div></header>
+        <header className="lab-project-header"><div className="lab-project-title"><small>{t("COURSE", "课程")}</small><h1>{course.title}</h1></div><div className="lab-project-status"><div className="latency-status"><span className="latency-bars" aria-hidden="true">{[1,2,3,4].map((bar) => <i className={bar <= latencyBars ? "active" : ""} key={bar} />)}</span><span><small>{t("SERVER", "服务器")}</small><strong>{latency === null ? t("Offline", "离线") : `${latency} ms`}</strong></span></div><div className="lab-active-timer"><span className="timer-glyph" aria-hidden="true" /><span><small>{t("ACTIVE TIME", "有效时间")}</small><strong>{formatElapsed(elapsedSeconds)}</strong></span></div></div></header>
 
         <main className="lab-workspace vm-workspace">
-          <header className="vm-toolbar"><div><span className="vm-status-dot" aria-hidden="true" /><strong>Learning VM</strong></div><div className="vm-toolbar-actions"><small>{workspace?.status === "RUNNING" && consoleSession ? "Connected workspace" : "Awaiting connection"}</small>{workspace?.status === "RUNNING" && <button type="button" className="vm-close-button" onClick={closeEnvironment} disabled={stopping}>{stopping ? "Closing..." : "Close environment"}</button>}</div></header>
+          <header className="vm-toolbar"><div><span className="vm-status-dot" aria-hidden="true" /><strong>{t("Learning VM", "学习虚拟机")}</strong></div><div className="vm-toolbar-actions"><small>{workspace?.status === "RUNNING" && consoleSession ? t("Connected workspace", "工作区已连接") : t("Awaiting connection", "等待连接")}</small>{workspace?.status === "RUNNING" && <button type="button" className="vm-close-button" onClick={closeEnvironment} disabled={stopping}>{stopping ? t("Closing...", "正在关闭……") : t("Close environment", "关闭环境")}</button>}</div></header>
           {workspace?.status === "RUNNING" && consoleSession?.state === "ready" && consoleSession.data ? (
             <ConsoleViewer
               data={consoleSession.data}
@@ -565,7 +568,7 @@ function WorkspaceV1() {
           )}
         </main>
 
-        <Card as="aside" className={`lab-tutor-rail ${tutorCollapsed ? "collapsed" : ""}`} aria-label="AI teacher">{tutorCollapsed ? <Button className="lab-tutor-expand" variant="ghost" size="icon" type="button" onClick={() => setTutorCollapsed(false)} aria-label="Expand AI teacher"><span className="bot-mark">AI</span><i className="collapse-glyph points-left" aria-hidden="true" /></Button> : <><header><div className="tutor-heading"><span className="bot-mark">AI</span><div><strong>AIVir Teacher</strong><small><i /> Online</small></div></div><div className="tutor-header-actions"><Button className={`tutor-refresh ${refreshing ? "refreshing" : ""}`} variant="ghost" size="icon" type="button" onClick={refreshTutor} aria-label="Refresh tutor conversation"><img src="/refresh-icon.png" alt="" aria-hidden="true" /></Button><Button className="lab-rail-toggle points-right" variant="ghost" size="icon" type="button" onClick={() => setTutorCollapsed(true)} aria-label="Collapse AI teacher"><span aria-hidden="true" /></Button></div></header><div className={`messages ${refreshing ? "refreshing" : ""}`}>{messages.map((item, index) => <article className={`message ${item.role}`} key={`${item.role}-${index}`}><div>{item.role === "tutor" ? <Markdown extensions={markdownExtensions} components={markdownComponents}>{item.text}</Markdown> : <p>{item.text}</p>}<small>{index === messages.length - 1 && !streaming ? "Just now" : "Earlier"}</small></div></article>)}{streaming && <article className="message tutor pending"><div>{streamingText ? <Markdown extensions={markdownExtensions} components={markdownComponents}>{streamingText}</Markdown> : <p className="tutor-progress">{streamingProgress ?? "..."}</p>}<small>Just now</small></div></article>}</div><form className="message-form" onSubmit={sendMessage}><Input value={message} onChange={(event) => setMessage(event.target.value)} aria-label="Ask the tutor for help" placeholder="Ask about this step..." disabled={streaming} /><Button size="icon" type="submit" aria-label="Send message" disabled={streaming}>Send</Button></form></> }</Card>
+        <Card as="aside" className={`lab-tutor-rail ${tutorCollapsed ? "collapsed" : ""}`} aria-label={t("AI teacher", "AI 教师")}>{tutorCollapsed ? <Button className="lab-tutor-expand" variant="ghost" size="icon" type="button" onClick={() => setTutorCollapsed(false)} aria-label={t("Expand AI teacher", "展开 AI 教师")}><span className="bot-mark">AI</span><i className="collapse-glyph points-left" aria-hidden="true" /></Button> : <><header><div className="tutor-heading"><span className="bot-mark">AI</span><div><strong>AIVir Teacher</strong><small><i /> {t("Online", "在线")}</small></div></div><div className="tutor-header-actions"><Button className={`tutor-refresh ${refreshing ? "refreshing" : ""}`} variant="ghost" size="icon" type="button" onClick={refreshTutor} aria-label={t("Refresh tutor conversation", "刷新教师对话")}><img src="/refresh-icon.png" alt="" aria-hidden="true" /></Button><Button className="lab-rail-toggle points-right" variant="ghost" size="icon" type="button" onClick={() => setTutorCollapsed(true)} aria-label={t("Collapse AI teacher", "收起 AI 教师")}><span aria-hidden="true" /></Button></div></header><div className={`messages ${refreshing ? "refreshing" : ""}`}>{messages.map((item, index) => <article className={`message ${item.role}`} key={`${item.role}-${index}`}><div>{item.role === "tutor" ? <Markdown extensions={markdownExtensions} components={markdownComponents}>{item.text}</Markdown> : <p>{item.text}</p>}<small>{index === messages.length - 1 && !streaming ? t("Just now", "刚刚") : t("Earlier", "较早")}</small></div></article>)}{streaming && <article className="message tutor pending"><div>{streamingText ? <Markdown extensions={markdownExtensions} components={markdownComponents}>{streamingText}</Markdown> : <p className="tutor-progress">{streamingProgress ?? "..."}</p>}<small>{t("Just now", "刚刚")}</small></div></article>}</div><form className="message-form" onSubmit={sendMessage}><Input value={message} onChange={(event) => setMessage(event.target.value)} aria-label={t("Ask the tutor for help", "向教师寻求帮助")} placeholder={t("Ask about this step...", "询问此步骤……")} disabled={streaming} /><Button size="icon" type="submit" aria-label={t("Send message", "发送消息")} disabled={streaming}>{t("Send", "发送")}</Button></form></> }</Card>
       </div>
       <Dialog open={vmEnvOpen} onOpenChange={setVmEnvOpen}>
         {vmEnvOpen && <DialogContent className="vm-env-dialog" showCloseButton={false}>

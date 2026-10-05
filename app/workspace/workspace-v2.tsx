@@ -1,15 +1,16 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { type CSSProperties, type FormEvent, type KeyboardEvent, type PointerEvent as ReactPointerEvent, type SyntheticEvent, useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { Check, Maximize2, Minimize2 } from "lucide-react";
+import { type CSSProperties, type FormEvent, type PointerEvent as ReactPointerEvent, type SyntheticEvent, useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { Check, Maximize2, Minimize2, Send } from "lucide-react";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { BrandLogo } from "../components/BrandLogo";
-import { api, ApiError, courseDesignUrl, type ApiConsoleSession, type ApiCourseDesign, type ApiCourseDesignPackage, type ApiCourseDetail, type ApiEnrollment, type ApiWorkspace } from "../lib/api";
+import { api, ApiError, courseDesignUrl, type ApiConsoleSession, type ApiCourseDesignPackage, type ApiCourseDetail, type ApiEnrollment, type ApiWorkspace } from "../lib/api";
+import { applyLearningLanguage, courseDesignMatchesLanguage, localize, useLearningLanguage } from "../lib/language";
 import { getServerScrollbarPreference, getStoredScrollbarPreference, subscribeToScrollbarPreference, type ScrollbarPreference } from "../lib/scrollbar-preference";
 import { ConsoleViewer } from "./console-viewer";
 
@@ -21,8 +22,21 @@ const initialMessages: Message[] = [
 ];
 const widthStorageKey = "aivirteach.lab.v2.leftWidth";
 const themeStorageKey = "aivirteach.lab.v2.aiDailyBriefingTheme";
+const floatingPositionStorageKey = "aivirteach.lab.v2.floatingAiPosition";
 const minLeftWidth = 380;
 const minVmWidth = 420;
+const floatingButtonSize = 64;
+const floatingViewportMargin = 14;
+const floatingPromptGap = 12;
+const floatingPromptMaxWidth = 340;
+
+function floatingPromptWidth() {
+  return Math.min(floatingPromptMaxWidth, window.innerWidth - (floatingViewportMargin * 2) - floatingButtonSize - floatingPromptGap);
+}
+
+function floatingPromptMinX() {
+  return floatingViewportMargin + Math.max(0, floatingPromptWidth()) + floatingPromptGap;
+}
 
 function styleCourseFrameScrollbars(event: SyntheticEvent<HTMLIFrameElement>, preference: ScrollbarPreference) {
   const document = event.currentTarget.contentDocument;
@@ -48,8 +62,13 @@ function styleCourseFrameScrollbars(event: SyntheticEvent<HTMLIFrameElement>, pr
 
 export function WorkspaceV2() {
   const router = useRouter();
+  const learningLanguage = useLearningLanguage();
+  const t = (english: string, chinese: string) => localize(learningLanguage, english, chinese);
   const scrollbarPreference = useSyncExternalStore(subscribeToScrollbarPreference, getStoredScrollbarPreference, getServerScrollbarPreference);
   const shellRef = useRef<HTMLDivElement>(null);
+  const floatingPromptRef = useRef<HTMLInputElement>(null);
+  const messagesRef = useRef<HTMLDivElement>(null);
+  const floatingWasDraggedRef = useRef(false);
   const consolePollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const consolePollCancelled = useRef(false);
   const [course, setCourse] = useState<ApiCourseDetail | null>(null);
@@ -69,6 +88,11 @@ export function WorkspaceV2() {
   const [consoleLoading, setConsoleLoading] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [envVariablesOpen, setEnvVariablesOpen] = useState(false);
+  const [floatingPromptOpen, setFloatingPromptOpen] = useState(false);
+  const [floatingPrompt, setFloatingPrompt] = useState("");
+  const [floatingThinking, setFloatingThinking] = useState(false);
+  const [floatingUnread, setFloatingUnread] = useState(false);
+  const [floatingPosition, setFloatingPosition] = useState({ x: -100, y: -100 });
 
   useEffect(() => {
     let active = true;
@@ -124,11 +148,36 @@ export function WorkspaceV2() {
   useEffect(() => {
     const saved = Number(window.localStorage.getItem(widthStorageKey));
     if (Number.isFinite(saved)) setLeftWidth(Math.max(minLeftWidth, saved));
+
+    const clampPosition = (position: { x: number; y: number }) => ({
+      x: Math.min(window.innerWidth - floatingButtonSize - floatingViewportMargin, Math.max(floatingViewportMargin, position.x)),
+      y: Math.min(window.innerHeight - floatingButtonSize - floatingViewportMargin, Math.max(floatingViewportMargin, position.y)),
+    });
+    let initialPosition = { x: window.innerWidth - floatingButtonSize - 28, y: window.innerHeight - floatingButtonSize - 28 };
+    try {
+      const savedPosition = JSON.parse(window.localStorage.getItem(floatingPositionStorageKey) ?? "null") as { x?: unknown; y?: unknown } | null;
+      if (typeof savedPosition?.x === "number" && typeof savedPosition.y === "number") initialPosition = { x: savedPosition.x, y: savedPosition.y };
+    } catch {
+      // Ignore a malformed saved position and use the default.
+    }
+    setFloatingPosition(clampPosition(initialPosition));
+    const keepFloatingButtonInView = () => setFloatingPosition((current) => clampPosition(current));
+    window.addEventListener("resize", keepFloatingButtonInView);
     return () => {
+      window.removeEventListener("resize", keepFloatingButtonInView);
       consolePollCancelled.current = true;
       if (consolePollTimer.current) clearTimeout(consolePollTimer.current);
     };
   }, []);
+
+  useEffect(() => {
+    if (floatingPromptOpen) floatingPromptRef.current?.focus();
+  }, [floatingPromptOpen]);
+
+  useEffect(() => {
+    if (activeTab !== "teacher") return;
+    messagesRef.current?.scrollTo({ top: messagesRef.current.scrollHeight, behavior: "smooth" });
+  }, [activeTab, messages]);
 
   useEffect(() => {
     if (workspace?.status === "RUNNING") return;
@@ -193,17 +242,89 @@ export function WorkspaceV2() {
     });
   }
 
+  async function requestTutorResponse(text: string, notifyWhenReady: boolean) {
+    if (!enrollment) return;
+    setMessages((current) => [...current, { role: "student", text }]);
+    if (notifyWhenReady) setFloatingThinking(true);
+    try {
+      const response = await api.sendChatMessage(enrollment.id, text);
+      setMessages((current) => [...current, { role: "tutor", text: response.tutorMessage.text }]);
+    } catch (caught) {
+      setMessages((current) => [...current, { role: "tutor", text: caught instanceof Error ? caught.message : "The tutor is unavailable." }]);
+    } finally {
+      if (notifyWhenReady) {
+        setFloatingThinking(false);
+        setFloatingUnread(true);
+      }
+    }
+  }
+
   async function sendMessage(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!enrollment || !message.trim()) return;
     const text = message.trim();
     setMessage("");
-    try {
-      const response = await api.sendChatMessage(enrollment.id, text);
-      setMessages((current) => [...current, { role: "student", text: response.studentMessage.text }, { role: "tutor", text: response.tutorMessage.text }]);
-    } catch (caught) {
-      setMessages((current) => [...current, { role: "student", text }, { role: "tutor", text: caught instanceof Error ? caught.message : "The tutor is unavailable." }]);
+    await requestTutorResponse(text, false);
+  }
+
+  function sendFloatingPrompt(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!enrollment || floatingThinking || !floatingPrompt.trim()) return;
+    const text = floatingPrompt.trim();
+    setFloatingPrompt("");
+    setFloatingPromptOpen(false);
+    setFloatingUnread(false);
+    void requestTutorResponse(text, true);
+  }
+
+  function handleFloatingButtonClick() {
+    if (floatingWasDraggedRef.current) {
+      floatingWasDraggedRef.current = false;
+      return;
     }
+    if (floatingUnread) {
+      setActiveTab("teacher");
+      setFloatingUnread(false);
+      setFloatingPromptOpen(false);
+      return;
+    }
+    if (!floatingThinking) {
+      setFloatingPromptOpen((current) => {
+        if (!current) setFloatingPosition((position) => ({ ...position, x: Math.max(floatingPromptMinX(), position.x) }));
+        return !current;
+      });
+    }
+  }
+
+  function startFloatingDrag(event: ReactPointerEvent<HTMLButtonElement>) {
+    if (event.button !== 0) return;
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const startPosition = floatingPosition;
+    let latestPosition = startPosition;
+    floatingWasDraggedRef.current = false;
+    event.currentTarget.setPointerCapture(event.pointerId);
+
+    function move(moveEvent: PointerEvent) {
+      const deltaX = moveEvent.clientX - startX;
+      const deltaY = moveEvent.clientY - startY;
+      if (Math.abs(deltaX) + Math.abs(deltaY) > 5) floatingWasDraggedRef.current = true;
+      latestPosition = {
+        x: Math.min(window.innerWidth - floatingButtonSize - floatingViewportMargin, Math.max(floatingPromptOpen ? floatingPromptMinX() : floatingViewportMargin, startPosition.x + deltaX)),
+        y: Math.min(window.innerHeight - floatingButtonSize - floatingViewportMargin, Math.max(floatingViewportMargin, startPosition.y + deltaY)),
+      };
+      setFloatingPosition(latestPosition);
+    }
+
+    function stop() {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", stop);
+      window.removeEventListener("pointercancel", stop);
+      window.localStorage.setItem(floatingPositionStorageKey, JSON.stringify(latestPosition));
+    }
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", stop);
+    window.addEventListener("pointercancel", stop);
   }
 
   async function startConsoleSession() {
@@ -251,72 +372,91 @@ export function WorkspaceV2() {
   }, []);
 
   if (!checked || !course || !enrollment) {
-    return <main className="lab-v2-gate" role="status"><BrandLogo /><h1>{checked ? "Choose a course first" : "Opening Learning Lab V2..."}</h1><p>{error || (checked ? "Choose a course before opening its workspace." : "Loading your course and new learning path designs.")}</p>{checked && <Button type="button" onClick={() => router.replace("/courses")}>Browse courses</Button>}</main>;
+    return <main className="lab-v2-gate" role="status"><BrandLogo /><h1>{checked ? t("Choose a course first", "请先选择课程") : t("Opening Learning Lab V2...", "正在打开学习实验室 V2……")}</h1><p>{error || (checked ? t("Choose a course before opening its workspace.", "请先选择课程，再打开其工作区。") : t("Loading your course and new learning path designs.", "正在加载课程和新的学习路径设计。"))}</p>{checked && <Button type="button" onClick={() => router.replace("/courses")}>{t("Browse courses", "浏览课程")}</Button>}</main>;
   }
 
-  const themes = designPackage?.themes ?? [];
+  const themes = (designPackage?.themes ?? []).filter((theme) => courseDesignMatchesLanguage(theme.id, learningLanguage));
   const selectedDesign = themes.find((theme) => theme.id === selectedDesignId) ?? themes[0];
   const frameStyle = { "--lab-v2-left-width": `${leftWidth}px` } as CSSProperties;
 
   return (
     <div ref={shellRef} className={`lab-v2-shell ${maximized ? "left-maximized" : ""}`} style={frameStyle}>
-      <section className="lab-v2-left" aria-label="Learning workspace">
+      <section className="lab-v2-left" aria-label={t("Learning workspace", "学习工作区")}>
         <header className="lab-v2-header">
           <DropdownMenu>
-            <DropdownMenuTrigger render={<Button className="lab-v2-logo-trigger" variant="ghost" size="icon" type="button" aria-label="Open Learning Lab menu" />}>
+            <DropdownMenuTrigger render={<Button className="lab-v2-logo-trigger" variant="ghost" size="icon" type="button" aria-label={t("Open Learning Lab menu", "打开学习实验室菜单")} />}>
               <BrandLogo className="lab-v2-logo" />
             </DropdownMenuTrigger>
             <DropdownMenuContent className="lab-v2-workspace-menu" align="start" side="bottom" sideOffset={8}>
-              <div className="lab-v2-menu-label">Learning Path theme</div>
+              <div className="lab-v2-menu-label">{t("Learning Path theme", "学习路径主题")}</div>
               {themes.map((theme) => <DropdownMenuItem key={theme.id} onClick={() => { setSelectedDesignId(theme.id); window.localStorage.setItem(themeStorageKey, theme.id); }} aria-current={selectedDesign?.id === theme.id ? "page" : undefined}>{selectedDesign?.id === theme.id && <Check aria-hidden="true" />}<span>{theme.label}</span></DropdownMenuItem>)}
               <div className="lab-v2-menu-separator" />
-              <DropdownMenuItem variant="destructive" onClick={() => router.push("/dashboard")}>Exit</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setEnvVariablesOpen(true)}>Env Variables</DropdownMenuItem>
-              <DropdownMenuItem disabled>Settings</DropdownMenuItem>
+              <div className="lab-v2-menu-label">{t("Language", "语言")}</div>
+              <DropdownMenuItem onClick={() => applyLearningLanguage("en")} aria-current={learningLanguage === "en" ? "true" : undefined}>{learningLanguage === "en" && <Check aria-hidden="true" />}<span>English</span></DropdownMenuItem>
+              <DropdownMenuItem onClick={() => applyLearningLanguage("zh-CN")} aria-current={learningLanguage === "zh-CN" ? "true" : undefined}>{learningLanguage === "zh-CN" && <Check aria-hidden="true" />}<span>简体中文</span></DropdownMenuItem>
+              <div className="lab-v2-menu-separator" />
+              <DropdownMenuItem variant="destructive" onClick={() => router.push("/dashboard")}>{t("Exit", "退出")}</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setEnvVariablesOpen(true)}>{t("Env Variables", "环境变量")}</DropdownMenuItem>
+              <DropdownMenuItem disabled>{t("Settings", "设置")}</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <div className="lab-v2-tabs" role="tablist" aria-label="Learning workspace views">
+          <div className="lab-v2-tabs" role="tablist" aria-label={t("Learning workspace views", "学习工作区视图")}>
             <Button variant={activeTab === "teacher" ? "default" : "ghost"} type="button" role="tab" aria-selected={activeTab === "teacher"} onClick={() => setActiveTab("teacher")}>AIVirTeach</Button>
-            <Button variant={activeTab === "path" ? "default" : "ghost"} type="button" role="tab" aria-selected={activeTab === "path"} onClick={() => setActiveTab("path")}>Learning Path</Button>
+            <Button variant={activeTab === "path" ? "default" : "ghost"} type="button" role="tab" aria-selected={activeTab === "path"} onClick={() => setActiveTab("path")}>{t("Learning Path", "学习路径")}</Button>
           </div>
-          <Button className="lab-v2-expand" variant="outline" size="icon" type="button" onClick={() => setMaximized((current) => !current)} aria-label={maximized ? "Restore split workspace" : "Maximize learning workspace"} aria-pressed={maximized} title={maximized ? "Restore split workspace" : "Maximize learning workspace"}>
+          <Button className="lab-v2-expand" variant="outline" size="icon" type="button" onClick={() => setMaximized((current) => !current)} aria-label={maximized ? t("Restore split workspace", "恢复分屏工作区") : t("Maximize learning workspace", "最大化学习工作区")} aria-pressed={maximized} title={maximized ? t("Restore split workspace", "恢复分屏工作区") : t("Maximize learning workspace", "最大化学习工作区")}>
             {maximized ? <Minimize2 aria-hidden="true" /> : <Maximize2 aria-hidden="true" />}
           </Button>
         </header>
 
         {activeTab === "teacher" ? (
           <div className="lab-v2-teacher" role="tabpanel">
-            <header><div className="tutor-heading"><span className="bot-mark">AI</span><div><strong>AIVir Teacher</strong><small><i /> Online</small></div></div><p>{course.title}</p></header>
-            <div className="messages">{messages.map((item, index) => <article className={`message ${item.role}`} key={`${item.role}-${index}`}><div><p>{item.text}</p><small>{index === messages.length - 1 ? "Just now" : "Earlier"}</small></div></article>)}</div>
-            <form className="message-form" onSubmit={sendMessage}><Input value={message} onChange={(event) => setMessage(event.target.value)} aria-label="Ask AIVir Teacher" placeholder="Ask about this course..." /><Button type="submit">Send</Button></form>
+            <header><div className="tutor-heading"><span className="bot-mark">AI</span><div><strong>AIVir Teacher</strong><small><i /> {t("Online", "在线")}</small></div></div><p>{course.title}</p></header>
+            <div ref={messagesRef} className="messages">{messages.map((item, index) => <article className={`message ${item.role}`} key={`${item.role}-${index}`}><div><p>{item.text}</p><small>{index === messages.length - 1 ? t("Just now", "刚刚") : t("Earlier", "较早")}</small></div></article>)}</div>
+            <form className="message-form" onSubmit={sendMessage}><Input value={message} onChange={(event) => setMessage(event.target.value)} aria-label={t("Ask AIVir Teacher", "向 AIVir Teacher 提问")} placeholder={t("Ask about this course...", "询问这门课程……")} /><Button type="submit">{t("Send", "发送")}</Button></form>
           </div>
         ) : (
           <div className="lab-v2-path" role="tabpanel">
             {error && <Alert variant="destructive">{error}</Alert>}
-            {selectedDesign ? <iframe className="lab-v2-course-frame" src={courseDesignUrl(selectedDesign)} title={`${course.title} — ${selectedDesign.label} learning path`} onLoad={(event) => styleCourseFrameScrollbars(event, scrollbarPreference)} /> : <div className="lab-v2-path-empty" role="status"><h2>No learning path designs found</h2><p>Add HTML documents to course data/new_designs.</p></div>}
+            {selectedDesign ? <iframe className="lab-v2-course-frame" src={courseDesignUrl(selectedDesign)} title={`${course.title} — ${selectedDesign.label}`} onLoad={(event) => styleCourseFrameScrollbars(event, scrollbarPreference)} /> : <div className="lab-v2-path-empty" role="status"><h2>{t("No learning path designs found", "未找到学习路径设计")}</h2><p>{t("No bundled course HTML is available.", "没有可用的内置课程 HTML。")}</p></div>}
           </div>
         )}
       </section>
 
-      {!maximized && <div className="lab-v2-resizer" role="separator" aria-label="Resize learning workspace" aria-orientation="vertical" aria-valuemin={minLeftWidth} aria-valuenow={leftWidth} tabIndex={0} onPointerDown={startResize} onKeyDown={resizeWithKeyboard} />}
+      {!maximized && <div className="lab-v2-resizer" role="separator" aria-label={t("Resize learning workspace", "调整学习工作区大小")} aria-orientation="vertical" aria-valuemin={minLeftWidth} aria-valuenow={leftWidth} tabIndex={0} onPointerDown={startResize} onKeyDown={resizeWithKeyboard} />}
 
       <main className="lab-v2-vm vm-workspace">
-        <header className="vm-toolbar"><div><span className="vm-status-dot" aria-hidden="true" /><strong>Learning VM</strong></div><small>{workspace?.status === "RUNNING" && consoleSession ? "Connected workspace" : "Awaiting connection"}</small></header>
+        <header className="vm-toolbar"><div><span className="vm-status-dot" aria-hidden="true" /><strong>{t("Learning VM", "学习虚拟机")}</strong></div><small>{workspace?.status === "RUNNING" && consoleSession ? t("Connected workspace", "工作区已连接") : t("Awaiting connection", "等待连接")}</small></header>
         {workspace?.status === "RUNNING" && consoleSession?.state === "ready" && consoleSession.data ? <ConsoleViewer data={consoleSession.data} labId={consoleSession.labId} enrollmentId={enrollment.id} onError={handleConsoleError} /> : workspace?.status === "RUNNING" ? <section className="vm-empty-state" role="status"><span className="vm-display-icon" aria-hidden="true" /><h2>Learning VM</h2>{consoleError && <Alert className="auth-error" variant="destructive">{consoleError}</Alert>}<Button size="lg" type="button" onClick={() => void startConsoleSession()} disabled={consoleLoading}>{consoleLoading ? "Starting..." : "Start remote desktop"}</Button></section> : workspace?.status === "ERROR" ? <section className="vm-empty-state" role="status"><span className="vm-display-icon" aria-hidden="true" /><h2>Learning VM</h2><p>{workspace.errorMessage || "Could not start your Learning VM."}</p><Button size="lg" type="button" onClick={retryWorkspace} disabled={retrying}>{retrying ? "Retrying..." : "Retry"}</Button></section> : <section className="vm-empty-state" role="status"><span className="vm-display-icon" aria-hidden="true" /><h2>Learning VM</h2><p>Preparing your Learning VM. This can take a few minutes.</p></section>}
       </main>
 
       <Dialog open={envVariablesOpen} onOpenChange={setEnvVariablesOpen}>
         <DialogContent className="lab-v2-env-dialog">
           <DialogHeader>
-            <DialogTitle>Environment variables</DialogTitle>
-            <DialogDescription>Requirements available in the Learning VM for {course.title}.</DialogDescription>
+            <DialogTitle>{t("Environment variables", "环境变量")}</DialogTitle>
+            <DialogDescription>{t(`Requirements available in the Learning VM for ${course.title}.`, `${course.title} 的学习虚拟机中可用的要求。`)}</DialogDescription>
           </DialogHeader>
           <ul className="lab-v2-env-list">
             {course.requirements.map((requirement) => <li key={requirement}><span aria-hidden="true">✓</span><strong>{requirement}</strong></li>)}
           </ul>
-          <DialogFooter><Button type="button" onClick={() => setEnvVariablesOpen(false)}>Done</Button></DialogFooter>
+          <DialogFooter><Button type="button" onClick={() => setEnvVariablesOpen(false)}>{t("Done", "完成")}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <div className="floating-ai" style={{ left: floatingPosition.x, top: floatingPosition.y }}>
+        {floatingPromptOpen && (
+          <form className="floating-ai-prompt" onSubmit={sendFloatingPrompt}>
+            <input ref={floatingPromptRef} value={floatingPrompt} onChange={(event) => setFloatingPrompt(event.target.value)} placeholder={t("Ask AIVirTeach...", "向 AIVirTeach 提问……")} aria-label={t("Ask AIVirTeach", "向 AIVirTeach 提问")} />
+            <button type="submit" disabled={!floatingPrompt.trim()} aria-label={t("Send prompt", "发送问题")}><Send aria-hidden="true" /></button>
+          </form>
+        )}
+        <button className={`floating-ai-button ${floatingThinking ? "thinking" : ""}`} type="button" onPointerDown={startFloatingDrag} onClick={handleFloatingButtonClick} aria-label={floatingUnread ? t("Open new AIVirTeach response", "打开 AIVirTeach 的新回复") : floatingThinking ? t("AIVirTeach is replying", "AIVirTeach 正在回复") : t("Ask AIVirTeach", "向 AIVirTeach 提问")} aria-expanded={floatingPromptOpen}>
+          {/* A plain static asset avoids Vinext's unsupported Next image-optimization path. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          {floatingThinking ? <span className="floating-ai-typing" aria-hidden="true"><i /><i /><i /></span> : <img src="/logo-only.png" alt="" aria-hidden="true" />}
+          {floatingUnread && <span className="floating-ai-notification" aria-hidden="true" />}
+        </button>
+      </div>
     </div>
   );
 }

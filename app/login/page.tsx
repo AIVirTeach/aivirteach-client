@@ -15,6 +15,7 @@ import { ThemeToggle } from "../components/ThemeToggle";
 import { api } from "../lib/api";
 import { backendConfig } from "../lib/config";
 import { mockLearners } from "../lib/mock-profile";
+import { localize, useLearningLanguage } from "../lib/language";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -23,6 +24,8 @@ export default function LoginPage() {
   const [selectedProfileId, setSelectedProfileId] = useState("learner_advanced");
   const isLocal = backendConfig.mode === "local";
   const selectedProfile = mockLearners.find((learner) => learner.id === selectedProfileId) ?? mockLearners[1];
+  const language = useLearningLanguage();
+  const t = (english: string, chinese: string) => localize(language, english, chinese);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -50,12 +53,12 @@ export default function LoginPage() {
       <section className="login-wrap" aria-labelledby="login-title">
         <header className="login-intro">
           <BrandLogo className="login-logo" />
-          <h1 id="login-title">Turn AI Learners into AI Builders</h1>
+          <h1 id="login-title">{t("Turn AI Learners into AI Builders", "让 AI 学习者成为 AI 创造者")}</h1>
         </header>
         <Card className="login-card">
           {isLocal && <div className="demo-account-picker">
-            <div className="demo-account-heading"><strong>Choose a local demo account</strong><span>No server password is needed</span></div>
-            <div className="demo-account-options" role="group" aria-label="Demo account">
+            <div className="demo-account-heading"><strong>{t("Choose a local demo account", "选择本地演示账户")}</strong><span>{t("No server password is needed", "无需服务器密码")}</span></div>
+            <div className="demo-account-options" role="group" aria-label={t("Demo account", "演示账户")}>
               {mockLearners.map((learner) => (
                 <Button variant="outline" className={selectedProfileId === learner.id ? "selected" : ""} type="button" key={learner.id} onClick={() => setSelectedProfileId(learner.id)} aria-pressed={selectedProfileId === learner.id}>
                   <strong>{learner.accountType === "all-clear" ? "All clear" : learner.accountType[0].toUpperCase() + learner.accountType.slice(1)}</strong>
@@ -65,25 +68,25 @@ export default function LoginPage() {
             </div>
           </div>}
           <form onSubmit={submit}>
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email">{t("Email", "电子邮箱")}</Label>
             <Input id="email" name="email" type="email" placeholder="name@example.com" value={isLocal ? selectedProfile.email : undefined} readOnly={isLocal} autoComplete="email" required />
             {!isLocal && <>
-              <div className="label-row"><Label htmlFor="password">Password</Label><Button type="button" variant="link" className="text-button">Forgot password?</Button></div>
+              <div className="label-row"><Label htmlFor="password">{t("Password", "密码")}</Label><Button type="button" variant="link" className="text-button">{t("Forgot password?", "忘记密码？")}</Button></div>
               <Input id="password" name="password" type="password" placeholder="••••••••" autoComplete="current-password" required />
-              <Label className="remember"><Checkbox name="remember" /> <span>Remember me</span></Label>
+              <Label className="remember"><Checkbox name="remember" /> <span>{t("Remember me", "记住我")}</span></Label>
             </>}
             {error && <Alert className="auth-error" variant="destructive">{error}</Alert>}
-            <Button className="primary-button login-submit" size="lg" type="submit" disabled={submitting}>{submitting ? "Logging in…" : isLocal ? "Open local demo" : "Log in"}</Button>
+            <Button className="primary-button login-submit" size="lg" type="submit" disabled={submitting}>{submitting ? t("Logging in…", "正在登录……") : isLocal ? t("Open local demo", "打开本地演示") : t("Log in", "登录")}</Button>
           </form>
           {!isLocal && <>
-            <div className="divider"><Separator className="divider-line" /><span>Or continue with</span><Separator className="divider-line" /></div>
+            <div className="divider"><Separator className="divider-line" /><span>{t("Or continue with", "或使用以下方式继续")}</span><Separator className="divider-line" /></div>
             <Button className="provider-button" variant="outline" size="lg" type="button" disabled><span className="google-g">G</span> Google</Button>
-            <Button className="provider-button" variant="outline" size="lg" type="button" disabled><span aria-hidden="true">▥</span> Institutional Sign In</Button>
+            <Button className="provider-button" variant="outline" size="lg" type="button" disabled><span aria-hidden="true">▥</span> {t("Institutional Sign In", "机构登录")}</Button>
           </>}
         </Card>
         {isLocal
-          ? <p className="signup-copy">Need a custom profile? <Button render={<Link href="/create-account" />} className="text-button" variant="link">Create a demo account</Button></p>
-          : <p className="signup-copy">Have an invitation? <Button render={<Link href="/create-account" />} className="text-button" variant="link">Activate your account</Button></p>}
+          ? <p className="signup-copy">{t("Need a custom profile?", "需要自定义资料？")} <Button render={<Link href="/create-account" />} className="text-button" variant="link">{t("Create a demo account", "创建演示账户")}</Button></p>
+          : <p className="signup-copy">{t("Have an invitation?", "已有邀请？")} <Button render={<Link href="/create-account" />} className="text-button" variant="link">{t("Activate your account", "激活账户")}</Button></p>}
       </section>
     </main>
   );

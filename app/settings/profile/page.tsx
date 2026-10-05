@@ -11,24 +11,27 @@ import { Avatar } from "../../components/Avatar";
 import { Sidebar } from "../../components/Sidebar";
 import { useLearnerProfile } from "../../hooks/useLearnerProfile";
 import { api } from "../../lib/api";
+import { localize, useLearningLanguage } from "../../lib/language";
 
 export default function ProfileSettingsPage() {
   const router = useRouter();
   const { profile, updateIdentity, resetProfile } = useLearnerProfile();
   const [status, setStatus] = useState("");
+  const language = useLearningLanguage();
+  const t = (english: string, chinese: string) => localize(language, english, chinese);
   // Mock learners store `joinedAt` as a bare date ("2026-05-18"); the real
   // backend sends a full ISO timestamp (`user.createdAt.toISOString()`).
   // Appending "T00:00:00" to the latter breaks Date parsing, so only do it
   // for the bare-date shape.
   const joinedAtDate = new Date(profile.joinedAt.includes("T") ? profile.joinedAt : `${profile.joinedAt}T00:00:00`);
-  const memberSince = joinedAtDate.toLocaleDateString("en-MY", { month: "long", year: "numeric" });
+  const memberSince = joinedAtDate.toLocaleDateString(language === "zh-CN" ? "zh-CN" : "en-MY", { month: "long", year: "numeric" });
 
   async function saveProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     try {
       await updateIdentity(String(form.get("name") ?? ""), String(form.get("role") ?? ""));
-      setStatus("Profile saved.");
+      setStatus(t("Profile saved.", "个人资料已保存。"));
     } catch (caught) {
       setStatus(caught instanceof Error ? caught.message : "Profile could not be saved.");
     }
@@ -37,7 +40,7 @@ export default function ProfileSettingsPage() {
   async function resetDemoProfile() {
     try {
       await resetProfile();
-      setStatus("Demo profile reset.");
+      setStatus(t("Demo profile reset.", "演示资料已重置。"));
     } catch (caught) {
       setStatus(caught instanceof Error ? caught.message : "Profile could not be reset.");
     }
@@ -48,10 +51,10 @@ export default function ProfileSettingsPage() {
       <Sidebar active="settings" />
       <main className="profile-settings-page page-content">
         <header className="profile-settings-head">
-          <Button render={<Link href="/settings" />} variant="link">← Settings</Button>
-          <p className="eyebrow">ACCOUNT</p>
-          <h1>Your profile</h1>
-          <p>Manage the learner identity used throughout your demo experience.</p>
+          <Button render={<Link href="/settings" />} variant="link">← {t("Settings", "设置")}</Button>
+          <p className="eyebrow">{t("ACCOUNT", "账户")}</p>
+          <h1>{t("Your profile", "你的个人资料")}</h1>
+          <p>{t("Manage the learner identity used throughout your demo experience.", "管理演示体验中使用的学习者身份。")}</p>
         </header>
 
         <Card as="section" className="profile-settings-card">
@@ -61,18 +64,18 @@ export default function ProfileSettingsPage() {
           </div>
 
           <div className="profile-settings-facts">
-            <span><small>Member since</small><strong>{memberSince}</strong></span>
-            <span><small>Timezone</small><strong>Kuala Lumpur</strong></span>
+            <span><small>{t("Member since", "加入时间")}</small><strong>{memberSince}</strong></span>
+            <span><small>{t("Timezone", "时区")}</small><strong>{t("Kuala Lumpur", "吉隆坡")}</strong></span>
           </div>
 
           <form key={`${profile.name}-${profile.role}`} onSubmit={saveProfile}>
-            <Label>Name<Input name="name" defaultValue={profile.name} autoComplete="name" /></Label>
-            <Label>Email<Input value={profile.email} readOnly /></Label>
-            <Label>Learning focus<Input name="role" defaultValue={profile.role} /></Label>
+            <Label>{t("Name", "姓名")}<Input name="name" defaultValue={profile.name} autoComplete="name" /></Label>
+            <Label>{t("Email", "电子邮箱")}<Input value={profile.email} readOnly /></Label>
+            <Label>{t("Learning focus", "学习方向")}<Input name="role" defaultValue={profile.role} /></Label>
             <div className="profile-form-actions">
-              <Button className="primary-button" size="lg" type="submit">Save profile</Button>
-              <Button className="profile-reset-button" variant="destructive" size="lg" type="button" onClick={resetDemoProfile}>Reset demo data</Button>
-              <Button className="profile-logout-button" variant="destructive" size="lg" type="button" onClick={() => void api.logout().finally(() => router.replace("/login"))}>Log out</Button>
+              <Button className="primary-button" size="lg" type="submit">{t("Save profile", "保存资料")}</Button>
+              <Button className="profile-reset-button" variant="destructive" size="lg" type="button" onClick={resetDemoProfile}>{t("Reset demo data", "重置演示数据")}</Button>
+              <Button className="profile-logout-button" variant="destructive" size="lg" type="button" onClick={() => void api.logout().finally(() => router.replace("/login"))}>{t("Log out", "退出登录")}</Button>
             </div>
             {status && <p className="profile-save-status" role="status">{status}</p>}
           </form>
