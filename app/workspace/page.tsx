@@ -18,8 +18,8 @@ import { api, ApiError, beaconStopWorkspace, getAccessToken, type ApiConsoleSess
 import { parseSseStream } from "../lib/sse";
 import { subscribeWorkspace } from "../lib/ws";
 import { ConsoleViewer } from "./console-viewer";
-import { progressLabel } from "./chat-progress";
 import { heartbeatIntervalMs, isHeartbeatDue } from "./heartbeat";
+import { TypingIndicator } from "./typing-indicator";
 import { parseChatStreamFrame } from "./chat-stream-frame";
 import { isSafeMarkdownHref } from "./markdown-safety";
 import { typewriterChunks, typewriterDelayMs } from "./typewriter";
@@ -90,7 +90,6 @@ function WorkspaceV1() {
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [streaming, setStreaming] = useState(false);
-  const [streamingProgress, setStreamingProgress] = useState<string | null>(null);
   const [streamingText, setStreamingText] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const [courseSummaryCollapsed, setCourseSummaryCollapsed] = useState(false);
@@ -359,7 +358,6 @@ function WorkspaceV1() {
     setMessage("");
     setMessages((current) => [...current, { role: "student", text }]);
     setStreaming(true);
-    setStreamingProgress(null);
     setStreamingText("");
     const controller = new AbortController();
     chatAbortRef.current = controller;
@@ -370,13 +368,8 @@ function WorkspaceV1() {
       let tutorText: string | null = null;
       for await (const frame of parseSseStream(response.body)) {
         const parsed = parseChatStreamFrame(frame.data);
-        if (!parsed) continue;
-        if (parsed.type === "progress") {
-          const label = progressLabel(parsed.event, parsed.data);
-          if (label) setStreamingProgress(label);
-        } else {
-          tutorText = parsed.tutorMessage.text;
-        }
+        if (!parsed || parsed.type === "progress") continue;
+        tutorText = parsed.tutorMessage.text;
       }
 
       if (tutorText === null) throw new Error("The tutor is unavailable.");
@@ -392,7 +385,6 @@ function WorkspaceV1() {
     } finally {
       if (!controller.signal.aborted) {
         setStreaming(false);
-        setStreamingProgress(null);
         setStreamingText("");
       }
     }
@@ -568,7 +560,7 @@ function WorkspaceV1() {
           )}
         </main>
 
-        <Card as="aside" className={`lab-tutor-rail ${tutorCollapsed ? "collapsed" : ""}`} aria-label={t("AI teacher", "AI 教师")}>{tutorCollapsed ? <Button className="lab-tutor-expand" variant="ghost" size="icon" type="button" onClick={() => setTutorCollapsed(false)} aria-label={t("Expand AI teacher", "展开 AI 教师")}><span className="bot-mark">AI</span><i className="collapse-glyph points-left" aria-hidden="true" /></Button> : <><header><div className="tutor-heading"><span className="bot-mark">AI</span><div><strong>AIVir Teacher</strong><small><i /> {t("Online", "在线")}</small></div></div><div className="tutor-header-actions"><Button className={`tutor-refresh ${refreshing ? "refreshing" : ""}`} variant="ghost" size="icon" type="button" onClick={refreshTutor} aria-label={t("Refresh tutor conversation", "刷新教师对话")}><img src="/refresh-icon.png" alt="" aria-hidden="true" /></Button><Button className="lab-rail-toggle points-right" variant="ghost" size="icon" type="button" onClick={() => setTutorCollapsed(true)} aria-label={t("Collapse AI teacher", "收起 AI 教师")}><span aria-hidden="true" /></Button></div></header><div className={`messages ${refreshing ? "refreshing" : ""}`}>{messages.map((item, index) => <article className={`message ${item.role}`} key={`${item.role}-${index}`}><div>{item.role === "tutor" ? <Markdown extensions={markdownExtensions} components={markdownComponents}>{item.text}</Markdown> : <p>{item.text}</p>}<small>{index === messages.length - 1 && !streaming ? t("Just now", "刚刚") : t("Earlier", "较早")}</small></div></article>)}{streaming && <article className="message tutor pending"><div>{streamingText ? <Markdown extensions={markdownExtensions} components={markdownComponents}>{streamingText}</Markdown> : <p className="tutor-progress">{streamingProgress ?? "..."}</p>}<small>{t("Just now", "刚刚")}</small></div></article>}</div><form className="message-form" onSubmit={sendMessage}><Input value={message} onChange={(event) => setMessage(event.target.value)} aria-label={t("Ask the tutor for help", "向教师寻求帮助")} placeholder={t("Ask about this step...", "询问此步骤……")} disabled={streaming} /><Button size="icon" type="submit" aria-label={t("Send message", "发送消息")} disabled={streaming}>{t("Send", "发送")}</Button></form></> }</Card>
+        <Card as="aside" className={`lab-tutor-rail ${tutorCollapsed ? "collapsed" : ""}`} aria-label={t("AI teacher", "AI 教师")}>{tutorCollapsed ? <Button className="lab-tutor-expand" variant="ghost" size="icon" type="button" onClick={() => setTutorCollapsed(false)} aria-label={t("Expand AI teacher", "展开 AI 教师")}><span className="bot-mark">AI</span><i className="collapse-glyph points-left" aria-hidden="true" /></Button> : <><header><div className="tutor-heading"><span className="bot-mark">AI</span><div><strong>AIVir Teacher</strong><small><i /> {t("Online", "在线")}</small></div></div><div className="tutor-header-actions"><Button className={`tutor-refresh ${refreshing ? "refreshing" : ""}`} variant="ghost" size="icon" type="button" onClick={refreshTutor} aria-label={t("Refresh tutor conversation", "刷新教师对话")}><img src="/refresh-icon.png" alt="" aria-hidden="true" /></Button><Button className="lab-rail-toggle points-right" variant="ghost" size="icon" type="button" onClick={() => setTutorCollapsed(true)} aria-label={t("Collapse AI teacher", "收起 AI 教师")}><span aria-hidden="true" /></Button></div></header><div className={`messages ${refreshing ? "refreshing" : ""}`}>{messages.map((item, index) => <article className={`message ${item.role}`} key={`${item.role}-${index}`}><div>{item.role === "tutor" ? <Markdown extensions={markdownExtensions} components={markdownComponents}>{item.text}</Markdown> : <p>{item.text}</p>}<small>{index === messages.length - 1 && !streaming ? t("Just now", "刚刚") : t("Earlier", "较早")}</small></div></article>)}{streaming && <article className="message tutor pending"><div>{streamingText ? <Markdown extensions={markdownExtensions} components={markdownComponents}>{streamingText}</Markdown> : <TypingIndicator />}<small>{t("Just now", "刚刚")}</small></div></article>}</div><form className="message-form" onSubmit={sendMessage}><Input value={message} onChange={(event) => setMessage(event.target.value)} aria-label={t("Ask the tutor for help", "向教师寻求帮助")} placeholder={t("Ask about this step...", "询问此步骤……")} disabled={streaming} /><Button size="icon" type="submit" aria-label={t("Send message", "发送消息")} disabled={streaming}>{t("Send", "发送")}</Button></form></> }</Card>
       </div>
       <Dialog open={vmEnvOpen} onOpenChange={setVmEnvOpen}>
         {vmEnvOpen && <DialogContent className="vm-env-dialog" showCloseButton={false}>
