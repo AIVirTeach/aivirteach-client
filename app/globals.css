@@ -2909,7 +2909,7 @@ html[data-interface-version="neubrutal"] :is(.progress-track, .slim) > span {
 .lesson-blocks { --lesson-success: color-mix(in srgb, var(--ink) 70%, #138a55); container-type: inline-size; }
 .lesson-blocks .lb-invalid { display: grid; gap: 5px; margin: 12px 0; border: 2px dashed var(--destructive); border-radius: 4px; padding: 10px 12px; color: var(--destructive); }
 .lesson-blocks .lb-invalid small { color: var(--ink-soft); }
-.lesson-blocks .lb-warning { display: inline-block; margin: 4px 0; color: var(--amber); font-size: 11px; font-weight: 800; }
+.lesson-blocks .lb-warning { display: inline-block; margin: 4px 0; color: color-mix(in srgb, var(--amber) 50%, var(--ink)); font-size: 11px; font-weight: 800; }
 .lesson-blocks .lesson-code-block { margin-block: 18px 24px; }
 .lesson-blocks .lesson-code-block pre { max-width: 100%; overflow-x: auto; white-space: pre; }
 .lesson-blocks .lesson-copy-button:focus-visible { outline: 3px solid var(--primary-light); outline-offset: 3px; }
@@ -2918,11 +2918,11 @@ html[data-interface-version="neubrutal"] :is(.progress-track, .slim) > span {
 .lesson-blocks .lesson-step h3 { margin: 4px 0 0; font-size: 17px; }
 .lesson-blocks .lesson-step p { grid-column: 2; margin: 0; }
 .lesson-blocks .lesson-callout { margin: 18px 0; border: 2px solid var(--lesson-callout-color); border-radius: 4px; padding: 12px 14px; background: var(--lesson-callout-bg); }
-.lesson-blocks .lesson-callout h4 { margin: 0 0 3px; color: var(--lesson-callout-color); font-size: 11px; font-weight: 900; letter-spacing: .05em; text-transform: uppercase; }
+.lesson-blocks .lesson-callout h4 { margin: 0 0 3px; color: var(--lesson-callout-text, var(--lesson-callout-color)); font-size: 11px; font-weight: 900; letter-spacing: .05em; text-transform: uppercase; }
 .lesson-blocks .lesson-callout p { margin: 0; }
 .lesson-blocks .lesson-callout--primary { --lesson-callout-color: var(--primary); --lesson-callout-bg: var(--primary-pale); }
 .lesson-blocks .lesson-callout--success { --lesson-callout-color: var(--lesson-success); --lesson-callout-bg: color-mix(in srgb, var(--lesson-success) 10%, var(--surface-lowest)); }
-.lesson-blocks .lesson-callout--warning { --lesson-callout-color: var(--amber); --lesson-callout-bg: color-mix(in srgb, var(--amber) 14%, var(--surface-lowest)); }
+.lesson-blocks .lesson-callout--warning { --lesson-callout-color: var(--amber); --lesson-callout-text: color-mix(in srgb, var(--amber) 50%, var(--ink)); --lesson-callout-bg: color-mix(in srgb, var(--amber) 14%, var(--surface-lowest)); }
 .lesson-blocks .lb-table-scroll { max-width: 100%; overflow-x: auto; border: 2px solid var(--ink); border-radius: 4px; }
 .lesson-blocks .lb-table { width: 100%; border-collapse: collapse; }
 .lesson-blocks .lb-table th, .lesson-blocks .lb-table td { min-width: 112px; border: 1px solid var(--outline); padding: 10px 12px; text-align: left; vertical-align: top; }
@@ -2958,6 +2958,7 @@ html[data-interface-version="neubrutal"] :is(.progress-track, .slim) > span {
 .lesson-blocks .lb-diagram-node p { margin-top: 4px; color: var(--ink-soft); }
 .lesson-blocks .lb-diagram-edge { display: grid; justify-items: center; gap: 2px; min-height: 26px; color: var(--ink-soft); font-size: 12px; }
 .lesson-blocks .lb-diagram-arrow { color: var(--primary); font-size: 18px; line-height: 1; }
+.lesson-blocks .lb-diagram-target { color: var(--primary); font-weight: 700; }
 @container (max-width: 480px) {
   .lesson-blocks .lesson-code-block { margin-block: 14px 18px; }
   .lesson-blocks .lesson-code-block pre { padding: 14px; font-size: 11px; }

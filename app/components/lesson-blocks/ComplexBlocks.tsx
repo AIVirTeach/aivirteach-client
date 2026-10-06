@@ -81,24 +81,26 @@ export function AnnotatedCodeBlock({ id, props }: BlockProps<AnnotatedCodeModel>
 }
 
 export function DiagramBlock({ id, props }: BlockProps<DiagramModel>) {
-  const nodeIds = new Set(props.nodes.map((node) => node.id));
+  const nodeTitles = new Map(props.nodes.map((node) => [node.id, node.title]));
   const outgoing = new Map<string, typeof props.connections>();
   for (const connection of props.connections) {
-    if (!nodeIds.has(connection.from) || !nodeIds.has(connection.to)) continue;
+    if (!nodeTitles.has(connection.from) || !nodeTitles.has(connection.to)) continue;
     const current = outgoing.get(connection.from) ?? [];
     outgoing.set(connection.from, [...current, connection]);
   }
 
   return <section id={id} className="lb-diagram">
     {props.title ? <h3>{renderInline(props.title)}</h3> : null}
-    <div className="lb-diagram-flow">{props.nodes.map((node) => <div className="lb-diagram-node-group" key={node.id}>
+    <div className="lb-diagram-flow">{props.nodes.map((node, nodeIndex) => <div className="lb-diagram-node-group" key={node.id}>
       <article className="lb-diagram-node">
         <h4>{renderInline(node.title)}</h4>
         {node.description ? <p>{renderInline(node.description)}</p> : null}
       </article>
-      {(outgoing.get(node.id) ?? []).map((connection, edgeIndex) => <div className="lb-diagram-edge" key={`${connection.from}-${connection.to}-${edgeIndex}`} aria-label={`连接到 ${props.nodes.find((candidate) => candidate.id === connection.to)?.title}`}>
+      {(outgoing.get(node.id) ?? []).map((connection, edgeIndex) => <div className="lb-diagram-edge" key={`${connection.from}-${connection.to}-${edgeIndex}`}>
         {connection.label ? <span>{renderInline(connection.label)}</span> : null}
-        <span className="lb-diagram-arrow" aria-hidden="true">↓</span>
+        {connection.to === props.nodes[nodeIndex + 1]?.id
+          ? <span className="lb-diagram-arrow" aria-hidden="true">↓</span>
+          : <span className="lb-diagram-target">{renderInline(`→ ${nodeTitles.get(connection.to)}`)}</span>}
       </div>)}
     </div>)}</div>
   </section>;

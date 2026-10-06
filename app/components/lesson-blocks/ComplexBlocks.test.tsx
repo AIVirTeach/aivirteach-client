@@ -98,4 +98,25 @@ describe("complex lesson blocks", () => {
     expect(html.indexOf("second")).toBeLessThan(html.indexOf("<h4>End"));
     expect(html).not.toContain("skip");
   });
+
+  it("names the target when a connection does not lead to the next node", () => {
+    const nodes = [{ id: "a", title: "Start" }, { id: "b", title: "Middle" }, { id: "c", title: "End" }];
+    const skip = renderToStaticMarkup(<DiagramBlock id="d" props={{ nodes, connections: [{ from: "a", to: "c" }] }} />);
+    expect(skip).toContain('<span class="lb-diagram-target">→ End</span>');
+    expect(skip.indexOf("lb-diagram-target")).toBeLessThan(skip.indexOf("<h4>Middle"));
+    expect(skip).not.toContain("lb-diagram-arrow");
+
+    const back = renderToStaticMarkup(<DiagramBlock id="d" props={{ nodes, connections: [{ from: "c", to: "a" }] }} />);
+    expect(back).toContain('<span class="lb-diagram-target">→ Start</span>');
+    expect(back).not.toContain("aria-label");
+  });
+
+  it("keeps the plain arrow for a connection to the next node", () => {
+    const html = renderToStaticMarkup(<DiagramBlock id="d" props={{
+      nodes: [{ id: "a", title: "Start" }, { id: "b", title: "Middle" }],
+      connections: [{ from: "a", to: "b", label: "next" }],
+    }} />);
+    expect(html).toContain("lb-diagram-arrow");
+    expect(html).not.toContain("lb-diagram-target");
+  });
 });
