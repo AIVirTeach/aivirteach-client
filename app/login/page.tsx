@@ -71,7 +71,7 @@ export default function LoginPage() {
             <Label htmlFor="email">{t("Email", "电子邮箱")}</Label>
             <Input id="email" name="email" type="email" placeholder="name@example.com" value={isLocal ? selectedProfile.email : undefined} readOnly={isLocal} autoComplete="email" required />
             {!isLocal && <>
-              <div className="label-row"><Label htmlFor="password">{t("Password", "密码")}</Label><Button type="button" variant="link" className="text-button">{t("Forgot password?", "忘记密码？")}</Button></div>
+              <div className="label-row"><Label htmlFor="password">{t("Password", "密码")}</Label><button type="button" className="auth-text-link">{t("Forgot password?", "忘记密码？")}</button></div>
               <Input id="password" name="password" type="password" placeholder="••••••••" autoComplete="current-password" required />
               <Label className="remember"><Checkbox name="remember" /> <span>{t("Remember me", "记住我")}</span></Label>
             </>}
@@ -86,7 +86,7 @@ export default function LoginPage() {
         </Card>
         {isLocal
           ? <p className="signup-copy">{t("Need a custom profile?", "需要自定义资料？")} <Button render={<Link href="/create-account" />} className="text-button" variant="link">{t("Create a demo account", "创建演示账户")}</Button></p>
-          : <p className="signup-copy">{t("Have an invitation?", "已有邀请？")} <Button render={<Link href="/create-account" />} className="text-button" variant="link">{t("Activate your account", "激活账户")}</Button></p>}
+          : <p className="signup-copy">{t("Have an invitation?", "已有邀请？")} <Link href="/create-account" className="auth-text-link">{t("Activate your account", "激活账户")}</Link></p>}
       </section>
     </main>
   );
