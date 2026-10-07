@@ -4,6 +4,7 @@ import { Geist } from "next/font/google";
 import { cn } from "@/lib/utils";
 import { ScrollbarPreference } from "./components/ScrollbarPreference";
 import { AppLanguage } from "./components/AppLanguage";
+import { InterfaceVersionPreference } from "./components/InterfaceVersionPreference";
 
 const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
@@ -25,8 +26,8 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={cn("font-sans", geist.variable)}>
-      <body><AppLanguage /><ScrollbarPreference />{children}</body>
+    <html lang="en" data-interface-version="brutal" className={cn("font-sans", geist.variable)}>
+      <body><AppLanguage /><InterfaceVersionPreference /><ScrollbarPreference />{children}</body>
     </html>
   );
 }

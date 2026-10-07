@@ -12,6 +12,33 @@ import { applyLearningLanguage, localize, useLearningLanguage, type LearningLang
 import { applyTheme, getServerTheme, getStoredTheme, subscribeToTheme, type Theme } from "../lib/theme";
 import { applyScrollbarPreference, getServerScrollbarPreference, getStoredScrollbarPreference, subscribeToScrollbarPreference, type ScrollbarPreference } from "../lib/scrollbar-preference";
 
+type SettingsToggleProps = {
+  checked: boolean;
+  label: string;
+  offLabel: string;
+  onLabel: string;
+  onChange: (checked: boolean) => void;
+};
+
+function SettingsToggle({ checked, label, offLabel, onLabel, onChange }: SettingsToggleProps) {
+  return (
+    <div className="settings-toggle">
+      <span className={checked ? "" : "active"}>{offLabel}</span>
+      <button
+        type="button"
+        className="settings-toggle-control"
+        role="switch"
+        aria-checked={checked}
+        aria-label={label}
+        onClick={() => onChange(!checked)}
+      >
+        <span aria-hidden="true" />
+      </button>
+      <span className={checked ? "active" : ""}>{onLabel}</span>
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const router = useRouter();
   const theme = useSyncExternalStore(subscribeToTheme, getStoredTheme, getServerTheme);
@@ -70,7 +97,7 @@ export default function SettingsPage() {
                 <option value="v2">{t("Modern V2", "现代 V2")}</option>
                 <option value="soft">{t("Soft neumorphism", "柔和新拟态")}</option>
                 <option value="soft-brutal">{t("Soft brutalism", "柔和粗野主义")}</option>
-                <option value="brutal">{t("Brutalism", "粗野主义")}</option>
+                <option value="brutal">{t("Brutalism V2", "粗野主义 V2")}</option>
                 <option value="neubrutal">{t("Neubrutalism", "新粗野主义")}</option>
               </select>
             </label>
@@ -78,26 +105,17 @@ export default function SettingsPage() {
 
           <Card as="article" className="settings-card">
             <div><span className="settings-card-icon" aria-hidden="true">文</span><div><h2>{t("Language", "语言")}</h2><p>{t("Change the language across AIVirTeach, including Learning Lab V2.", "更改整个 AIVirTeach（包括学习实验室 V2）的语言。")}</p></div></div>
-            <div className="theme-choice" role="group" aria-label={t("Application language", "应用语言")}>
-              <Button variant="ghost" className={learningLanguage === "en" ? "active" : ""} type="button" onClick={() => chooseLearningLanguage("en")} aria-pressed={learningLanguage === "en"}>English</Button>
-              <Button variant="ghost" className={learningLanguage === "zh-CN" ? "active" : ""} type="button" onClick={() => chooseLearningLanguage("zh-CN")} aria-pressed={learningLanguage === "zh-CN"}>简体中文</Button>
-            </div>
+            <SettingsToggle checked={learningLanguage === "zh-CN"} label={t("Application language", "应用语言")} offLabel="English" onLabel="简体中文" onChange={(checked) => chooseLearningLanguage(checked ? "zh-CN" : "en")} />
           </Card>
 
           <Card as="article" className="settings-card">
             <div><span className="settings-card-icon theme-icon" aria-hidden="true" /><div><h2>{t("Theme", "外观主题")}</h2><p>{t("Choose the appearance that is most comfortable for you.", "选择最适合你的显示外观。")}</p></div></div>
-            <div className="theme-choice" role="group" aria-label={t("Color theme", "颜色主题")}>
-              <Button variant="ghost" className={theme === "light" ? "active" : ""} type="button" onClick={() => chooseTheme("light")} aria-pressed={theme === "light"}>{t("Light", "浅色")}</Button>
-              <Button variant="ghost" className={theme === "dark" ? "active" : ""} type="button" onClick={() => chooseTheme("dark")} aria-pressed={theme === "dark"}>{t("Dark", "深色")}</Button>
-            </div>
+            <SettingsToggle checked={theme === "dark"} label={t("Color theme", "颜色主题")} offLabel={t("Light", "浅色")} onLabel={t("Dark", "深色")} onChange={(checked) => chooseTheme(checked ? "dark" : "light")} />
           </Card>
 
           <Card as="article" className="settings-card">
             <div><span className="settings-card-icon" aria-hidden="true">↕</span><div><h2>{t("Scrollbars", "滚动条")}</h2><p>{t("Keep thin scrollbars visible for orientation, or hide them for a cleaner workspace.", "显示细滚动条以便定位，或将其隐藏以获得更简洁的工作区。")}</p></div></div>
-            <div className="theme-choice" role="group" aria-label={t("Scrollbar visibility", "滚动条显示")}>
-              <Button variant="ghost" className={scrollbarPreference === "visible" ? "active" : ""} type="button" onClick={() => chooseScrollbarPreference("visible")} aria-pressed={scrollbarPreference === "visible"}>{t("Visible", "显示")}</Button>
-              <Button variant="ghost" className={scrollbarPreference === "hidden" ? "active" : ""} type="button" onClick={() => chooseScrollbarPreference("hidden")} aria-pressed={scrollbarPreference === "hidden"}>{t("Hidden", "隐藏")}</Button>
-            </div>
+            <SettingsToggle checked={scrollbarPreference === "hidden"} label={t("Scrollbar visibility", "滚动条显示")} offLabel={t("Visible", "显示")} onLabel={t("Hidden", "隐藏")} onChange={(checked) => chooseScrollbarPreference(checked ? "hidden" : "visible")} />
           </Card>
 
           <Card as="article" className="settings-card">
