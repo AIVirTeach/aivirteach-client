@@ -47,3 +47,15 @@ export function previewHeaders(adminOrigin?: string): Record<string, string> {
     "Cache-Control": "no-store",
   };
 }
+
+// 值在构建时就写进响应头，事后补设无效；event.origin 永远不带路径和结尾斜杠，写错会让预览静默失效。
+export function adminOriginProblem(value: string | undefined): string | null {
+  const trimmed = value?.trim();
+  if (!trimmed) return "NEXT_PUBLIC_ADMIN_ORIGIN is not set: /preview/lesson cannot be framed and accepts no messages.";
+  try {
+    if (new URL(trimmed).origin === trimmed) return null;
+  } catch {
+    // 落到下面的统一提示
+  }
+  return `NEXT_PUBLIC_ADMIN_ORIGIN "${trimmed}" is not a bare origin (expected e.g. https://admin.example.com, no path or trailing slash).`;
+}

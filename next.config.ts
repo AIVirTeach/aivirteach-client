@@ -1,5 +1,8 @@
 import type { NextConfig } from "next";
-import { previewHeaders } from "./app/lib/lesson-blocks/preview-message";
+import { adminOriginProblem, previewHeaders } from "./app/lib/lesson-blocks/preview-message";
+
+const adminOriginWarning = adminOriginProblem(process.env.NEXT_PUBLIC_ADMIN_ORIGIN);
+if (adminOriginWarning) console.warn(`[preview] ${adminOriginWarning}`);
 
 const nextConfig: NextConfig = {
   async headers() {

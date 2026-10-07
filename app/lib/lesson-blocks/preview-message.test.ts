@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parsePreviewMessage, previewHeaders } from "./preview-message";
+import { adminOriginProblem, parsePreviewMessage, previewHeaders } from "./preview-message";
 
 const origin = "https://admin.example.com";
 const payload = {
@@ -87,5 +87,24 @@ describe("previewHeaders", () => {
       "Content-Security-Policy": "frame-ancestors 'none'",
       "Cache-Control": "no-store",
     });
+  });
+});
+
+describe("adminOriginProblem", () => {
+  it.each(["https://admin.example.com", "http://localhost:3002"])("accepts the bare origin %s", (value) => {
+    expect(adminOriginProblem(value)).toBeNull();
+  });
+
+  it.each([undefined, "", "  "])("reports an unset value %j", (value) => {
+    expect(adminOriginProblem(value)).toMatch(/not set/);
+  });
+
+  it.each([
+    "https://admin.example.com/",
+    "https://admin.example.com/login",
+    "admin.example.com",
+    "https://admin.example.com?x=1",
+  ])("reports %s because it is not a bare origin", (value) => {
+    expect(adminOriginProblem(value)).toMatch(/bare origin/);
   });
 });
