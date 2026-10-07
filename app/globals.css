@@ -2872,7 +2872,9 @@ html[data-interface-version="neubrutal"] :is(.progress-track, .slim) > span {
 .lab-v2-teacher .message-form button { min-width: 64px; }
 .lab-v2-vm { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 .lab-v2-vm-status { display: flex; align-items: center; gap: 10px; }
-.lab-v2-latency { min-width: 66px; border-left: 1px solid #46515c; padding-left: 10px; font-variant-numeric: tabular-nums; }
+.lab-v2-latency { width: 27px; height: 22px; display: inline-flex; align-items: center; justify-content: flex-end; border-left: 1px solid #46515c; padding-left: 10px; color: #72d6a8; }
+.lab-v2-latency svg { width: 16px; height: 16px; stroke-width: 2.25; }
+.lab-v2-latency.is-offline { color: #aab3bc; }
 .lab-v2-env-dialog { width: min(calc(100vw - 32px), 520px); max-width: 520px; }
 .lab-v2-env-list { display: grid; gap: 8px; margin: 4px 0 8px; padding: 0; list-style: none; }
 .lab-v2-env-list li { min-height: 44px; display: grid; grid-template-columns: 26px minmax(0, 1fr); align-items: center; gap: 10px; border: 1px solid var(--outline); border-radius: var(--radius); padding: 8px 10px; }
