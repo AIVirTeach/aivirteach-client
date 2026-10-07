@@ -498,6 +498,15 @@ html[data-theme="dark"] .search-button:hover, html[data-theme="dark"] .search-bu
 .theme-choice, .version-choice { display: inline-flex; flex: 0 0 auto; gap: 4px; border: 1px solid var(--outline); border-radius: 12px; padding: 4px; background: var(--surface-low); }
 .theme-choice button, .version-choice button { min-width: 76px; height: 36px; border: 0; border-radius: 8px; background: transparent; color: var(--ink-soft); font-weight: 700; }
 .theme-choice button.active, .version-choice button.active { background: var(--primary); color: #fff; box-shadow: 0 4px 12px rgba(5, 104, 254, .2); }
+.settings-toggle { display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: flex-end; gap: 10px; }
+.settings-toggle > span { color: var(--ink-soft); font-size: 13px; font-weight: 800; }
+.settings-toggle > span.active { color: var(--ink); }
+.settings-toggle-control { position: relative; width: 54px; height: 30px; flex: 0 0 54px; border: 2px solid var(--ink); border-radius: 999px; padding: 2px; background: var(--surface-container); color: inherit; cursor: pointer; box-shadow: none; transform: none; transition: background .18s ease; }
+.settings-toggle-control > span { display: block; width: 22px; height: 22px; border: 2px solid var(--ink); border-radius: 50%; background: var(--surface-lowest); transform: translateX(0); transition: transform .18s ease, background .18s ease; }
+.settings-toggle-control[aria-checked="true"] { background: var(--primary); }
+.settings-toggle-control[aria-checked="true"] > span { background: #fff; transform: translateX(24px); }
+.settings-toggle-control:hover, .settings-toggle-control:active { transform: none !important; }
+.settings-toggle-control:focus-visible { outline: 3px solid var(--primary-light); outline-offset: 3px; }
 .design-theme-select { position: relative; min-width: 220px; display: block; }
 .design-theme-select > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; clip-path: inset(50%); }
 .design-theme-select select { width: 100%; height: 46px; appearance: none; border: 1px solid var(--outline); border-radius: 11px; padding: 0 42px 0 14px; background: linear-gradient(45deg, transparent 50%, var(--ink-soft) 50%) calc(100% - 18px) 19px / 6px 6px no-repeat, linear-gradient(135deg, var(--ink-soft) 50%, transparent 50%) calc(100% - 12px) 19px / 6px 6px no-repeat, var(--surface-low); color: var(--ink); font: inherit; font-weight: 700; outline: none; cursor: pointer; }
@@ -745,7 +754,8 @@ html[data-theme="dark"] .message.student p { border-color: #9bc0ff; }
   .analytics-side { grid-template-columns: 1fr; }
   .settings-head { padding: 18px 0 24px; }
   .settings-card { align-items: stretch; flex-direction: column; gap: 18px; padding: 19px; }
-  .settings-card > button, .settings-card-link, .theme-choice, .version-choice, .design-theme-select { width: 100%; }
+  .settings-card > button, .settings-card-link, .theme-choice, .version-choice, .design-theme-select, .settings-toggle { width: 100%; }
+  .settings-toggle { justify-content: space-between; }
   .theme-choice button, .version-choice button { flex: 1; }
   .course-catalog { grid-template-columns: 1fr; }
   .courses-head { padding: 18px 0 24px; }
@@ -2576,6 +2586,31 @@ html[data-interface-version="brutal"] :is(.theme-choice, .version-choice, .range
 html[data-interface-version="brutal"] :is(.theme-choice, .version-choice, .range-toggle, .analysis-v2-range) button.active {
   background: #2563eb;
   color: #fff;
+}
+
+html[data-interface-version="brutal"] .settings-toggle-control {
+  border: 3px solid #000;
+  border-radius: 0;
+  background: #fff;
+  box-shadow: none;
+  transition: none;
+}
+
+html[data-interface-version="brutal"] .settings-toggle-control[aria-checked="true"] {
+  background: #2563eb;
+}
+
+html[data-interface-version="brutal"] .settings-toggle-control > span {
+  border-color: #000;
+  border-radius: 0;
+  background: #facc15;
+  transition: transform .18s ease;
+}
+
+html[data-interface-version="brutal"] .settings-toggle-control:hover,
+html[data-interface-version="brutal"] .settings-toggle-control:active {
+  transform: none !important;
+  box-shadow: none;
 }
 
 html[data-interface-version="brutal"] :is(input, textarea, select) {
