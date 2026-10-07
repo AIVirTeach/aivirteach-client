@@ -13,6 +13,7 @@ import { api, ApiError, courseDesignUrl, type ApiConsoleSession, type ApiCourseD
 import { applyLearningLanguage, courseDesignMatchesLanguage, localize, useLearningLanguage } from "../lib/language";
 import { getServerScrollbarPreference, getStoredScrollbarPreference, subscribeToScrollbarPreference, type ScrollbarPreference } from "../lib/scrollbar-preference";
 import { ConsoleViewer, type ConsoleViewerHandle } from "./console-viewer";
+import { upstreamErrorMessage } from "./upstream-error";
 import { vmPanelState } from "./vm-panel-state";
 
 type Message = { role: "tutor" | "student"; text: string };
@@ -109,6 +110,7 @@ export function WorkspaceV2() {
   const consolePollCancelled = useRef(false);
   const [course, setCourse] = useState<ApiCourseDetail | null>(null);
   const [enrollment, setEnrollment] = useState<ApiEnrollment | null>(null);
+  const enrollmentId = enrollment?.id;
   const [workspace, setWorkspace] = useState<ApiWorkspace | null>(null);
   const [designPackage, setDesignPackage] = useState<ApiCourseDesignPackage | null>(null);
   const [selectedDesignId, setSelectedDesignId] = useState("");
@@ -124,6 +126,7 @@ export function WorkspaceV2() {
   const [consoleLoading, setConsoleLoading] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [resuming, setResuming] = useState(false);
+  const [resumeError, setResumeError] = useState("");
   const [latency, setLatency] = useState<number | null>(null);
   const [envVariablesOpen, setEnvVariablesOpen] = useState(false);
   const [floatingPromptOpen, setFloatingPromptOpen] = useState(false);
@@ -410,6 +413,7 @@ export function WorkspaceV2() {
         if (consolePollCancelled.current) return;
         setConsoleError(caught instanceof Error ? caught.message : "Could not start the remote desktop.");
         setConsoleLoading(false);
+        refreshWorkspace();
       }
     }
     void poll();
@@ -426,15 +430,27 @@ export function WorkspaceV2() {
   function resumeWorkspace() {
     if (!enrollment || resuming) return;
     setResuming(true);
+    setResumeError("");
     api.startWorkspace(enrollment.id).then(setWorkspace).catch((caught) => {
-      setError(caught instanceof Error ? caught.message : "Could not resume the workspace.");
+      setResumeError(upstreamErrorMessage(caught, {
+        retryable: t("The learning environment is unreachable right now. Please try again later.", "学习环境暂时连接不上，请稍后重试。"),
+        unavailable: t("The learning environment is unavailable. Please try again later or contact support.", "学习环境暂时无法使用，请稍后再试或联系客服。"),
+      }));
     }).finally(() => setResuming(false));
   }
+
+  // V2 没有心跳，空闲 15 分钟后服务端会停掉 VM，但页面不会被通知；控制台出错时重新拉一次状态，
+  // 让面板能切到"已关闭"。拉取失败就保持原样，不覆盖已有的控制台错误提示。
+  const refreshWorkspace = useCallback(() => {
+    if (!enrollmentId) return;
+    api.workspace(enrollmentId).then(setWorkspace).catch(() => undefined);
+  }, [enrollmentId]);
 
   const handleConsoleError = useCallback((nextError: string) => {
     setConsoleError(nextError);
     setConsoleSession(null);
-  }, []);
+    refreshWorkspace();
+  }, [refreshWorkspace]);
 
   const copyLessonCodeToVm = useCallback((text: string) => {
     return consoleViewerRef.current?.writeClipboard(text) ?? false;
@@ -497,7 +513,7 @@ export function WorkspaceV2() {
 
       <main className="lab-v2-vm vm-workspace">
         <header className="vm-toolbar"><div><span className="vm-status-dot" aria-hidden="true" /><strong>{t("Learning VM", "学习虚拟机")}</strong></div><div className="lab-v2-vm-status"><small>{workspace?.status === "RUNNING" && consoleSession ? t("Connected workspace", "工作区已连接") : t("Awaiting connection", "等待连接")}</small><small className="lab-v2-latency" aria-live="polite">{latency === null ? t("Ping --", "延迟 --") : t(`Ping ${latency} ms`, `延迟 ${latency} 毫秒`)}</small></div></header>
-        {panel === "console" && consoleSession?.data ? <ConsoleViewer ref={consoleViewerRef} data={consoleSession.data} labId={consoleSession.labId} enrollmentId={enrollment.id} onError={handleConsoleError} /> : panel === "start-console" ? <section className="vm-empty-state" role="status"><span className="vm-display-icon" aria-hidden="true" /><h2>Learning VM</h2>{consoleError && <Alert className="auth-error" variant="destructive">{consoleError}</Alert>}<Button size="lg" type="button" onClick={() => void startConsoleSession()} disabled={consoleLoading}>{consoleLoading ? "Starting..." : "Start remote desktop"}</Button></section> : panel === "stopped" ? <section className="vm-empty-state" role="status"><span className="vm-display-icon" aria-hidden="true" /><h2>Learning VM</h2><p>Your Learning VM is closed. Resume it to keep working.</p>{error && <Alert className="auth-error" variant="destructive">{error}</Alert>}<Button size="lg" type="button" onClick={resumeWorkspace} disabled={resuming}>{resuming ? "Resuming..." : "Resume learning environment"}</Button></section> : panel === "error" ? <section className="vm-empty-state" role="status"><span className="vm-display-icon" aria-hidden="true" /><h2>Learning VM</h2><p>{workspace?.errorMessage || "Could not start your Learning VM."}</p><Button size="lg" type="button" onClick={retryWorkspace} disabled={retrying}>{retrying ? "Retrying..." : "Retry"}</Button></section> : <section className="vm-empty-state" role="status"><span className="vm-display-icon" aria-hidden="true" /><h2>Learning VM</h2><p>Preparing your Learning VM. This can take a few minutes.</p></section>}
+        {panel === "console" && consoleSession?.data ? <ConsoleViewer ref={consoleViewerRef} data={consoleSession.data} labId={consoleSession.labId} enrollmentId={enrollment.id} onError={handleConsoleError} /> : panel === "start-console" ? <section className="vm-empty-state" role="status"><span className="vm-display-icon" aria-hidden="true" /><h2>Learning VM</h2>{consoleError && <Alert className="auth-error" variant="destructive">{consoleError}</Alert>}<Button size="lg" type="button" onClick={() => void startConsoleSession()} disabled={consoleLoading}>{consoleLoading ? "Starting..." : "Start remote desktop"}</Button></section> : panel === "stopped" ? <section className="vm-empty-state" role="status"><span className="vm-display-icon" aria-hidden="true" /><h2>Learning VM</h2><p>Your Learning VM is closed. Resume it to keep working.</p>{resumeError && <Alert className="auth-error" variant="destructive">{resumeError}</Alert>}<Button size="lg" type="button" onClick={resumeWorkspace} disabled={resuming}>{resuming ? "Resuming..." : "Resume learning environment"}</Button></section> : panel === "error" ? <section className="vm-empty-state" role="status"><span className="vm-display-icon" aria-hidden="true" /><h2>Learning VM</h2><p>{workspace?.errorMessage || "Could not start your Learning VM."}</p><Button size="lg" type="button" onClick={retryWorkspace} disabled={retrying}>{retrying ? "Retrying..." : "Retry"}</Button></section> : <section className="vm-empty-state" role="status"><span className="vm-display-icon" aria-hidden="true" /><h2>Learning VM</h2><p>Preparing your Learning VM. This can take a few minutes.</p></section>}
       </main>
 
       <Dialog open={envVariablesOpen} onOpenChange={setEnvVariablesOpen}>

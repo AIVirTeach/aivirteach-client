@@ -18,7 +18,7 @@ describe("vmPanelState", () => {
     expect(vmPanelState("ERROR", false)).toBe("error");
   });
 
-  it.each(["CREATING", undefined] as const)("%s 显示准备中", (status) => {
+  it.each(["CREATING", "RESETTING", "DESTROYED", undefined] as const)("%s 显示准备中", (status) => {
     expect(vmPanelState(status, false)).toBe("preparing");
   });
 });
