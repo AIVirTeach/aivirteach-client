@@ -32,14 +32,22 @@ export const ConsoleViewer = forwardRef<ConsoleViewerHandle, ConsoleViewerProps>
   const containerRef = useRef<HTMLDivElement>(null);
   const clientRef = useRef<Guacamole.Client | null>(null);
   const connectedRef = useRef(false);
+  const pendingClipboardRef = useRef<string | null>(null);
 
-  function writeClipboard(text: string): boolean {
+  function sendClipboard(text: string): boolean {
     const guacClient = clientRef.current;
-    if (!guacClient || !connectedRef.current || !text) return false;
+    if (!guacClient || !connectedRef.current) return false;
     const stream = guacClient.createClipboardStream("text/plain");
     const writer = new Guacamole.StringWriter(stream);
     writer.sendText(text);
     writer.sendEnd();
+    return true;
+  }
+
+  function writeClipboard(text: string): boolean {
+    if (!text) return false;
+    if (sendClipboard(text)) return true;
+    pendingClipboardRef.current = text;
     return true;
   }
 
@@ -75,6 +83,11 @@ export const ConsoleViewer = forwardRef<ConsoleViewerHandle, ConsoleViewerProps>
       clientRef.current = guacClient;
       guacClient.onstatechange = (state) => {
         connectedRef.current = state === Guacamole.Client.State.CONNECTED;
+        if (connectedRef.current && pendingClipboardRef.current) {
+          const pendingText = pendingClipboardRef.current;
+          pendingClipboardRef.current = null;
+          sendClipboard(pendingText);
+        }
       };
 
       guacClient.onerror = (status) => {
@@ -167,6 +180,7 @@ export const ConsoleViewer = forwardRef<ConsoleViewerHandle, ConsoleViewerProps>
       client?.disconnect();
       connectedRef.current = false;
       clientRef.current = null;
+      pendingClipboardRef.current = null;
       if (container) container.innerHTML = "";
     };
   }, [data, labId, enrollmentId, onError]);

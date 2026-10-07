@@ -31,6 +31,14 @@ const floatingButtonSize = 64;
 const floatingViewportMargin = 14;
 const floatingPromptGap = 12;
 const floatingPromptMaxWidth = 340;
+const courseCopySelector = ".copy-btn, .step-copy-btn, .inline-copy-link[data-copy-text]";
+
+type CourseFrameClipboardBridge = {
+  copyToVm: (text: string) => boolean;
+  language: "en" | "zh-CN";
+};
+
+const courseFrameClipboardBridges = new WeakMap<Document, CourseFrameClipboardBridge>();
 
 function floatingPromptWidth() {
   return Math.min(floatingPromptMaxWidth, window.innerWidth - (floatingViewportMargin * 2) - floatingButtonSize - floatingPromptGap);
@@ -82,18 +90,41 @@ function prepareCourseFrame(
     *::-webkit-scrollbar-corner { background: transparent; }
   `;
 
-  document.querySelectorAll<HTMLElement>(".copy-btn, .step-copy-btn, .inline-copy-link[data-copy-text]").forEach((copyButton) => {
-    if (copyButton.dataset.vmClipboardBound === "true") return;
-    const code = lessonCodeForButton(copyButton);
-    if (!code) return;
-    copyButton.dataset.vmClipboardBound = "true";
-    copyButton.title = language === "zh-CN"
-      ? "同时复制到已连接的虚拟机剪贴板"
-      : "Also copies to the connected VM clipboard";
-    copyButton.addEventListener("click", () => {
-      copyToVm(code);
+  let clipboardBridge = courseFrameClipboardBridges.get(document);
+  if (!clipboardBridge) {
+    clipboardBridge = { copyToVm, language };
+    courseFrameClipboardBridges.set(document, clipboardBridge);
+    document.addEventListener("click", (clickEvent) => {
+      const target = clickEvent.target as Element | null;
+      const copyButton = typeof target?.closest === "function"
+        ? target.closest<HTMLElement>(courseCopySelector)
+        : null;
+      if (!copyButton) return;
+      const code = lessonCodeForButton(copyButton);
+      if (code) courseFrameClipboardBridges.get(document)?.copyToVm(code);
+    }, true);
+  } else {
+    clipboardBridge.copyToVm = copyToVm;
+    clipboardBridge.language = language;
+  }
+
+  const annotateCopyButtons = () => {
+    const bridge = courseFrameClipboardBridges.get(document);
+    if (!bridge) return;
+    document.querySelectorAll<HTMLElement>(courseCopySelector).forEach((copyButton) => {
+      copyButton.dataset.vmClipboardBridge = "true";
+      copyButton.title = bridge.language === "zh-CN"
+        ? "同时复制到已连接的虚拟机剪贴板"
+        : "Also copies to the connected VM clipboard";
     });
-  });
+  };
+  annotateCopyButtons();
+  if (document.body && document.body.dataset.vmClipboardObserver !== "true") {
+    document.body.dataset.vmClipboardObserver = "true";
+    const observer = new MutationObserver(annotateCopyButtons);
+    observer.observe(document.body, { childList: true, subtree: true });
+    document.defaultView?.addEventListener("unload", () => observer.disconnect(), { once: true });
+  }
 }
 
 export function WorkspaceV2() {
@@ -126,6 +157,7 @@ export function WorkspaceV2() {
   const [consoleLoading, setConsoleLoading] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [resuming, setResuming] = useState(false);
+  const [stopping, setStopping] = useState(false);
   const [resumeError, setResumeError] = useState("");
   const [latency, setLatency] = useState<number | null>(null);
   const [envVariablesOpen, setEnvVariablesOpen] = useState(false);
@@ -229,17 +261,22 @@ export function WorkspaceV2() {
 
   useEffect(() => {
     let active = true;
+    let measuring = false;
     async function measureLatency() {
+      if (measuring) return;
+      measuring = true;
       const startedAt = performance.now();
       try {
         await api.health();
         if (active) setLatency(Math.max(1, Math.round(performance.now() - startedAt)));
       } catch {
         if (active) setLatency(null);
+      } finally {
+        measuring = false;
       }
     }
     void measureLatency();
-    const interval = window.setInterval(() => void measureLatency(), 15000);
+    const interval = window.setInterval(() => void measureLatency(), 500);
     return () => {
       active = false;
       window.clearInterval(interval);
@@ -439,6 +476,24 @@ export function WorkspaceV2() {
     }).finally(() => setResuming(false));
   }
 
+  function closeEnvironment() {
+    if (!enrollment || stopping) return;
+    if (!window.confirm(t("Close the learning environment? You can resume it anytime.", "要关闭学习环境吗？你可以随时恢复。"))) return;
+    setStopping(true);
+    setError("");
+    api.stopWorkspace(enrollment.id).then((stoppedWorkspace) => {
+      consolePollCancelled.current = true;
+      if (consolePollTimer.current) clearTimeout(consolePollTimer.current);
+      setConsoleSession(null);
+      setWorkspace(stoppedWorkspace);
+    }).catch((caught) => {
+      setError(upstreamErrorMessage(caught, {
+        retryable: t("The learning environment is unreachable right now. Please try again later.", "学习环境暂时连接不上，请稍后重试。"),
+        unavailable: t("The learning environment is unavailable. Please try again later or contact support.", "学习环境暂时无法使用，请稍后再试或联系客服。"),
+      }));
+    }).finally(() => setStopping(false));
+  }
+
   // V2 没有心跳，空闲 15 分钟后服务端会停掉 VM，但页面不会被通知；控制台出错时重新拉一次状态，
   // 让面板能切到"已关闭"。拉取失败就保持原样，不覆盖已有的控制台错误提示。
   const refreshWorkspace = useCallback(() => {
@@ -512,7 +567,7 @@ export function WorkspaceV2() {
       {!maximized && <div className="lab-v2-resizer" role="separator" aria-label={t("Resize learning workspace", "调整学习工作区大小")} aria-orientation="vertical" aria-valuemin={minLeftWidth} aria-valuenow={leftWidth} tabIndex={0} onPointerDown={startResize} onKeyDown={resizeWithKeyboard} />}
 
       <main className="lab-v2-vm vm-workspace">
-        <header className="vm-toolbar"><div><span className="vm-status-dot" aria-hidden="true" /><strong>{t("Learning VM", "学习虚拟机")}</strong></div><div className="lab-v2-vm-status"><small>{workspace?.status === "RUNNING" && consoleSession ? t("Connected workspace", "工作区已连接") : t("Awaiting connection", "等待连接")}</small><small className="lab-v2-latency" aria-live="polite">{latency === null ? t("Ping --", "延迟 --") : t(`Ping ${latency} ms`, `延迟 ${latency} 毫秒`)}</small></div></header>
+        <header className="vm-toolbar"><div><span className="vm-status-dot" aria-hidden="true" /><strong>{t("Learning VM", "学习虚拟机")}</strong></div><div className="lab-v2-vm-status"><small>{workspace?.status === "RUNNING" && consoleSession ? t("Connected workspace", "工作区已连接") : t("Awaiting connection", "等待连接")}</small><small className="lab-v2-latency">{latency === null ? t("Ping --", "延迟 --") : t(`Ping ${latency} ms`, `延迟 ${latency} 毫秒`)}</small>{workspace?.status === "RUNNING" && <button type="button" className="vm-close-button" onClick={closeEnvironment} disabled={stopping}>{stopping ? t("Closing...", "正在关闭……") : t("Close environment", "关闭环境")}</button>}</div></header>
         {panel === "console" && consoleSession?.data ? <ConsoleViewer ref={consoleViewerRef} data={consoleSession.data} labId={consoleSession.labId} enrollmentId={enrollment.id} onError={handleConsoleError} /> : panel === "start-console" ? <section className="vm-empty-state" role="status"><span className="vm-display-icon" aria-hidden="true" /><h2>Learning VM</h2>{consoleError && <Alert className="auth-error" variant="destructive">{consoleError}</Alert>}<Button size="lg" type="button" onClick={() => void startConsoleSession()} disabled={consoleLoading}>{consoleLoading ? "Starting..." : "Start remote desktop"}</Button></section> : panel === "stopped" ? <section className="vm-empty-state" role="status"><span className="vm-display-icon" aria-hidden="true" /><h2>Learning VM</h2><p>Your Learning VM is closed. Resume it to keep working.</p>{resumeError && <Alert className="auth-error" variant="destructive">{resumeError}</Alert>}<Button size="lg" type="button" onClick={resumeWorkspace} disabled={resuming}>{resuming ? "Resuming..." : "Resume learning environment"}</Button></section> : panel === "error" ? <section className="vm-empty-state" role="status"><span className="vm-display-icon" aria-hidden="true" /><h2>Learning VM</h2><p>{workspace?.errorMessage || "Could not start your Learning VM."}</p><Button size="lg" type="button" onClick={retryWorkspace} disabled={retrying}>{retrying ? "Retrying..." : "Retry"}</Button></section> : <section className="vm-empty-state" role="status"><span className="vm-display-icon" aria-hidden="true" /><h2>Learning VM</h2><p>Preparing your Learning VM. This can take a few minutes.</p></section>}
       </main>
 
