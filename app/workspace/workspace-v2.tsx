@@ -9,10 +9,11 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { BrandLogo } from "../components/BrandLogo";
-import { api, ApiError, courseDesignUrl, type ApiConsoleSession, type ApiCourseDesignPackage, type ApiCourseDetail, type ApiEnrollment, type ApiWorkspace } from "../lib/api";
+import { api, ApiError, beaconStopWorkspace, courseDesignUrl, getAccessToken, type ApiConsoleSession, type ApiCourseDesignPackage, type ApiCourseDetail, type ApiEnrollment, type ApiWorkspace } from "../lib/api";
 import { applyLearningLanguage, courseDesignMatchesLanguage, localize, useLearningLanguage } from "../lib/language";
 import { getServerScrollbarPreference, getStoredScrollbarPreference, subscribeToScrollbarPreference, type ScrollbarPreference } from "../lib/scrollbar-preference";
 import { ConsoleViewer, type ConsoleViewerHandle } from "./console-viewer";
+import { heartbeatIntervalMs, isHeartbeatDue } from "./heartbeat";
 import { upstreamErrorMessage } from "./upstream-error";
 import { vmPanelState } from "./vm-panel-state";
 
@@ -178,6 +179,24 @@ export function WorkspaceV2() {
     }, 10000);
     return () => window.clearInterval(timer);
   }, [enrollment, workspace?.status]);
+
+  // 与 V1 一致：运行中每 60 秒发心跳（仅页面可见且有焦点时），关标签页时 sendBeacon 立即停 VM。
+  // 没有心跳的话，服务端会在空闲 15 分钟后把仍开着页面的学员的 VM 停掉。
+  useEffect(() => {
+    if (!enrollmentId || workspace?.status !== "RUNNING") return;
+    const interval = window.setInterval(() => {
+      if (!isHeartbeatDue(workspace.status, document.visibilityState === "visible", document.hasFocus())) return;
+      void api.workspaceHeartbeat(enrollmentId).catch(() => undefined);
+    }, heartbeatIntervalMs);
+    function stopOnClose() {
+      beaconStopWorkspace(enrollmentId!, getAccessToken());
+    }
+    window.addEventListener("pagehide", stopOnClose);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("pagehide", stopOnClose);
+    };
+  }, [enrollmentId, workspace?.status]);
 
   useEffect(() => {
     if (!enrollment) return;
