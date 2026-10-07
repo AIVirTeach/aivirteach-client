@@ -13,6 +13,7 @@ import { api, ApiError, courseDesignUrl, type ApiConsoleSession, type ApiCourseD
 import { applyLearningLanguage, courseDesignMatchesLanguage, localize, useLearningLanguage } from "../lib/language";
 import { getServerScrollbarPreference, getStoredScrollbarPreference, subscribeToScrollbarPreference, type ScrollbarPreference } from "../lib/scrollbar-preference";
 import { ConsoleViewer, type ConsoleViewerHandle } from "./console-viewer";
+import { vmPanelState } from "./vm-panel-state";
 
 type Message = { role: "tutor" | "student"; text: string };
 type WorkspaceTab = "teacher" | "path";
@@ -122,6 +123,7 @@ export function WorkspaceV2() {
   const [consoleError, setConsoleError] = useState("");
   const [consoleLoading, setConsoleLoading] = useState(false);
   const [retrying, setRetrying] = useState(false);
+  const [resuming, setResuming] = useState(false);
   const [latency, setLatency] = useState<number | null>(null);
   const [envVariablesOpen, setEnvVariablesOpen] = useState(false);
   const [floatingPromptOpen, setFloatingPromptOpen] = useState(false);
@@ -421,6 +423,14 @@ export function WorkspaceV2() {
     }).finally(() => setRetrying(false));
   }
 
+  function resumeWorkspace() {
+    if (!enrollment || resuming) return;
+    setResuming(true);
+    api.startWorkspace(enrollment.id).then(setWorkspace).catch((caught) => {
+      setError(caught instanceof Error ? caught.message : "Could not resume the workspace.");
+    }).finally(() => setResuming(false));
+  }
+
   const handleConsoleError = useCallback((nextError: string) => {
     setConsoleError(nextError);
     setConsoleSession(null);
@@ -437,6 +447,7 @@ export function WorkspaceV2() {
   const themes = (designPackage?.themes ?? []).filter((theme) => courseDesignMatchesLanguage(theme.id, learningLanguage));
   const selectedDesign = themes.find((theme) => theme.id === selectedDesignId) ?? themes[0];
   const frameStyle = { "--lab-v2-left-width": `${leftWidth}px` } as CSSProperties;
+  const panel = vmPanelState(workspace?.status, consoleSession?.state === "ready" && Boolean(consoleSession.data));
 
   return (
     <div ref={shellRef} className={`lab-v2-shell ${maximized ? "left-maximized" : ""}`} style={frameStyle}>
@@ -486,7 +497,7 @@ export function WorkspaceV2() {
 
       <main className="lab-v2-vm vm-workspace">
         <header className="vm-toolbar"><div><span className="vm-status-dot" aria-hidden="true" /><strong>{t("Learning VM", "学习虚拟机")}</strong></div><div className="lab-v2-vm-status"><small>{workspace?.status === "RUNNING" && consoleSession ? t("Connected workspace", "工作区已连接") : t("Awaiting connection", "等待连接")}</small><small className="lab-v2-latency" aria-live="polite">{latency === null ? t("Ping --", "延迟 --") : t(`Ping ${latency} ms`, `延迟 ${latency} 毫秒`)}</small></div></header>
-        {workspace?.status === "RUNNING" && consoleSession?.state === "ready" && consoleSession.data ? <ConsoleViewer ref={consoleViewerRef} data={consoleSession.data} labId={consoleSession.labId} enrollmentId={enrollment.id} onError={handleConsoleError} /> : workspace?.status === "RUNNING" ? <section className="vm-empty-state" role="status"><span className="vm-display-icon" aria-hidden="true" /><h2>Learning VM</h2>{consoleError && <Alert className="auth-error" variant="destructive">{consoleError}</Alert>}<Button size="lg" type="button" onClick={() => void startConsoleSession()} disabled={consoleLoading}>{consoleLoading ? "Starting..." : "Start remote desktop"}</Button></section> : workspace?.status === "ERROR" ? <section className="vm-empty-state" role="status"><span className="vm-display-icon" aria-hidden="true" /><h2>Learning VM</h2><p>{workspace.errorMessage || "Could not start your Learning VM."}</p><Button size="lg" type="button" onClick={retryWorkspace} disabled={retrying}>{retrying ? "Retrying..." : "Retry"}</Button></section> : <section className="vm-empty-state" role="status"><span className="vm-display-icon" aria-hidden="true" /><h2>Learning VM</h2><p>Preparing your Learning VM. This can take a few minutes.</p></section>}
+        {panel === "console" && consoleSession?.data ? <ConsoleViewer ref={consoleViewerRef} data={consoleSession.data} labId={consoleSession.labId} enrollmentId={enrollment.id} onError={handleConsoleError} /> : panel === "start-console" ? <section className="vm-empty-state" role="status"><span className="vm-display-icon" aria-hidden="true" /><h2>Learning VM</h2>{consoleError && <Alert className="auth-error" variant="destructive">{consoleError}</Alert>}<Button size="lg" type="button" onClick={() => void startConsoleSession()} disabled={consoleLoading}>{consoleLoading ? "Starting..." : "Start remote desktop"}</Button></section> : panel === "stopped" ? <section className="vm-empty-state" role="status"><span className="vm-display-icon" aria-hidden="true" /><h2>Learning VM</h2><p>Your Learning VM is closed. Resume it to keep working.</p>{error && <Alert className="auth-error" variant="destructive">{error}</Alert>}<Button size="lg" type="button" onClick={resumeWorkspace} disabled={resuming}>{resuming ? "Resuming..." : "Resume learning environment"}</Button></section> : panel === "error" ? <section className="vm-empty-state" role="status"><span className="vm-display-icon" aria-hidden="true" /><h2>Learning VM</h2><p>{workspace?.errorMessage || "Could not start your Learning VM."}</p><Button size="lg" type="button" onClick={retryWorkspace} disabled={retrying}>{retrying ? "Retrying..." : "Retry"}</Button></section> : <section className="vm-empty-state" role="status"><span className="vm-display-icon" aria-hidden="true" /><h2>Learning VM</h2><p>Preparing your Learning VM. This can take a few minutes.</p></section>}
       </main>
 
       <Dialog open={envVariablesOpen} onOpenChange={setEnvVariablesOpen}>
