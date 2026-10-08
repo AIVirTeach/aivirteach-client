@@ -81,6 +81,7 @@ body {
 }
 
 button, input, textarea { font: inherit; }
+input, textarea, [contenteditable="true"] { caret-color: currentColor; }
 button, a { -webkit-tap-highlight-color: transparent; }
 button { cursor: pointer; }
 a { color: inherit; text-decoration: none; }
@@ -2621,6 +2622,7 @@ html[data-interface-version="brutal"] :is(input, textarea, select) {
   border-radius: 0 !important;
   background: #fff !important;
   color: #000 !important;
+  caret-color: #000 !important;
   box-shadow: none !important;
 }
 
