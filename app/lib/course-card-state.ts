@@ -28,7 +28,9 @@ export function resolveEnrollmentStatus(status: unknown, isCurrent: boolean): En
 // enrollment) is only a highlight layered on top.
 export function courseCardState(status: EnrollmentStatus | undefined, isCurrent: boolean): CourseCardState {
   const resolved = resolveEnrollmentStatus(status, isCurrent);
-  const actions = isCurrent && resolved === "not_started" ? ["continue" as const] : actionsByStatus[resolved];
+  const actions = isCurrent && resolved === "not_started"
+    ? ["restart" as const, "continue" as const]
+    : actionsByStatus[resolved];
   return { status: resolved, isCurrent, actions };
 }
 
