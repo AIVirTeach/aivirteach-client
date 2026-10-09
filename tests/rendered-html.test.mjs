@@ -20,6 +20,7 @@ for (const [path, expected] of [
   ["/analysis", "Learning Analytics"],
   ["/courses", "Choose what to learn next"],
   ["/courses/welcome", "Preparing your course"],
+  ["/settings", "Settings"],
   ["/workspace", "Opening Learning Lab"],
 ]) {
   test(`renders ${path}`, async () => {
