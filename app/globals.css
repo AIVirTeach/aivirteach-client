@@ -172,7 +172,8 @@ html[data-scrollbars="hidden"] *::-webkit-scrollbar {
 .label-row label { margin: 0; }
 .login-card input[type="text"], .login-card input[type="email"], .login-card input[type="password"] { width: 100%; min-height: 54px; border: 1px solid var(--outline); border-radius: 8px; padding: 0 16px; background: #fff; color: var(--ink); font-size: 17px; outline: none; }
 .login-card input::placeholder { color: #7b8794; opacity: 1; }
-.login-card input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(5, 104, 254, .13); }
+.login-card input:focus,
+.login-card input:focus-visible { border-color: #93c5fd; box-shadow: none; outline: none !important; }
 .auth-spaced-label { margin-top: 18px; }
 .remember { display: flex; align-items: center; gap: 9px; margin: 24px 0 28px !important; font-weight: 400 !important; }
 .remember [data-slot="checkbox"] { border: 2px solid #111; background: #fff; }
@@ -867,7 +868,8 @@ html[data-theme="dark"] .login-card input {
   background: var(--surface-lowest);
   color: var(--ink);
 }
-.login-card input:focus { border-color: var(--primary); box-shadow: none; }
+.login-card input:focus,
+.login-card input:focus-visible { border-color: #93c5fd; box-shadow: none; outline: none !important; }
 .provider-button,
 html[data-theme="dark"] .provider-button {
   min-height: 46px;
