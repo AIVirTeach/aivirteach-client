@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Eye, EyeOff } from "lucide-react";
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -21,6 +22,7 @@ export default function LoginPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [selectedProfileId, setSelectedProfileId] = useState("learner_advanced");
   const isLocal = backendConfig.mode === "local";
   const selectedProfile = mockLearners.find((learner) => learner.id === selectedProfileId) ?? mockLearners[1];
@@ -72,7 +74,19 @@ export default function LoginPage() {
             <Input id="email" name="email" type="email" placeholder="name@example.com" value={isLocal ? selectedProfile.email : undefined} readOnly={isLocal} autoComplete="email" required />
             {!isLocal && <>
               <div className="label-row"><Label htmlFor="password">{t("Password", "密码")}</Label><button type="button" className="auth-text-link">{t("Forgot password?", "忘记密码？")}</button></div>
-              <Input id="password" name="password" type="password" autoComplete="current-password" required />
+              <div className="password-input-wrap">
+                <Input id="password" name="password" type={showPassword ? "text" : "password"} autoComplete="current-password" required />
+                <button
+                  className="password-toggle"
+                  type="button"
+                  aria-label={showPassword ? t("Hide password", "隐藏密码") : t("Show password", "显示密码")}
+                  aria-pressed={showPassword}
+                  title={showPassword ? t("Hide password", "隐藏密码") : t("Show password", "显示密码")}
+                  onClick={() => setShowPassword((visible) => !visible)}
+                >
+                  {showPassword ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}
+                </button>
+              </div>
               <Label className="remember"><Checkbox name="remember" checked={rememberMe} onCheckedChange={setRememberMe} /> <span>{t("Remember me", "记住我")}</span></Label>
             </>}
             {error && <Alert className="auth-error" variant="destructive">{error}</Alert>}
