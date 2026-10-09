@@ -85,7 +85,7 @@ export default function LoginPage() {
         </Card>
         {isLocal
           ? <p className="signup-copy">{t("Need a custom profile?", "需要自定义资料？")} <Button render={<Link href="/create-account" />} className="text-button" variant="link">{t("Create a demo account", "创建演示账户")}</Button></p>
-          : <p className="signup-copy">{t("Have an invitation?", "已有邀请？")} <Link href="/create-account" className="auth-text-link">{t("Activate your account", "激活账户")}</Link></p>}
+          : <p className="signup-copy activation-copy">{t("Have an invitation?", "已有邀请？")} <Link href="/create-account" className="auth-text-link">{t("Activate your account", "激活账户")}</Link></p>}
       </section>
     </main>
   );

@@ -183,6 +183,7 @@ html[data-scrollbars="hidden"] *::-webkit-scrollbar {
 .provider-button { width: 100%; min-width: 0; min-height: 42px; gap: 8px; }
 .google-g { color: #4285f4; font-size: 20px; font-weight: 900; }
 .signup-copy { margin: 48px 0 0; text-align: center; color: var(--ink-soft); }
+.activation-copy { margin-top: 28px; }
 .create-account-page { overflow: auto; }
 .create-account-page .login-wrap { width: min(100%, 470px); }
 .create-account-page .login-card { padding-block: 28px; }
