@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useLayoutEffect, useSyncExternalStore } from "react";
+import { useLayoutEffect, useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Sidebar } from "../components/Sidebar";
+import { AdvancedUiSettings } from "../components/AdvancedUiSettings";
 import { api } from "../lib/api";
 import { applyInterfaceVersion, getServerInterfaceVersion, getStoredInterfaceVersion, subscribeToInterfaceVersion, type InterfaceVersion } from "../lib/interface-version";
 import { applyLearningLanguage, localize, useLearningLanguage, type LearningLanguage } from "../lib/language";
@@ -41,6 +42,7 @@ function SettingsToggle({ checked, label, offLabel, onLabel, onChange }: Setting
 
 export default function SettingsPage() {
   const router = useRouter();
+  const [settingsTab, setSettingsTab] = useState<"general" | "advanced">("general");
   const theme = useSyncExternalStore(subscribeToTheme, getStoredTheme, getServerTheme);
   const interfaceVersion = useSyncExternalStore(subscribeToInterfaceVersion, getStoredInterfaceVersion, getServerInterfaceVersion);
   const learningLanguage = useLearningLanguage();
@@ -82,7 +84,12 @@ export default function SettingsPage() {
           <p>{t("Personalize how AIVir Teacher looks and works for you.", "个性化 AIVir Teacher 的外观与使用方式。")}</p>
         </header>
 
-        <section className="settings-list" aria-label={t("Application settings", "应用设置")}>
+        <nav className="settings-tabs" aria-label={t("Settings sections", "设置分区")}>
+          <button type="button" className={settingsTab === "general" ? "active" : ""} aria-current={settingsTab === "general" ? "page" : undefined} onClick={() => setSettingsTab("general")}>{t("General", "常规")}</button>
+          <button type="button" className={settingsTab === "advanced" ? "active" : ""} aria-current={settingsTab === "advanced" ? "page" : undefined} onClick={() => setSettingsTab("advanced")}>{t("Advanced", "高级")}</button>
+        </nav>
+
+        {settingsTab === "general" ? <section className="settings-list" aria-label={t("Application settings", "应用设置")}>
           <Card as="article" className="settings-card">
             <div><span className="settings-card-icon profile-setting-icon" aria-hidden="true" /><div><h2>{t("Profile", "个人资料")}</h2><p>{t("Update your learner name, focus, and demo account details.", "更新学习者姓名、学习方向和演示账户资料。")}</p></div></div>
             <Button render={<Link href="/settings/profile" />} className="settings-card-link" variant="outline">{t("Open profile", "打开资料")}</Button>
@@ -138,7 +145,7 @@ export default function SettingsPage() {
             <div><span className="settings-card-icon logout-setting-icon" aria-hidden="true" /><div><h2>{t("Log out", "退出登录")}</h2><p>{t("Return to the sign-in screen. Your demo progress and preferences will stay saved.", "返回登录页面。你的演示进度和偏好设置会继续保留。")}</p></div></div>
             <Button className="logout-button" variant="destructive" type="button" onClick={logOut}>{t("Log out", "退出登录")}</Button>
           </Card>
-        </section>
+        </section> : <AdvancedUiSettings t={t} />}
       </main>
     </div>
   );

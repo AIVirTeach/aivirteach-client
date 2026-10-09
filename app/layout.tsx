@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { ScrollbarPreference } from "./components/ScrollbarPreference";
 import { AppLanguage } from "./components/AppLanguage";
 import { InterfaceVersionPreference } from "./components/InterfaceVersionPreference";
+import { UiCustomizationPreference } from "./components/UiCustomizationPreference";
 
 const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
@@ -27,7 +28,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" data-interface-version="brutal" className={cn("font-sans", geist.variable)}>
-      <body><AppLanguage /><InterfaceVersionPreference /><ScrollbarPreference />{children}</body>
+      <body><AppLanguage /><InterfaceVersionPreference /><UiCustomizationPreference /><ScrollbarPreference />{children}</body>
     </html>
   );
 }
