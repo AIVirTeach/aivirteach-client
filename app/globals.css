@@ -171,9 +171,12 @@ html[data-scrollbars="hidden"] *::-webkit-scrollbar {
 .label-row { display: flex; align-items: center; justify-content: space-between; margin-top: 18px; }
 .label-row label { margin: 0; }
 .login-card input[type="text"], .login-card input[type="email"], .login-card input[type="password"] { width: 100%; min-height: 54px; border: 1px solid var(--outline); border-radius: 8px; padding: 0 16px; background: #fff; color: var(--ink); font-size: 17px; outline: none; }
+.login-card input::placeholder { color: #7b8794; opacity: 1; }
 .login-card input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(5, 104, 254, .13); }
 .auth-spaced-label { margin-top: 18px; }
 .remember { display: flex; align-items: center; gap: 9px; margin: 24px 0 28px !important; font-weight: 400 !important; }
+.remember [data-slot="checkbox"] { border: 2px solid #111; background: #fff; }
+.remember [data-slot="checkbox"][data-checked] { border-color: #111; background: var(--primary); }
 .login-submit { width: 100%; min-height: 45px; }
 .login-submit:disabled { cursor: wait; opacity: .72; transform: none; }
 .divider { display: flex; align-items: center; gap: 16px; margin: 34px 0; color: var(--ink-soft); font-size: 14px; font-weight: 600; }

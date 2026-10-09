@@ -21,6 +21,7 @@ export default function LoginPage() {
   const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [rememberMe, setRememberMe] = useState(false);
   const [selectedProfileId, setSelectedProfileId] = useState("learner_advanced");
   const isLocal = backendConfig.mode === "local";
   const selectedProfile = mockLearners.find((learner) => learner.id === selectedProfileId) ?? mockLearners[1];
@@ -36,7 +37,7 @@ export default function LoginPage() {
       await api.login(
         String(form.get("email") ?? ""),
         String(form.get("password") ?? ""),
-        form.get("remember") === "on",
+        rememberMe,
       );
       router.push("/dashboard");
     } catch (caught) {
@@ -72,8 +73,8 @@ export default function LoginPage() {
             <Input id="email" name="email" type="email" placeholder="name@example.com" value={isLocal ? selectedProfile.email : undefined} readOnly={isLocal} autoComplete="email" required />
             {!isLocal && <>
               <div className="label-row"><Label htmlFor="password">{t("Password", "密码")}</Label><button type="button" className="auth-text-link">{t("Forgot password?", "忘记密码？")}</button></div>
-              <Input id="password" name="password" type="password" placeholder="••••••••" autoComplete="current-password" required />
-              <Label className="remember"><Checkbox name="remember" /> <span>{t("Remember me", "记住我")}</span></Label>
+              <Input id="password" name="password" type="password" autoComplete="current-password" required />
+              <Label className="remember"><Checkbox name="remember" checked={rememberMe} onCheckedChange={setRememberMe} /> <span>{t("Remember me", "记住我")}</span></Label>
             </>}
             {error && <Alert className="auth-error" variant="destructive">{error}</Alert>}
             <Button className="primary-button login-submit" size="lg" type="submit" disabled={submitting}>{submitting ? t("Logging in…", "正在登录……") : isLocal ? t("Open local demo", "打开本地演示") : t("Log in", "登录")}</Button>
