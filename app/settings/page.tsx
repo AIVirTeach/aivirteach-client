@@ -90,7 +90,7 @@ export default function SettingsPage() {
 
           <Card as="article" className="settings-card">
             <div><span className="settings-card-icon version-setting-icon" aria-hidden="true">V</span><div><h2>{t("Design theme", "设计主题")}</h2><p>{t("Choose the visual style used across the frontend.", "选择整个前端使用的视觉风格。")}</p></div></div>
-            <label className="design-theme-select">
+            <label className="settings-select">
               <span>{t("Design theme", "设计主题")}</span>
               <select value={interfaceVersion} onChange={(event) => chooseInterfaceVersion(event.target.value as InterfaceVersion)}>
                 <option value="v1">{t("Original V1", "原版 V1")}</option>
@@ -105,7 +105,13 @@ export default function SettingsPage() {
 
           <Card as="article" className="settings-card">
             <div><span className="settings-card-icon" aria-hidden="true">文</span><div><h2>{t("Language", "语言")}</h2><p>{t("Change the language across AIVirTeach, including Learning Lab V2.", "更改整个 AIVirTeach（包括学习实验室 V2）的语言。")}</p></div></div>
-            <SettingsToggle checked={learningLanguage === "zh-CN"} label={t("Application language", "应用语言")} offLabel="English" onLabel="简体中文" onChange={(checked) => chooseLearningLanguage(checked ? "zh-CN" : "en")} />
+            <label className="settings-select">
+              <span>{t("Application language", "应用语言")}</span>
+              <select value={learningLanguage} onChange={(event) => chooseLearningLanguage(event.target.value as LearningLanguage)}>
+                <option value="en">English</option>
+                <option value="zh-CN">简体中文</option>
+              </select>
+            </label>
           </Card>
 
           <Card as="article" className="settings-card">
