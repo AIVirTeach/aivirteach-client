@@ -511,10 +511,10 @@ html[data-theme="dark"] .search-button:hover, html[data-theme="dark"] .search-bu
 .settings-toggle-control[aria-checked="true"] > span { background: #fff; transform: translateX(24px); }
 .settings-toggle-control:hover, .settings-toggle-control:active { transform: none !important; }
 .settings-toggle-control:focus-visible { outline: 3px solid var(--primary-light); outline-offset: 3px; }
-.design-theme-select { position: relative; min-width: 220px; display: block; }
-.design-theme-select > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; clip-path: inset(50%); }
-.design-theme-select select { width: 100%; height: 46px; appearance: none; border: 1px solid var(--outline); border-radius: 11px; padding: 0 42px 0 14px; background: linear-gradient(45deg, transparent 50%, var(--ink-soft) 50%) calc(100% - 18px) 19px / 6px 6px no-repeat, linear-gradient(135deg, var(--ink-soft) 50%, transparent 50%) calc(100% - 12px) 19px / 6px 6px no-repeat, var(--surface-low); color: var(--ink); font: inherit; font-weight: 700; outline: none; cursor: pointer; }
-.design-theme-select select:focus-visible { border-color: var(--primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 18%, transparent); }
+.settings-select { position: relative; min-width: 220px; display: block; }
+.settings-select > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; clip-path: inset(50%); }
+.settings-select select { width: 100%; height: 46px; appearance: none; border: 1px solid var(--outline); border-radius: 11px; padding: 0 42px 0 14px; background: linear-gradient(45deg, transparent 50%, var(--ink-soft) 50%) calc(100% - 18px) 19px / 6px 6px no-repeat, linear-gradient(135deg, var(--ink-soft) 50%, transparent 50%) calc(100% - 12px) 19px / 6px 6px no-repeat, var(--surface-low); color: var(--ink); font: inherit; font-weight: 700; outline: none; cursor: pointer; }
+.settings-select select:focus-visible { border-color: var(--primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 18%, transparent); }
 html[data-theme="dark"] .settings-page { background: var(--surface); }
 html[data-theme="dark"] .settings-card { border-color: var(--outline); background: var(--surface-lowest); }
 html[data-theme="dark"] .logout-setting-icon { background: #4b2427; color: #ff938c; }
@@ -758,7 +758,7 @@ html[data-theme="dark"] .message.student p { border-color: #9bc0ff; }
   .analytics-side { grid-template-columns: 1fr; }
   .settings-head { padding: 18px 0 24px; }
   .settings-card { align-items: stretch; flex-direction: column; gap: 18px; padding: 19px; }
-  .settings-card > button, .settings-card-link, .theme-choice, .version-choice, .design-theme-select, .settings-toggle { width: 100%; }
+  .settings-card > button, .settings-card-link, .theme-choice, .version-choice, .settings-select, .settings-toggle { width: 100%; }
   .settings-toggle { justify-content: space-between; }
   .theme-choice button, .version-choice button { flex: 1; }
   .course-catalog { grid-template-columns: 1fr; }
