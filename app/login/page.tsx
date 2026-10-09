@@ -9,7 +9,6 @@ import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
 import { BrandLogo } from "../components/BrandLogo";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { api } from "../lib/api";
@@ -79,11 +78,10 @@ export default function LoginPage() {
             {error && <Alert className="auth-error" variant="destructive">{error}</Alert>}
             <Button className="primary-button login-submit" size="lg" type="submit" disabled={submitting}>{submitting ? t("Logging in…", "正在登录……") : isLocal ? t("Open local demo", "打开本地演示") : t("Log in", "登录")}</Button>
           </form>
-          {!isLocal && <>
-            <div className="divider"><Separator className="divider-line" /><span>{t("Or continue with", "或使用以下方式继续")}</span><Separator className="divider-line" /></div>
-            <Button className="provider-button" variant="outline" size="lg" type="button" disabled><span className="google-g">G</span> Google</Button>
-            <Button className="provider-button" variant="outline" size="lg" type="button" disabled><span aria-hidden="true">▥</span> {t("Institutional Sign In", "机构登录")}</Button>
-          </>}
+          {!isLocal && <div className="provider-actions" aria-label={t("Alternative sign-in options", "其他登录方式")}>
+            <Button className="provider-button" variant="outline" type="button" disabled><span className="google-g">G</span> Google</Button>
+            <Button className="provider-button" variant="outline" type="button" disabled><span aria-hidden="true">▥</span> {t("Institutional", "机构登录")}</Button>
+          </div>}
         </Card>
         {isLocal
           ? <p className="signup-copy">{t("Need a custom profile?", "需要自定义资料？")} <Button render={<Link href="/create-account" />} className="text-button" variant="link">{t("Create a demo account", "创建演示账户")}</Button></p>
