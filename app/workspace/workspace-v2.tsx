@@ -606,7 +606,7 @@ export function WorkspaceV2() {
       <div className="floating-ai" style={{ left: floatingPosition.x, top: floatingPosition.y }}>
         {floatingPromptOpen && (
           <form className="floating-ai-prompt" onSubmit={sendFloatingPrompt}>
-            <input ref={floatingPromptRef} value={floatingPrompt} onChange={(event) => setFloatingPrompt(event.target.value)} placeholder={t("Ask AIVirTeach...", "向 AIVirTeach 提问……")} aria-label={t("Ask AIVirTeach", "向 AIVirTeach 提问")} />
+            <input ref={floatingPromptRef} value={floatingPrompt} onChange={(event) => setFloatingPrompt(event.target.value)} placeholder={t("\u00A0\u00A0Ask AIVirTeach...", "\u00A0\u00A0向 AIVirTeach 提问……")} aria-label={t("Ask AIVirTeach", "向 AIVirTeach 提问")} />
             <Button variant="ghost" size="icon" type="submit" disabled={!floatingPrompt.trim()} aria-label={t("Send prompt", "发送问题")}><Send aria-hidden="true" /></Button>
           </form>
         )}
