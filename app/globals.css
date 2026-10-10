@@ -336,7 +336,7 @@ html[data-theme="dark"] .notification-popover p.unread::before { background: #8a
 html[data-theme="dark"] .notification-popover .new-label { background: #8ab7ff; color: #071426; }
 
 /* Dashboard */
-.dashboard-shell {
+html[data-interface-version="v1"] .dashboard-shell {
   --primary: #0568fe;
   --primary-light: #287cff;
   --primary-pale: #e8f0ff;
