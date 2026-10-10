@@ -6,8 +6,8 @@ describe("courseCardState", () => {
     expect(courseCardState(undefined, false)).toEqual({ status: "not_started", isCurrent: false, actions: ["start"] });
   });
 
-  it("当前课即使尚未记录进度，也显示 Restart + Continue 而不是自相矛盾的 Start", () => {
-    expect(courseCardState("not_started", true)).toEqual({ status: "not_started", isCurrent: true, actions: ["restart", "continue"] });
+  it("当前课被重置为未开始后，只显示 Start 并重新进入欢迎页", () => {
+    expect(courseCardState("not_started", true)).toEqual({ status: "not_started", isCurrent: true, actions: ["start"] });
   });
 
   it("刚 restart 的课程不再标记为当前，按钮回到 Start", () => {
