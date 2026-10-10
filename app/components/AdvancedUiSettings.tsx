@@ -150,6 +150,22 @@ export function AdvancedUiSettings({ t }: { t: Translate }) {
             <ColorControl label={t("Primary accent", "主要强调色")} value={draft.darkPrimary} onChange={(value) => update("darkPrimary", value)} />
             <ColorControl label={t("Secondary accent", "次要强调色")} value={draft.darkSecondary} onChange={(value) => update("darkSecondary", value)} />
           </fieldset>
+          <fieldset><legend>{t("Dashboard cards", "仪表板卡片")}</legend>
+            <ColorControl label={t("Current course", "当前课程")} value={draft.dashboardCourseCard} onChange={(value) => update("dashboardCourseCard", value)} />
+            <ColorControl label={t("Current streak", "连续学习")} value={draft.dashboardStreakCard} onChange={(value) => update("dashboardStreakCard", value)} />
+            <ColorControl label={t("Practice time", "练习时间")} value={draft.dashboardPracticeCard} onChange={(value) => update("dashboardPracticeCard", value)} />
+            <ColorControl label={t("Skills mastered", "已掌握技能")} value={draft.dashboardSkillsCard} onChange={(value) => update("dashboardSkillsCard", value)} />
+          </fieldset>
+          <fieldset><legend>{t("Progress cards", "学习进度卡片")}</legend>
+            <ColorControl label={t("Practice metric", "练习指标")} value={draft.progressPracticeCard} onChange={(value) => update("progressPracticeCard", value)} />
+            <ColorControl label={t("Tasks metric", "任务指标")} value={draft.progressTasksCard} onChange={(value) => update("progressTasksCard", value)} />
+            <ColorControl label={t("Weekly goal", "每周目标")} value={draft.progressGoalCard} onChange={(value) => update("progressGoalCard", value)} />
+            <ColorControl label={t("Learning chart", "学习图表")} value={draft.progressChartCard} onChange={(value) => update("progressChartCard", value)} />
+            <ColorControl label={t("Achievement 1", "成就 1")} value={draft.progressAchievement1} onChange={(value) => update("progressAchievement1", value)} />
+            <ColorControl label={t("Achievement 2", "成就 2")} value={draft.progressAchievement2} onChange={(value) => update("progressAchievement2", value)} />
+            <ColorControl label={t("Achievement 3", "成就 3")} value={draft.progressAchievement3} onChange={(value) => update("progressAchievement3", value)} />
+            <ColorControl label={t("Achievement 4", "成就 4")} value={draft.progressAchievement4} onChange={(value) => update("progressAchievement4", value)} />
+          </fieldset>
           <div className="advanced-save-actions">
             <Button type="button" onClick={save}>{t("Save site-wide", "保存到全站")}</Button>
             <Button type="button" variant="outline" onClick={reset}>{t("Reset custom styles", "重置自定义样式")}</Button>
