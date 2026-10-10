@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import Image from "next/image";
+import { Button } from "@/components/ui/button";
 
 type ImageLightboxProps = {
   src: string;
@@ -61,7 +62,7 @@ export function ImageLightbox({ src, alt, onClose }: ImageLightboxProps) {
   return <div ref={dialog} className="lb-lightbox" role="dialog" tabIndex={-1} aria-modal="true" aria-label="图片预览" onMouseDown={(event) => {
     if (event.target === event.currentTarget) onClose();
   }}>
-    <button ref={closeButton} type="button" className="lb-lightbox-close" aria-label="关闭图片预览" onClick={onClose}>×</button>
+    <Button ref={closeButton} variant="outline" size="icon" type="button" className="lb-lightbox-close" aria-label="关闭图片预览" onClick={onClose}>×</Button>
     <Image src={src} alt={alt} width={1600} height={1200} unoptimized />
   </div>;
 }

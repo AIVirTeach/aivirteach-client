@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { useLayoutEffect, useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Select } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Sidebar } from "../components/Sidebar";
 import { AdvancedUiSettings } from "../components/AdvancedUiSettings";
 import { api } from "../lib/api";
@@ -25,16 +27,12 @@ function SettingsToggle({ checked, label, offLabel, onLabel, onChange }: Setting
   return (
     <div className="settings-toggle">
       <span className={checked ? "" : "active"}>{offLabel}</span>
-      <button
-        type="button"
+      <Switch
         className="settings-toggle-control"
-        role="switch"
-        aria-checked={checked}
+        checked={checked}
         aria-label={label}
-        onClick={() => onChange(!checked)}
-      >
-        <span aria-hidden="true" />
-      </button>
+        onCheckedChange={onChange}
+      />
       <span className={checked ? "active" : ""}>{onLabel}</span>
     </div>
   );
@@ -94,14 +92,14 @@ export default function SettingsPage() {
             <div><span className="settings-card-icon version-setting-icon" aria-hidden="true">V</span><div><h2>{t("Design theme", "设计主题")}</h2><p>{t("Choose the visual style used across the frontend.", "选择整个前端使用的视觉风格。")}</p></div></div>
             <label className="settings-select">
               <span>{t("Design theme", "设计主题")}</span>
-              <select value={interfaceVersion} onChange={(event) => chooseInterfaceVersion(event.target.value as InterfaceVersion)}>
+              <Select value={interfaceVersion} onChange={(event) => chooseInterfaceVersion(event.target.value as InterfaceVersion)}>
                 <option value="v1">{t("Original V1", "原版 V1")}</option>
                 <option value="v2">{t("Modern V2", "现代 V2")}</option>
                 <option value="soft">{t("Soft neumorphism", "柔和新拟态")}</option>
                 <option value="soft-brutal">{t("Soft brutalism", "柔和粗野主义")}</option>
                 <option value="brutal">{t("Brutalism V2", "粗野主义 V2")}</option>
                 <option value="neubrutal">{t("Neubrutalism", "新粗野主义")}</option>
-              </select>
+              </Select>
             </label>
           </Card>
 
@@ -109,10 +107,10 @@ export default function SettingsPage() {
             <div><span className="settings-card-icon" aria-hidden="true">文</span><div><h2>{t("Language", "语言")}</h2><p>{t("Change the language across AIVirTeach, including Learning Lab V2.", "更改整个 AIVirTeach（包括学习实验室 V2）的语言。")}</p></div></div>
             <label className="settings-select">
               <span>{t("Application language", "应用语言")}</span>
-              <select value={learningLanguage} onChange={(event) => chooseLearningLanguage(event.target.value as LearningLanguage)}>
+              <Select value={learningLanguage} onChange={(event) => chooseLearningLanguage(event.target.value as LearningLanguage)}>
                 <option value="en">English</option>
                 <option value="zh-CN">简体中文</option>
-              </select>
+              </Select>
             </label>
           </Card>
 
