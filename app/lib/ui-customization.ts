@@ -38,6 +38,18 @@ export type UiCustomization = {
   progressAchievement2: string;
   progressAchievement3: string;
   progressAchievement4: string;
+  darkDashboardCourseCard: string;
+  darkDashboardStreakCard: string;
+  darkDashboardPracticeCard: string;
+  darkDashboardSkillsCard: string;
+  darkProgressPracticeCard: string;
+  darkProgressTasksCard: string;
+  darkProgressGoalCard: string;
+  darkProgressChartCard: string;
+  darkProgressAchievement1: string;
+  darkProgressAchievement2: string;
+  darkProgressAchievement3: string;
+  darkProgressAchievement4: string;
 };
 
 export const defaultUiCustomization: UiCustomization = {
@@ -80,6 +92,18 @@ export const defaultUiCustomization: UiCustomization = {
   progressAchievement2: "#ffffff",
   progressAchievement3: "#ffffff",
   progressAchievement4: "#ffffff",
+  darkDashboardCourseCard: "#ff7b7b",
+  darkDashboardStreakCard: "#5ee1d7",
+  darkDashboardPracticeCard: "#34303b",
+  darkDashboardSkillsCard: "#355b5d",
+  darkProgressPracticeCard: "#5ee1d7",
+  darkProgressTasksCard: "#34303b",
+  darkProgressGoalCard: "#355b5d",
+  darkProgressChartCard: "#242129",
+  darkProgressAchievement1: "#242129",
+  darkProgressAchievement2: "#242129",
+  darkProgressAchievement3: "#242129",
+  darkProgressAchievement4: "#242129",
 };
 
 const storageKey = "aivirteach-ui-customization";
@@ -98,7 +122,7 @@ const numberRanges: Record<keyof Pick<UiCustomization, "buttonHeight" | "buttonF
 
 function sanitize(candidate: Partial<UiCustomization>): UiCustomization {
   const next = { ...defaultUiCustomization };
-  for (const key of ["accentColor", "menuItemHover", "buttonBackground", "buttonText", "buttonFocusBackground", "fieldBackground", "fieldText", "fieldBorder", "focusBorder", "cardBackground", "cardBorder", "darkBackground", "darkSurface", "darkSurfaceMuted", "darkText", "darkTextMuted", "darkBorder", "darkPrimary", "darkSecondary", "dashboardCourseCard", "dashboardStreakCard", "dashboardPracticeCard", "dashboardSkillsCard", "progressPracticeCard", "progressTasksCard", "progressGoalCard", "progressChartCard", "progressAchievement1", "progressAchievement2", "progressAchievement3", "progressAchievement4"] as const) {
+  for (const key of ["accentColor", "menuItemHover", "buttonBackground", "buttonText", "buttonFocusBackground", "fieldBackground", "fieldText", "fieldBorder", "focusBorder", "cardBackground", "cardBorder", "darkBackground", "darkSurface", "darkSurfaceMuted", "darkText", "darkTextMuted", "darkBorder", "darkPrimary", "darkSecondary", "dashboardCourseCard", "dashboardStreakCard", "dashboardPracticeCard", "dashboardSkillsCard", "progressPracticeCard", "progressTasksCard", "progressGoalCard", "progressChartCard", "progressAchievement1", "progressAchievement2", "progressAchievement3", "progressAchievement4", "darkDashboardCourseCard", "darkDashboardStreakCard", "darkDashboardPracticeCard", "darkDashboardSkillsCard", "darkProgressPracticeCard", "darkProgressTasksCard", "darkProgressGoalCard", "darkProgressChartCard", "darkProgressAchievement1", "darkProgressAchievement2", "darkProgressAchievement3", "darkProgressAchievement4"] as const) {
     if (typeof candidate[key] === "string" && colorPattern.test(candidate[key])) next[key] = candidate[key];
   }
   for (const key of Object.keys(numberRanges) as (keyof typeof numberRanges)[]) {
@@ -160,6 +184,18 @@ const cssVariables: Record<keyof UiCustomization, string> = {
   progressAchievement2: "--ui-progress-achievement-2",
   progressAchievement3: "--ui-progress-achievement-3",
   progressAchievement4: "--ui-progress-achievement-4",
+  darkDashboardCourseCard: "--ui-dark-dashboard-course-card",
+  darkDashboardStreakCard: "--ui-dark-dashboard-streak-card",
+  darkDashboardPracticeCard: "--ui-dark-dashboard-practice-card",
+  darkDashboardSkillsCard: "--ui-dark-dashboard-skills-card",
+  darkProgressPracticeCard: "--ui-dark-progress-practice-card",
+  darkProgressTasksCard: "--ui-dark-progress-tasks-card",
+  darkProgressGoalCard: "--ui-dark-progress-goal-card",
+  darkProgressChartCard: "--ui-dark-progress-chart-card",
+  darkProgressAchievement1: "--ui-dark-progress-achievement-1",
+  darkProgressAchievement2: "--ui-dark-progress-achievement-2",
+  darkProgressAchievement3: "--ui-dark-progress-achievement-3",
+  darkProgressAchievement4: "--ui-dark-progress-achievement-4",
 };
 
 const pixelValues = new Set<keyof UiCustomization>(["buttonHeight", "buttonFontSize", "buttonRadius", "fieldHeight", "fieldFontSize", "fieldRadius", "cardRadius", "cardPadding"]);
