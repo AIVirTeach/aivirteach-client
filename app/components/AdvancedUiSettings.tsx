@@ -149,48 +149,55 @@ export function AdvancedUiSettings({ t }: { t: Translate }) {
             <RangeControl label={t("Corner radius", "圆角")} value={draft.cardRadius} minimum={0} maximum={32} onChange={(value) => update("cardRadius", value)} />
             <RangeControl label={t("Inner spacing", "内边距")} value={draft.cardPadding} minimum={8} maximum={48} onChange={(value) => update("cardPadding", value)} />
           </fieldset>
-          <fieldset><legend>{t("Dark theme main/base colors", "深色主题主色与基础色")}</legend>
-            <ColorControl label={t("Page background", "页面背景")} value={draft.darkBackground} onChange={(value) => update("darkBackground", value)} />
-            <ColorControl label={t("Main surface", "主要表面")} value={draft.darkSurface} onChange={(value) => update("darkSurface", value)} />
-            <ColorControl label={t("Muted surface", "次要表面")} value={draft.darkSurfaceMuted} onChange={(value) => update("darkSurfaceMuted", value)} />
-            <ColorControl label={t("Main text", "主要文字")} value={draft.darkText} onChange={(value) => update("darkText", value)} />
-            <ColorControl label={t("Muted text", "次要文字")} value={draft.darkTextMuted} onChange={(value) => update("darkTextMuted", value)} />
-            <ColorControl label={t("Borders and shadows", "边框与阴影")} value={draft.darkBorder} onChange={(value) => update("darkBorder", value)} />
-            <ColorControl label={t("Primary accent", "主要强调色")} value={draft.darkPrimary} onChange={(value) => update("darkPrimary", value)} />
-            <ColorControl label={t("Secondary accent", "次要强调色")} value={draft.darkSecondary} onChange={(value) => update("darkSecondary", value)} />
-          </fieldset>
-          <fieldset><legend>{t("Dashboard cards — light", "仪表板卡片 — 浅色")}</legend>
-            <ColorControl label={t("Current course", "当前课程")} value={draft.dashboardCourseCard} onChange={(value) => update("dashboardCourseCard", value)} />
-            <ColorControl label={t("Current streak", "连续学习")} value={draft.dashboardStreakCard} onChange={(value) => update("dashboardStreakCard", value)} />
-            <ColorControl label={t("Practice time", "练习时间")} value={draft.dashboardPracticeCard} onChange={(value) => update("dashboardPracticeCard", value)} />
-            <ColorControl label={t("Skills mastered", "已掌握技能")} value={draft.dashboardSkillsCard} onChange={(value) => update("dashboardSkillsCard", value)} />
-          </fieldset>
-          <fieldset><legend>{t("Progress cards — light", "学习进度卡片 — 浅色")}</legend>
-            <ColorControl label={t("Practice metric", "练习指标")} value={draft.progressPracticeCard} onChange={(value) => update("progressPracticeCard", value)} />
-            <ColorControl label={t("Tasks metric", "任务指标")} value={draft.progressTasksCard} onChange={(value) => update("progressTasksCard", value)} />
-            <ColorControl label={t("Weekly goal", "每周目标")} value={draft.progressGoalCard} onChange={(value) => update("progressGoalCard", value)} />
-            <ColorControl label={t("Learning chart", "学习图表")} value={draft.progressChartCard} onChange={(value) => update("progressChartCard", value)} />
-            <ColorControl label={t("Achievement 1", "成就 1")} value={draft.progressAchievement1} onChange={(value) => update("progressAchievement1", value)} />
-            <ColorControl label={t("Achievement 2", "成就 2")} value={draft.progressAchievement2} onChange={(value) => update("progressAchievement2", value)} />
-            <ColorControl label={t("Achievement 3", "成就 3")} value={draft.progressAchievement3} onChange={(value) => update("progressAchievement3", value)} />
-            <ColorControl label={t("Achievement 4", "成就 4")} value={draft.progressAchievement4} onChange={(value) => update("progressAchievement4", value)} />
-          </fieldset>
-          <fieldset><legend>{t("Dashboard cards — dark", "仪表板卡片 — 深色")}</legend>
-            <ColorControl label={t("Current course", "当前课程")} value={draft.darkDashboardCourseCard} onChange={(value) => update("darkDashboardCourseCard", value)} />
-            <ColorControl label={t("Current streak", "连续学习")} value={draft.darkDashboardStreakCard} onChange={(value) => update("darkDashboardStreakCard", value)} />
-            <ColorControl label={t("Practice time", "练习时间")} value={draft.darkDashboardPracticeCard} onChange={(value) => update("darkDashboardPracticeCard", value)} />
-            <ColorControl label={t("Skills mastered", "已掌握技能")} value={draft.darkDashboardSkillsCard} onChange={(value) => update("darkDashboardSkillsCard", value)} />
-          </fieldset>
-          <fieldset><legend>{t("Progress cards — dark", "学习进度卡片 — 深色")}</legend>
-            <ColorControl label={t("Practice metric", "练习指标")} value={draft.darkProgressPracticeCard} onChange={(value) => update("darkProgressPracticeCard", value)} />
-            <ColorControl label={t("Tasks metric", "任务指标")} value={draft.darkProgressTasksCard} onChange={(value) => update("darkProgressTasksCard", value)} />
-            <ColorControl label={t("Weekly goal", "每周目标")} value={draft.darkProgressGoalCard} onChange={(value) => update("darkProgressGoalCard", value)} />
-            <ColorControl label={t("Learning chart", "学习图表")} value={draft.darkProgressChartCard} onChange={(value) => update("darkProgressChartCard", value)} />
-            <ColorControl label={t("Achievement 1", "成就 1")} value={draft.darkProgressAchievement1} onChange={(value) => update("darkProgressAchievement1", value)} />
-            <ColorControl label={t("Achievement 2", "成就 2")} value={draft.darkProgressAchievement2} onChange={(value) => update("darkProgressAchievement2", value)} />
-            <ColorControl label={t("Achievement 3", "成就 3")} value={draft.darkProgressAchievement3} onChange={(value) => update("darkProgressAchievement3", value)} />
-            <ColorControl label={t("Achievement 4", "成就 4")} value={draft.darkProgressAchievement4} onChange={(value) => update("darkProgressAchievement4", value)} />
-          </fieldset>
+          {theme === "light" ? (
+            <>
+              <fieldset><legend>{t("Dashboard cards — light", "仪表板卡片 — 浅色")}</legend>
+                <ColorControl label={t("Current course", "当前课程")} value={draft.dashboardCourseCard} onChange={(value) => update("dashboardCourseCard", value)} />
+                <ColorControl label={t("Current streak", "连续学习")} value={draft.dashboardStreakCard} onChange={(value) => update("dashboardStreakCard", value)} />
+                <ColorControl label={t("Practice time", "练习时间")} value={draft.dashboardPracticeCard} onChange={(value) => update("dashboardPracticeCard", value)} />
+                <ColorControl label={t("Skills mastered", "已掌握技能")} value={draft.dashboardSkillsCard} onChange={(value) => update("dashboardSkillsCard", value)} />
+              </fieldset>
+              <fieldset><legend>{t("Progress cards — light", "学习进度卡片 — 浅色")}</legend>
+                <ColorControl label={t("Practice metric", "练习指标")} value={draft.progressPracticeCard} onChange={(value) => update("progressPracticeCard", value)} />
+                <ColorControl label={t("Tasks metric", "任务指标")} value={draft.progressTasksCard} onChange={(value) => update("progressTasksCard", value)} />
+                <ColorControl label={t("Weekly goal", "每周目标")} value={draft.progressGoalCard} onChange={(value) => update("progressGoalCard", value)} />
+                <ColorControl label={t("Learning chart", "学习图表")} value={draft.progressChartCard} onChange={(value) => update("progressChartCard", value)} />
+                <ColorControl label={t("Achievement 1", "成就 1")} value={draft.progressAchievement1} onChange={(value) => update("progressAchievement1", value)} />
+                <ColorControl label={t("Achievement 2", "成就 2")} value={draft.progressAchievement2} onChange={(value) => update("progressAchievement2", value)} />
+                <ColorControl label={t("Achievement 3", "成就 3")} value={draft.progressAchievement3} onChange={(value) => update("progressAchievement3", value)} />
+                <ColorControl label={t("Achievement 4", "成就 4")} value={draft.progressAchievement4} onChange={(value) => update("progressAchievement4", value)} />
+              </fieldset>
+            </>
+          ) : (
+            <>
+              <fieldset><legend>{t("Dark theme main/base colors", "深色主题主色与基础色")}</legend>
+                <ColorControl label={t("Page background", "页面背景")} value={draft.darkBackground} onChange={(value) => update("darkBackground", value)} />
+                <ColorControl label={t("Main surface", "主要表面")} value={draft.darkSurface} onChange={(value) => update("darkSurface", value)} />
+                <ColorControl label={t("Muted surface", "次要表面")} value={draft.darkSurfaceMuted} onChange={(value) => update("darkSurfaceMuted", value)} />
+                <ColorControl label={t("Main text", "主要文字")} value={draft.darkText} onChange={(value) => update("darkText", value)} />
+                <ColorControl label={t("Muted text", "次要文字")} value={draft.darkTextMuted} onChange={(value) => update("darkTextMuted", value)} />
+                <ColorControl label={t("Borders and shadows", "边框与阴影")} value={draft.darkBorder} onChange={(value) => update("darkBorder", value)} />
+                <ColorControl label={t("Primary accent", "主要强调色")} value={draft.darkPrimary} onChange={(value) => update("darkPrimary", value)} />
+                <ColorControl label={t("Secondary accent", "次要强调色")} value={draft.darkSecondary} onChange={(value) => update("darkSecondary", value)} />
+              </fieldset>
+              <fieldset><legend>{t("Dashboard cards — dark", "仪表板卡片 — 深色")}</legend>
+                <ColorControl label={t("Current course", "当前课程")} value={draft.darkDashboardCourseCard} onChange={(value) => update("darkDashboardCourseCard", value)} />
+                <ColorControl label={t("Current streak", "连续学习")} value={draft.darkDashboardStreakCard} onChange={(value) => update("darkDashboardStreakCard", value)} />
+                <ColorControl label={t("Practice time", "练习时间")} value={draft.darkDashboardPracticeCard} onChange={(value) => update("darkDashboardPracticeCard", value)} />
+                <ColorControl label={t("Skills mastered", "已掌握技能")} value={draft.darkDashboardSkillsCard} onChange={(value) => update("darkDashboardSkillsCard", value)} />
+              </fieldset>
+              <fieldset><legend>{t("Progress cards — dark", "学习进度卡片 — 深色")}</legend>
+                <ColorControl label={t("Practice metric", "练习指标")} value={draft.darkProgressPracticeCard} onChange={(value) => update("darkProgressPracticeCard", value)} />
+                <ColorControl label={t("Tasks metric", "任务指标")} value={draft.darkProgressTasksCard} onChange={(value) => update("darkProgressTasksCard", value)} />
+                <ColorControl label={t("Weekly goal", "每周目标")} value={draft.darkProgressGoalCard} onChange={(value) => update("darkProgressGoalCard", value)} />
+                <ColorControl label={t("Learning chart", "学习图表")} value={draft.darkProgressChartCard} onChange={(value) => update("darkProgressChartCard", value)} />
+                <ColorControl label={t("Achievement 1", "成就 1")} value={draft.darkProgressAchievement1} onChange={(value) => update("darkProgressAchievement1", value)} />
+                <ColorControl label={t("Achievement 2", "成就 2")} value={draft.darkProgressAchievement2} onChange={(value) => update("darkProgressAchievement2", value)} />
+                <ColorControl label={t("Achievement 3", "成就 3")} value={draft.darkProgressAchievement3} onChange={(value) => update("darkProgressAchievement3", value)} />
+                <ColorControl label={t("Achievement 4", "成就 4")} value={draft.darkProgressAchievement4} onChange={(value) => update("darkProgressAchievement4", value)} />
+              </fieldset>
+            </>
+          )}
           <div className="advanced-save-actions">
             <Button type="button" onClick={save}>{t("Save site-wide", "保存到全站")}</Button>
             <Button type="button" variant="outline" onClick={reset}>{t("Reset custom styles", "重置自定义样式")}</Button>
