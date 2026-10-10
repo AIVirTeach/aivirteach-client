@@ -2605,6 +2605,10 @@ html[data-interface-version="brutal"] :is(.theme-choice, .version-choice, .range
 }
 
 /* Persistent advanced component tokens and a consistent site-wide field focus. */
+[data-slot="dropdown-menu-item"]:is(:hover, :focus, [data-highlighted]) {
+  background: var(--ui-menu-item-hover, #d1d5db) !important;
+}
+
 :is(
   input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not([type="hidden"]),
   textarea,
