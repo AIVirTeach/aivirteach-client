@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -15,7 +15,6 @@ import { Progress } from "@/components/ui/progress";
 import { Select } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Switch } from "@/components/ui/switch";
 import {
   clearUiCustomization,
   defaultUiCustomization,
@@ -25,6 +24,7 @@ import {
   saveUiCustomization,
   type UiCustomization,
 } from "../lib/ui-customization";
+import { applyInterfaceVersion, getServerInterfaceVersion, getStoredInterfaceVersion, subscribeToInterfaceVersion, type InterfaceVersion } from "../lib/interface-version";
 
 type Translate = (english: string, chinese: string) => string;
 
@@ -51,15 +51,20 @@ export function AdvancedUiSettings({ t }: { t: Translate }) {
   const [saved, setSaved] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const persistedRef = useRef<UiCustomization | null>(null);
+  const interfaceVersion = useSyncExternalStore(subscribeToInterfaceVersion, getStoredInterfaceVersion, getServerInterfaceVersion);
 
   useEffect(() => {
     const stored = getStoredUiCustomization();
     persistedRef.current = stored;
+    let cancelled = false;
     if (stored) {
-      setDraft(stored);
       previewUiCustomization(stored);
+      queueMicrotask(() => {
+        if (!cancelled) setDraft(stored);
+      });
     }
     return () => {
+      cancelled = true;
       if (persistedRef.current) previewUiCustomization(persistedRef.current);
       else removeUiCustomizationPreview();
     };
@@ -88,14 +93,27 @@ export function AdvancedUiSettings({ t }: { t: Translate }) {
   }
 
   return (
-    <section className="advanced-settings" aria-label={t("Advanced component settings", "高级组件设置")}>
+    <section className="advanced-settings" aria-label={t("Advanced theme settings", "高级主题设置")}>
       <div className="advanced-settings-intro">
-        <div><p className="eyebrow">{t("DESIGN SYSTEM", "设计系统")}</p><h2>{t("Site-wide component editor", "全站组件编辑器")}</h2></div>
+        <div><p className="eyebrow">{t("DESIGN SYSTEM", "设计系统")}</p><h2>{t("Site-wide theme editor", "全站主题编辑器")}</h2></div>
         <p>{t("Preview reusable UI components and customize their shared design tokens. Changes are previewed live and become persistent after you save.", "预览可复用的界面组件并自定义共享设计变量。更改会实时预览，保存后将永久生效。")}</p>
       </div>
 
       <div className="advanced-settings-layout">
         <aside className="advanced-controls">
+          <fieldset><legend>{t("Interface style", "界面风格")}</legend>
+            <label className="advanced-select-control">
+              <span>{t("Visual style", "视觉风格")}</span>
+              <Select value={interfaceVersion} onChange={(event) => applyInterfaceVersion(event.target.value as InterfaceVersion)}>
+                <option value="v1">{t("Original V1", "原版 V1")}</option>
+                <option value="v2">{t("Modern V2", "现代 V2")}</option>
+                <option value="soft">{t("Soft neumorphism", "柔和新拟态")}</option>
+                <option value="soft-brutal">{t("Soft brutalism", "柔和粗野主义")}</option>
+                <option value="brutal">{t("Brutalism V2", "粗野主义 V2")}</option>
+                <option value="neubrutal">{t("Neubrutalism", "新粗野主义")}</option>
+              </Select>
+            </label>
+          </fieldset>
           <fieldset><legend>{t("Brand and feedback", "品牌与反馈")}</legend>
             <ColorControl label={t("Accent color", "强调色")} value={draft.accentColor} onChange={(value) => update("accentColor", value)} />
             <ColorControl label={t("Focused field border", "字段聚焦边框")} value={draft.focusBorder} onChange={(value) => update("focusBorder", value)} />
@@ -122,6 +140,16 @@ export function AdvancedUiSettings({ t }: { t: Translate }) {
             <RangeControl label={t("Corner radius", "圆角")} value={draft.cardRadius} minimum={0} maximum={32} onChange={(value) => update("cardRadius", value)} />
             <RangeControl label={t("Inner spacing", "内边距")} value={draft.cardPadding} minimum={8} maximum={48} onChange={(value) => update("cardPadding", value)} />
           </fieldset>
+          <fieldset><legend>{t("Dark theme main/base colors", "深色主题主色与基础色")}</legend>
+            <ColorControl label={t("Page background", "页面背景")} value={draft.darkBackground} onChange={(value) => update("darkBackground", value)} />
+            <ColorControl label={t("Main surface", "主要表面")} value={draft.darkSurface} onChange={(value) => update("darkSurface", value)} />
+            <ColorControl label={t("Muted surface", "次要表面")} value={draft.darkSurfaceMuted} onChange={(value) => update("darkSurfaceMuted", value)} />
+            <ColorControl label={t("Main text", "主要文字")} value={draft.darkText} onChange={(value) => update("darkText", value)} />
+            <ColorControl label={t("Muted text", "次要文字")} value={draft.darkTextMuted} onChange={(value) => update("darkTextMuted", value)} />
+            <ColorControl label={t("Borders and shadows", "边框与阴影")} value={draft.darkBorder} onChange={(value) => update("darkBorder", value)} />
+            <ColorControl label={t("Primary accent", "主要强调色")} value={draft.darkPrimary} onChange={(value) => update("darkPrimary", value)} />
+            <ColorControl label={t("Secondary accent", "次要强调色")} value={draft.darkSecondary} onChange={(value) => update("darkSecondary", value)} />
+          </fieldset>
           <div className="advanced-save-actions">
             <Button type="button" onClick={save}>{t("Save site-wide", "保存到全站")}</Button>
             <Button type="button" variant="outline" onClick={reset}>{t("Reset custom styles", "重置自定义样式")}</Button>
@@ -131,7 +159,7 @@ export function AdvancedUiSettings({ t }: { t: Translate }) {
 
         <div className="component-catalog">
           <Card as="section" className="component-preview-card"><h3>{t("Buttons", "按钮")}</h3><div className="component-preview-row"><Button>{t("Primary", "主要")}</Button><Button variant="secondary">{t("Secondary", "次要")}</Button><Button variant="outline">{t("Outline", "轮廓")}</Button><Button variant="destructive">{t("Delete", "删除")}</Button></div></Card>
-          <Card as="section" className="component-preview-card"><h3>{t("Form controls", "表单控件")}</h3><div className="component-preview-form"><Input aria-label={t("Text field preview", "文本框预览")} placeholder={t("Click to test the focus border", "点击测试聚焦边框")} /><Select aria-label={t("Select preview", "下拉框预览")} defaultValue="one"><option value="one">{t("Select option", "选择选项")}</option><option value="two">{t("Another option", "另一个选项")}</option></Select><label><Checkbox defaultChecked /> {t("Checkbox", "复选框")}</label><label><Switch defaultChecked /> {t("Switch", "开关")}</label></div></Card>
+          <Card as="section" className="component-preview-card"><h3>{t("Form controls", "表单控件")}</h3><div className="component-preview-form"><Input aria-label={t("Text field preview", "文本框预览")} placeholder={t("Click to test the focus border", "点击测试聚焦边框")} /><Select aria-label={t("Select preview", "下拉框预览")} defaultValue="one"><option value="one">{t("Select option", "选择选项")}</option><option value="two">{t("Another option", "另一个选项")}</option></Select><label><Checkbox defaultChecked /> {t("Checkbox", "复选框")}</label></div></Card>
           <Card as="section" className="component-preview-card"><h3>{t("Status and feedback", "状态与反馈")}</h3><div className="component-preview-row"><Badge>{t("Badge", "徽章")}</Badge><Badge variant="secondary">{t("Secondary", "次要")}</Badge><Avatar><AvatarFallback>AI</AvatarFallback></Avatar></div><Progress value={64} /><Alert><AlertTitle>{t("Alert title", "提醒标题")}</AlertTitle><AlertDescription>{t("Reusable feedback message preview.", "可复用反馈消息预览。")}</AlertDescription></Alert></Card>
           <Card as="section" className="component-preview-card"><h3>{t("Loading states", "加载状态")}</h3><div className="component-skeleton-preview"><Skeleton /><Skeleton /><Skeleton /></div></Card>
           <Card as="section" className="component-preview-card"><h3>{t("Overlays", "浮层组件")}</h3><div className="component-preview-row"><Button variant="outline" type="button" onClick={() => setDialogOpen(true)}>{t("Open dialog", "打开对话框")}</Button><DropdownMenu><DropdownMenuTrigger render={<Button variant="outline" />}>{t("Open menu", "打开菜单")}</DropdownMenuTrigger><DropdownMenuContent><DropdownMenuItem>{t("Menu item", "菜单项")}</DropdownMenuItem><DropdownMenuItem variant="destructive">{t("Destructive item", "危险操作")}</DropdownMenuItem></DropdownMenuContent></DropdownMenu></div></Card>

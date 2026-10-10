@@ -5,11 +5,11 @@ const versionChangeEvent = "aivirteach:interface-version-change";
 
 export function getStoredInterfaceVersion(): InterfaceVersion {
   const storedVersion = window.localStorage.getItem(versionStorageKey);
-  return storedVersion === "v1" || storedVersion === "v2" || storedVersion === "soft" || storedVersion === "soft-brutal" || storedVersion === "brutal" || storedVersion === "neubrutal" ? storedVersion : "brutal";
+  return storedVersion === "v1" || storedVersion === "v2" || storedVersion === "soft" || storedVersion === "soft-brutal" || storedVersion === "brutal" || storedVersion === "neubrutal" ? storedVersion : "neubrutal";
 }
 
 export function getServerInterfaceVersion(): InterfaceVersion {
-  return "brutal";
+  return "neubrutal";
 }
 
 export function subscribeToInterfaceVersion(callback: () => void) {
