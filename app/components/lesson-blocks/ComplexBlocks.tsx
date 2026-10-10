@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
+import { Button } from "@/components/ui/button";
 import { isAllowedInlineHref, renderInline } from "../../lib/lesson-blocks/inline";
 import type {
   AnnotatedCodeBlock as AnnotatedCodeModel,
@@ -42,9 +43,9 @@ export function ImageBlock({ id, props, assets }: ImageComponentProps) {
   if (!asset) return <div id={id} className="lb-image-missing" role="img" aria-label="图片缺失">图片缺失</div>;
 
   return <figure id={id} className="lb-image">
-    <button ref={trigger} type="button" className="lb-image-trigger" aria-label={`放大图片：${props.alt}`} onClick={() => setOpen(true)}>
+    <Button ref={trigger} variant="ghost" type="button" className="lb-image-trigger" aria-label={`放大图片：${props.alt}`} onClick={() => setOpen(true)}>
       <Image src={asset.url} alt={props.alt} width={1200} height={800} unoptimized />
-    </button>
+    </Button>
     {props.caption ? <figcaption>{renderInline(props.caption)}</figcaption> : null}
     {open ? <ImageLightbox src={asset.url} alt={props.alt} onClose={close} /> : null}
   </figure>;

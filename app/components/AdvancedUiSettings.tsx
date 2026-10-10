@@ -7,11 +7,15 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import { ColorPicker } from "@/components/ui/color-picker";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
+import { Select } from "@/components/ui/select";
+import { Slider } from "@/components/ui/slider";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
 import {
   clearUiCustomization,
   defaultUiCustomization,
@@ -28,7 +32,7 @@ function ColorControl({ label, value, onChange }: { label: string; value: string
   return (
     <label className="advanced-color-control">
       <span>{label}</span>
-      <span><input type="color" value={value} onChange={(event) => onChange(event.target.value)} /><code>{value.toUpperCase()}</code></span>
+      <span><ColorPicker value={value} onChange={(event) => onChange(event.target.value)} /><code>{value.toUpperCase()}</code></span>
     </label>
   );
 }
@@ -37,7 +41,7 @@ function RangeControl({ label, value, minimum, maximum, onChange }: { label: str
   return (
     <label className="advanced-range-control">
       <span>{label}<output>{value}px</output></span>
-      <input type="range" min={minimum} max={maximum} value={value} onChange={(event) => onChange(Number(event.target.value))} />
+      <Slider min={minimum} max={maximum} value={value} onChange={(event) => onChange(Number(event.target.value))} />
     </label>
   );
 }
@@ -126,7 +130,7 @@ export function AdvancedUiSettings({ t }: { t: Translate }) {
 
         <div className="component-catalog">
           <Card as="section" className="component-preview-card"><h3>{t("Buttons", "按钮")}</h3><div className="component-preview-row"><Button>{t("Primary", "主要")}</Button><Button variant="secondary">{t("Secondary", "次要")}</Button><Button variant="outline">{t("Outline", "轮廓")}</Button><Button variant="destructive">{t("Delete", "删除")}</Button></div></Card>
-          <Card as="section" className="component-preview-card"><h3>{t("Form controls", "表单控件")}</h3><div className="component-preview-form"><Input aria-label={t("Text field preview", "文本框预览")} placeholder={t("Click to test the focus border", "点击测试聚焦边框")} /><select aria-label={t("Select preview", "下拉框预览")} defaultValue="one"><option value="one">{t("Select option", "选择选项")}</option><option value="two">{t("Another option", "另一个选项")}</option></select><label><Checkbox defaultChecked /> {t("Checkbox", "复选框")}</label></div></Card>
+          <Card as="section" className="component-preview-card"><h3>{t("Form controls", "表单控件")}</h3><div className="component-preview-form"><Input aria-label={t("Text field preview", "文本框预览")} placeholder={t("Click to test the focus border", "点击测试聚焦边框")} /><Select aria-label={t("Select preview", "下拉框预览")} defaultValue="one"><option value="one">{t("Select option", "选择选项")}</option><option value="two">{t("Another option", "另一个选项")}</option></Select><label><Checkbox defaultChecked /> {t("Checkbox", "复选框")}</label><label><Switch defaultChecked /> {t("Switch", "开关")}</label></div></Card>
           <Card as="section" className="component-preview-card"><h3>{t("Status and feedback", "状态与反馈")}</h3><div className="component-preview-row"><Badge>{t("Badge", "徽章")}</Badge><Badge variant="secondary">{t("Secondary", "次要")}</Badge><Avatar><AvatarFallback>AI</AvatarFallback></Avatar></div><Progress value={64} /><Alert><AlertTitle>{t("Alert title", "提醒标题")}</AlertTitle><AlertDescription>{t("Reusable feedback message preview.", "可复用反馈消息预览。")}</AlertDescription></Alert></Card>
           <Card as="section" className="component-preview-card"><h3>{t("Loading states", "加载状态")}</h3><div className="component-skeleton-preview"><Skeleton /><Skeleton /><Skeleton /></div></Card>
           <Card as="section" className="component-preview-card"><h3>{t("Overlays", "浮层组件")}</h3><div className="component-preview-row"><Button variant="outline" type="button" onClick={() => setDialogOpen(true)}>{t("Open dialog", "打开对话框")}</Button><DropdownMenu><DropdownMenuTrigger render={<Button variant="outline" />}>{t("Open menu", "打开菜单")}</DropdownMenuTrigger><DropdownMenuContent><DropdownMenuItem>{t("Menu item", "菜单项")}</DropdownMenuItem><DropdownMenuItem variant="destructive">{t("Destructive item", "危险操作")}</DropdownMenuItem></DropdownMenuContent></DropdownMenu></div></Card>

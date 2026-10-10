@@ -73,11 +73,13 @@ export default function LoginPage() {
             <Label htmlFor="email">{t("Email", "电子邮箱")}</Label>
             <Input id="email" name="email" type="email" placeholder="name@example.com" value={isLocal ? selectedProfile.email : undefined} readOnly={isLocal} autoComplete="email" required />
             {!isLocal && <>
-              <div className="label-row"><Label htmlFor="password">{t("Password", "密码")}</Label><button type="button" className="auth-text-link">{t("Forgot password?", "忘记密码？")}</button></div>
+              <div className="label-row"><Label htmlFor="password">{t("Password", "密码")}</Label><Button type="button" variant="link" className="auth-text-link">{t("Forgot password?", "忘记密码？")}</Button></div>
               <div className="password-input-wrap">
                 <Input id="password" name="password" type={showPassword ? "text" : "password"} autoComplete="current-password" required />
-                <button
+                <Button
                   className="password-toggle"
+                  variant="ghost"
+                  size="icon"
                   type="button"
                   aria-label={showPassword ? t("Hide password", "隐藏密码") : t("Show password", "显示密码")}
                   aria-pressed={showPassword}
@@ -85,7 +87,7 @@ export default function LoginPage() {
                   onClick={() => setShowPassword((visible) => !visible)}
                 >
                   {showPassword ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}
-                </button>
+                </Button>
               </div>
               <Label className="remember"><Checkbox name="remember" checked={rememberMe} onCheckedChange={setRememberMe} /> <span>{t("Remember me", "记住我")}</span></Label>
             </>}

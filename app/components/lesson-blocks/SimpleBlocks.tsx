@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { renderInline } from "../../lib/lesson-blocks/inline";
 import type {
   BulletListBlock as BulletListModel,
@@ -60,9 +61,9 @@ export function CopyButton({ text }: CopyButtonProps) {
     }
   }
 
-  return <button type="button" className="lesson-copy-button" aria-label="Copy code to clipboard" onClick={copy}>
+  return <Button variant="outline" size="xs" type="button" className="lesson-copy-button" aria-label="Copy code to clipboard" onClick={copy}>
     {state === "copied" ? "Copied" : state === "failed" ? "Copy failed" : "Copy"}
-  </button>;
+  </Button>;
 }
 
 export function CodeBlock({ props }: BlockProps<CodeModel>) {
