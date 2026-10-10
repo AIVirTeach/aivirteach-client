@@ -171,7 +171,6 @@ html[data-scrollbars="hidden"] *::-webkit-scrollbar {
 .label-row { display: flex; align-items: center; justify-content: space-between; margin-top: 18px; }
 .label-row label { margin: 0; }
 .login-card input[type="text"], .login-card input[type="email"], .login-card input[type="password"] { width: 100%; min-height: 54px; border: 1px solid var(--outline); border-radius: 8px; padding: 0 16px; background: #fff; color: var(--ink); font-size: 17px; outline: none; }
-.login-card input::placeholder { color: #7b8794; opacity: 1; }
 .login-card input:focus,
 .login-card input:focus-visible { border-color: #93c5fd !important; box-shadow: none; outline: none !important; }
 .password-input-wrap { position: relative; }
@@ -359,7 +358,6 @@ html[data-interface-version="v1"] .dashboard-shell {
 .search-glyph::after { content: ""; position: absolute; top: 12px; left: 12px; width: 7px; height: 2px; border-radius: 2px; background: currentColor; transform: rotate(45deg); transform-origin: left center; }
 .search-feedback { position: absolute; z-index: 12; top: calc(100% + 7px); left: 10px; max-width: calc(100vw - 32px); padding: 7px 11px; border: 1px solid #d7e2f3; border-radius: 9px; background: #fff; color: var(--ink-soft); font-size: 12px; box-shadow: 0 8px 20px rgba(31, 54, 85, .12); }
 html[data-theme="dark"] .search-box input { border-color: var(--outline); background: var(--surface-lowest); color: var(--ink); }
-html[data-theme="dark"] .search-box input::placeholder { color: #93a4bd; opacity: 1; }
 html[data-theme="dark"] .search-box input:focus { border-color: #6fa8ff; background: var(--surface-low); box-shadow: 0 0 0 3px rgba(111, 168, 255, .14); }
 html[data-theme="dark"] .search-button { background: #254779; color: #a9c8ff; }
 html[data-theme="dark"] .search-button:hover, html[data-theme="dark"] .search-button:focus-visible { background: var(--primary); color: #fff; }
@@ -1914,11 +1912,6 @@ html[data-theme="dark"] .topbar-search-popover .topbar-search-popover-form [data
   color: var(--foreground);
 }
 
-.topbar-search-popover-form input::placeholder {
-  color: var(--ink-soft);
-  opacity: .7;
-}
-
 .topbar-search-popover .search-feedback {
   position: static;
   max-width: none;
@@ -2617,16 +2610,6 @@ html[data-interface-version="brutal"] :is(.theme-choice, .version-choice, .range
   background: var(--ui-menu-item-hover, #d1d5db) !important;
 }
 
-:is(
-  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not([type="hidden"]),
-  textarea,
-  select
-):is(:focus, :focus-visible) {
-  border-color: var(--ui-focus-border, #93c5fd) !important;
-  outline: none !important;
-  box-shadow: none !important;
-}
-
 html[data-ui-customized="true"] [data-slot="button"][data-variant="default"] {
   min-height: var(--ui-button-height) !important;
   border-radius: var(--ui-button-radius) !important;
@@ -3195,13 +3178,38 @@ html[data-theme="dark"]:is([data-ui-customized="true"], [data-interface-version=
 @keyframes floating-ai-dot { 0%, 60%, 100% { opacity: .45; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-5px); } }
 .floating-ai-notification { position: absolute; top: 1px; right: 1px; width: 15px; height: 15px; border: 3px solid var(--surface-lowest); border-radius: 50%; background: #e32828; box-shadow: 0 1px 5px rgba(0, 0, 0, .25); }
 .floating-ai-prompt { position: absolute; top: 50%; right: calc(100% + 12px); width: min(340px, calc(100vw - 104px)); height: 46px; display: flex; align-items: center; gap: 6px; transform: translateY(-50%); border: 1px solid var(--outline); border-radius: 999px; padding: 5px 6px 5px 16px; background: var(--surface-lowest); color: var(--ink); box-shadow: 0 10px 30px rgba(0, 0, 0, .22); touch-action: auto; }
-.floating-ai-prompt:focus-within { border-color: var(--primary); box-shadow: 0 10px 30px rgba(0, 0, 0, .22), 0 0 0 3px color-mix(in srgb, var(--primary) 18%, transparent); }
+.floating-ai-prompt:focus-within { border-color: var(--ui-focus-border, #93c5fd); box-shadow: 0 10px 30px rgba(0, 0, 0, .22), 0 0 0 3px color-mix(in srgb, var(--ui-focus-border, #93c5fd) 28%, transparent); }
 .floating-ai-prompt input { min-width: 0; height: 100%; flex: 1; border: 0; padding: 0 0 0 5px; background: transparent; color: var(--ink); outline: 0; font-size: 13px; }
-.floating-ai-prompt input::placeholder { color: #808080; opacity: 1; }
 .floating-ai-prompt > [data-slot="button"] { width: 34px; min-height: 34px; height: 34px; display: grid; flex: 0 0 34px; place-items: center; border: 0; border-radius: 50%; background: var(--primary); color: var(--primary-foreground); box-shadow: none; transform: none; }
 html[data-interface-version="neubrutal"] .floating-ai-prompt > [data-slot="button"] { border: 0; border-radius: 50%; box-shadow: none; transform: none; }
 .floating-ai-prompt > button:disabled { opacity: .38; }
 .floating-ai-prompt > button svg { width: 15px; height: 15px; }
+
+/* Keep focus and prompt colors consistent after every theme-specific field rule. */
+html :is(
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not([type="hidden"]),
+  textarea,
+  select
+):is(:focus, :focus-visible) {
+  border-color: var(--ui-focus-border, #93c5fd) !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+html :is(
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not([type="hidden"]),
+  textarea
+)::placeholder {
+  color: #9ca3af !important;
+  opacity: 1 !important;
+}
+
+html .floating-ai-prompt input,
+html .floating-ai-prompt input:is(:focus, :focus-visible) {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
 
 .lab-v2-gate { min-height: 100vh; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 14px; padding: 30px; background: var(--surface); text-align: center; }
 .lab-v2-gate .brand-logo { width: 180px; }
