@@ -2675,6 +2675,7 @@ html[data-ui-customized="true"] .settings-card { padding: var(--ui-card-padding)
 .advanced-controls { display: grid; gap: 14px; position: sticky; top: 20px; }
 .advanced-controls fieldset { display: grid; gap: 12px; margin: 0; border: 2px solid var(--ink); padding: 16px; background: var(--surface-lowest); box-shadow: 3px 3px 0 var(--ink); }
 .advanced-controls legend { padding: 0 7px; font-weight: 900; }
+.advanced-control-description { margin: 0; color: var(--ink-soft); font-size: 12px; line-height: 1.5; }
 .advanced-select-control { display: grid; gap: 7px; color: var(--ink); font-size: 13px; font-weight: 750; }
 .advanced-select-control select { width: 100%; min-height: 44px; padding-inline: 12px; }
 .advanced-color-control, .advanced-range-control { display: grid; gap: 7px; color: var(--ink); font-size: 13px; font-weight: 750; }
@@ -3003,52 +3004,100 @@ html[data-interface-version="neubrutal"][data-theme="dark"][data-ui-customized="
 }
 
 /* Per-card colors configured in Advanced Theme Settings. */
-html:is([data-ui-customized="true"], [data-interface-version="neubrutal"]) .dashboard .course-card {
+html[data-theme="light"]:is([data-ui-customized="true"], [data-interface-version="neubrutal"]) .dashboard .course-card {
   background: var(--ui-dashboard-course-card, #ff6b6b) !important;
 }
 
-html:is([data-ui-customized="true"], [data-interface-version="neubrutal"]) .dashboard .stat-stack > :nth-child(1) {
+html[data-theme="light"]:is([data-ui-customized="true"], [data-interface-version="neubrutal"]) .dashboard .stat-stack > :nth-child(1) {
   background: var(--ui-dashboard-streak-card, #4ecdc4) !important;
 }
 
-html:is([data-ui-customized="true"], [data-interface-version="neubrutal"]) .dashboard .stat-stack > :nth-child(2) {
+html[data-theme="light"]:is([data-ui-customized="true"], [data-interface-version="neubrutal"]) .dashboard .stat-stack > :nth-child(2) {
   background: var(--ui-dashboard-practice-card, #ffe66d) !important;
 }
 
-html:is([data-ui-customized="true"], [data-interface-version="neubrutal"]) .dashboard .stat-stack > :nth-child(3) {
+html[data-theme="light"]:is([data-ui-customized="true"], [data-interface-version="neubrutal"]) .dashboard .stat-stack > :nth-child(3) {
   background: var(--ui-dashboard-skills-card, #a8e6cf) !important;
 }
 
-html:is([data-ui-customized="true"], [data-interface-version="neubrutal"]) :is(.analysis .metric-grid, .analysis-v2 .analysis-v2-metrics) > :nth-child(1) {
+html[data-theme="light"]:is([data-ui-customized="true"], [data-interface-version="neubrutal"]) :is(.analysis .metric-grid, .analysis-v2 .analysis-v2-metrics) > :nth-child(1) {
   background: var(--ui-progress-practice-card, #4ecdc4) !important;
 }
 
-html:is([data-ui-customized="true"], [data-interface-version="neubrutal"]) :is(.analysis .metric-grid, .analysis-v2 .analysis-v2-metrics) > :nth-child(2) {
+html[data-theme="light"]:is([data-ui-customized="true"], [data-interface-version="neubrutal"]) :is(.analysis .metric-grid, .analysis-v2 .analysis-v2-metrics) > :nth-child(2) {
   background: var(--ui-progress-tasks-card, #ffe66d) !important;
 }
 
-html:is([data-ui-customized="true"], [data-interface-version="neubrutal"]) :is(.analysis .metric-grid, .analysis-v2 .analysis-v2-metrics) > :nth-child(3) {
+html[data-theme="light"]:is([data-ui-customized="true"], [data-interface-version="neubrutal"]) :is(.analysis .metric-grid, .analysis-v2 .analysis-v2-metrics) > :nth-child(3) {
   background: var(--ui-progress-goal-card, #a8e6cf) !important;
 }
 
-html:is([data-ui-customized="true"], [data-interface-version="neubrutal"]) :is(.analysis .chart-card, .analysis-v2 .analysis-v2-weekly) {
+html[data-theme="light"]:is([data-ui-customized="true"], [data-interface-version="neubrutal"]) :is(.analysis .chart-card, .analysis-v2 .analysis-v2-weekly) {
   background: var(--ui-progress-chart-card, #ffffff) !important;
 }
 
-html:is([data-ui-customized="true"], [data-interface-version="neubrutal"]) :is(.analysis .achievement-row, .analysis-v2 .analysis-v2-achievements > div) > :nth-child(1) {
+html[data-theme="light"]:is([data-ui-customized="true"], [data-interface-version="neubrutal"]) :is(.analysis .achievement-row, .analysis-v2 .analysis-v2-achievements > div) > :nth-child(1) {
   background: var(--ui-progress-achievement-1, #ffffff) !important;
 }
 
-html:is([data-ui-customized="true"], [data-interface-version="neubrutal"]) :is(.analysis .achievement-row, .analysis-v2 .analysis-v2-achievements > div) > :nth-child(2) {
+html[data-theme="light"]:is([data-ui-customized="true"], [data-interface-version="neubrutal"]) :is(.analysis .achievement-row, .analysis-v2 .analysis-v2-achievements > div) > :nth-child(2) {
   background: var(--ui-progress-achievement-2, #ffffff) !important;
 }
 
-html:is([data-ui-customized="true"], [data-interface-version="neubrutal"]) :is(.analysis .achievement-row, .analysis-v2 .analysis-v2-achievements > div) > :nth-child(3) {
+html[data-theme="light"]:is([data-ui-customized="true"], [data-interface-version="neubrutal"]) :is(.analysis .achievement-row, .analysis-v2 .analysis-v2-achievements > div) > :nth-child(3) {
   background: var(--ui-progress-achievement-3, #ffffff) !important;
 }
 
-html:is([data-ui-customized="true"], [data-interface-version="neubrutal"]) :is(.analysis .achievement-row, .analysis-v2 .analysis-v2-achievements > div) > :nth-child(4) {
+html[data-theme="light"]:is([data-ui-customized="true"], [data-interface-version="neubrutal"]) :is(.analysis .achievement-row, .analysis-v2 .analysis-v2-achievements > div) > :nth-child(4) {
   background: var(--ui-progress-achievement-4, #ffffff) !important;
+}
+
+html[data-theme="dark"]:is([data-ui-customized="true"], [data-interface-version="neubrutal"]) .dashboard .course-card {
+  background: var(--ui-dark-dashboard-course-card, #ff7b7b) !important;
+}
+
+html[data-theme="dark"]:is([data-ui-customized="true"], [data-interface-version="neubrutal"]) .dashboard .stat-stack > :nth-child(1) {
+  background: var(--ui-dark-dashboard-streak-card, #5ee1d7) !important;
+}
+
+html[data-theme="dark"]:is([data-ui-customized="true"], [data-interface-version="neubrutal"]) .dashboard .stat-stack > :nth-child(2) {
+  background: var(--ui-dark-dashboard-practice-card, #34303b) !important;
+}
+
+html[data-theme="dark"]:is([data-ui-customized="true"], [data-interface-version="neubrutal"]) .dashboard .stat-stack > :nth-child(3) {
+  background: var(--ui-dark-dashboard-skills-card, #355b5d) !important;
+}
+
+html[data-theme="dark"]:is([data-ui-customized="true"], [data-interface-version="neubrutal"]) :is(.analysis .metric-grid, .analysis-v2 .analysis-v2-metrics) > :nth-child(1) {
+  background: var(--ui-dark-progress-practice-card, #5ee1d7) !important;
+}
+
+html[data-theme="dark"]:is([data-ui-customized="true"], [data-interface-version="neubrutal"]) :is(.analysis .metric-grid, .analysis-v2 .analysis-v2-metrics) > :nth-child(2) {
+  background: var(--ui-dark-progress-tasks-card, #34303b) !important;
+}
+
+html[data-theme="dark"]:is([data-ui-customized="true"], [data-interface-version="neubrutal"]) :is(.analysis .metric-grid, .analysis-v2 .analysis-v2-metrics) > :nth-child(3) {
+  background: var(--ui-dark-progress-goal-card, #355b5d) !important;
+}
+
+html[data-theme="dark"]:is([data-ui-customized="true"], [data-interface-version="neubrutal"]) :is(.analysis .chart-card, .analysis-v2 .analysis-v2-weekly) {
+  background: var(--ui-dark-progress-chart-card, #242129) !important;
+}
+
+html[data-theme="dark"]:is([data-ui-customized="true"], [data-interface-version="neubrutal"]) :is(.analysis .achievement-row, .analysis-v2 .analysis-v2-achievements > div) > :nth-child(1) {
+  background: var(--ui-dark-progress-achievement-1, #242129) !important;
+}
+
+html[data-theme="dark"]:is([data-ui-customized="true"], [data-interface-version="neubrutal"]) :is(.analysis .achievement-row, .analysis-v2 .analysis-v2-achievements > div) > :nth-child(2) {
+  background: var(--ui-dark-progress-achievement-2, #242129) !important;
+}
+
+html[data-theme="dark"]:is([data-ui-customized="true"], [data-interface-version="neubrutal"]) :is(.analysis .achievement-row, .analysis-v2 .analysis-v2-achievements > div) > :nth-child(3) {
+  background: var(--ui-dark-progress-achievement-3, #242129) !important;
+}
+
+html[data-theme="dark"]:is([data-ui-customized="true"], [data-interface-version="neubrutal"]) :is(.analysis .achievement-row, .analysis-v2 .analysis-v2-achievements > div) > :nth-child(4) {
+  background: var(--ui-dark-progress-achievement-4, #242129) !important;
 }
 
 @media (max-width: 760px) {
