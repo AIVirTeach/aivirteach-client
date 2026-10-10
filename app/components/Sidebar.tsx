@@ -67,7 +67,7 @@ export function Sidebar({ active }: SidebarProps) {
         <section className="sidebar-content-section" aria-label={t("Navigation", "导航")}>
           <nav className="side-nav" aria-label={t("Primary navigation", "主导航")}>
             {items.map((item) => (
-              <Button key={item.id} render={<Link href={item.href} />} variant="ghost" className={active === item.id ? "active" : ""} title={collapsed ? t(...item.label) : undefined}>
+              <Button key={item.id} render={<Link href={item.href} />} variant="ghost" className={active === item.id ? "active" : ""} aria-current={active === item.id ? "page" : undefined} title={collapsed ? t(...item.label) : undefined}>
                 <span className={`nav-icon ${item.id === "analysis" ? "progress-nav-icon" : ""} ${item.id === "workspace" ? "learning-lab-nav-icon" : ""}`} aria-hidden="true">
                   {item.id === "dashboard" ? <i className="home-nav-icon" /> : item.id === "analysis" ? <i><b /><b /><b /></i> : item.id === "workspace" ? <i className="lab-code-icon"><b /><b /></i> : item.icon}
                 </span>
@@ -93,7 +93,7 @@ export function Sidebar({ active }: SidebarProps) {
 
         <nav className="top-nav" aria-label={t("Primary navigation", "主导航")}>
           {items.map((item) => (
-            <Button key={item.id} render={<Link href={item.href} />} variant="ghost" className={active === item.id ? "active" : ""}>
+            <Button key={item.id} render={<Link href={item.href} />} variant="ghost" className={active === item.id ? "active" : ""} aria-current={active === item.id ? "page" : undefined}>
               <span className="nav-label">{t(...item.label)}</span>
             </Button>
           ))}
