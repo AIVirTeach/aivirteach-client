@@ -26,14 +26,14 @@ type SettingsToggleProps = {
 function SettingsToggle({ checked, label, offLabel, onLabel, onChange }: SettingsToggleProps) {
   return (
     <div className="settings-toggle">
-      <span className={checked ? "" : "active"}>{offLabel}</span>
+      {offLabel && <span className={checked ? "" : "active"}>{offLabel}</span>}
       <Switch
         className="settings-toggle-control"
         checked={checked}
         aria-label={label}
         onCheckedChange={onChange}
       />
-      <span className={checked ? "active" : ""}>{onLabel}</span>
+      {onLabel && <span className={checked ? "active" : ""}>{onLabel}</span>}
     </div>
   );
 }
@@ -120,8 +120,8 @@ export default function SettingsPage() {
           </Card>
 
           <Card as="article" className="settings-card">
-            <div><span className="settings-card-icon" aria-hidden="true">↕</span><div><h2>{t("Scrollbars", "滚动条")}</h2><p>{t("Keep thin scrollbars visible for orientation, or hide them for a cleaner workspace.", "显示细滚动条以便定位，或将其隐藏以获得更简洁的工作区。")}</p></div></div>
-            <SettingsToggle checked={scrollbarPreference === "hidden"} label={t("Scrollbar visibility", "滚动条显示")} offLabel={t("Visible", "显示")} onLabel={t("Hidden", "隐藏")} onChange={(checked) => chooseScrollbarPreference(checked ? "hidden" : "visible")} />
+            <div><span className="settings-card-icon" aria-hidden="true">↕</span><div><h2>{t("Toggle scrollbar visibility", "切换滚动条显示")}</h2><p>{t("Keep thin scrollbars visible for orientation, or hide them for a cleaner workspace.", "显示细滚动条以便定位，或将其隐藏以获得更简洁的工作区。")}</p></div></div>
+            <SettingsToggle checked={scrollbarPreference === "hidden"} label={t("Toggle scrollbar visibility", "切换滚动条显示")} offLabel="" onLabel="" onChange={(checked) => chooseScrollbarPreference(checked ? "hidden" : "visible")} />
           </Card>
 
           <Card as="article" className="settings-card advanced-settings-card">
