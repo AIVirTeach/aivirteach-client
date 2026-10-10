@@ -2983,6 +2983,55 @@ html[data-interface-version="neubrutal"][data-theme="dark"][data-ui-customized="
   color: var(--ui-dark-text) !important;
 }
 
+/* Per-card colors configured in Advanced Theme Settings. */
+html[data-ui-customized="true"] .dashboard .course-card {
+  background: var(--ui-dashboard-course-card) !important;
+}
+
+html[data-ui-customized="true"] .dashboard .stat-stack > :nth-child(1) {
+  background: var(--ui-dashboard-streak-card) !important;
+}
+
+html[data-ui-customized="true"] .dashboard .stat-stack > :nth-child(2) {
+  background: var(--ui-dashboard-practice-card) !important;
+}
+
+html[data-ui-customized="true"] .dashboard .stat-stack > :nth-child(3) {
+  background: var(--ui-dashboard-skills-card) !important;
+}
+
+html[data-ui-customized="true"] :is(.analysis .metric-grid, .analysis-v2 .analysis-v2-metrics) > :nth-child(1) {
+  background: var(--ui-progress-practice-card) !important;
+}
+
+html[data-ui-customized="true"] :is(.analysis .metric-grid, .analysis-v2 .analysis-v2-metrics) > :nth-child(2) {
+  background: var(--ui-progress-tasks-card) !important;
+}
+
+html[data-ui-customized="true"] :is(.analysis .metric-grid, .analysis-v2 .analysis-v2-metrics) > :nth-child(3) {
+  background: var(--ui-progress-goal-card) !important;
+}
+
+html[data-ui-customized="true"] :is(.analysis .chart-card, .analysis-v2 .analysis-v2-weekly) {
+  background: var(--ui-progress-chart-card) !important;
+}
+
+html[data-ui-customized="true"] :is(.analysis .achievement-row, .analysis-v2 .analysis-v2-achievements > div) > :nth-child(1) {
+  background: var(--ui-progress-achievement-1) !important;
+}
+
+html[data-ui-customized="true"] :is(.analysis .achievement-row, .analysis-v2 .analysis-v2-achievements > div) > :nth-child(2) {
+  background: var(--ui-progress-achievement-2) !important;
+}
+
+html[data-ui-customized="true"] :is(.analysis .achievement-row, .analysis-v2 .analysis-v2-achievements > div) > :nth-child(3) {
+  background: var(--ui-progress-achievement-3) !important;
+}
+
+html[data-ui-customized="true"] :is(.analysis .achievement-row, .analysis-v2 .analysis-v2-achievements > div) > :nth-child(4) {
+  background: var(--ui-progress-achievement-4) !important;
+}
+
 @media (max-width: 760px) {
   .version-choice {
     flex-wrap: wrap;
