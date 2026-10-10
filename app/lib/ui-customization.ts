@@ -3,6 +3,7 @@ export type UiCustomization = {
   menuItemHover: string;
   buttonBackground: string;
   buttonText: string;
+  buttonFocusBackground: string;
   buttonHeight: number;
   buttonFontSize: number;
   buttonRadius: number;
@@ -44,6 +45,7 @@ export const defaultUiCustomization: UiCustomization = {
   menuItemHover: "#d1d5db",
   buttonBackground: "#000000",
   buttonText: "#ffffff",
+  buttonFocusBackground: "#ffe66d",
   buttonHeight: 42,
   buttonFontSize: 14,
   buttonRadius: 0,
@@ -96,7 +98,7 @@ const numberRanges: Record<keyof Pick<UiCustomization, "buttonHeight" | "buttonF
 
 function sanitize(candidate: Partial<UiCustomization>): UiCustomization {
   const next = { ...defaultUiCustomization };
-  for (const key of ["accentColor", "menuItemHover", "buttonBackground", "buttonText", "fieldBackground", "fieldText", "fieldBorder", "focusBorder", "cardBackground", "cardBorder", "darkBackground", "darkSurface", "darkSurfaceMuted", "darkText", "darkTextMuted", "darkBorder", "darkPrimary", "darkSecondary", "dashboardCourseCard", "dashboardStreakCard", "dashboardPracticeCard", "dashboardSkillsCard", "progressPracticeCard", "progressTasksCard", "progressGoalCard", "progressChartCard", "progressAchievement1", "progressAchievement2", "progressAchievement3", "progressAchievement4"] as const) {
+  for (const key of ["accentColor", "menuItemHover", "buttonBackground", "buttonText", "buttonFocusBackground", "fieldBackground", "fieldText", "fieldBorder", "focusBorder", "cardBackground", "cardBorder", "darkBackground", "darkSurface", "darkSurfaceMuted", "darkText", "darkTextMuted", "darkBorder", "darkPrimary", "darkSecondary", "dashboardCourseCard", "dashboardStreakCard", "dashboardPracticeCard", "dashboardSkillsCard", "progressPracticeCard", "progressTasksCard", "progressGoalCard", "progressChartCard", "progressAchievement1", "progressAchievement2", "progressAchievement3", "progressAchievement4"] as const) {
     if (typeof candidate[key] === "string" && colorPattern.test(candidate[key])) next[key] = candidate[key];
   }
   for (const key of Object.keys(numberRanges) as (keyof typeof numberRanges)[]) {
@@ -123,6 +125,7 @@ const cssVariables: Record<keyof UiCustomization, string> = {
   menuItemHover: "--ui-menu-item-hover",
   buttonBackground: "--ui-button-bg",
   buttonText: "--ui-button-text",
+  buttonFocusBackground: "--ui-button-focus-bg",
   buttonHeight: "--ui-button-height",
   buttonFontSize: "--ui-button-font-size",
   buttonRadius: "--ui-button-radius",

@@ -122,6 +122,7 @@ export function AdvancedUiSettings({ t }: { t: Translate }) {
           <fieldset><legend>{t("Buttons", "按钮")}</legend>
             <ColorControl label={t("Background", "背景色")} value={draft.buttonBackground} onChange={(value) => update("buttonBackground", value)} />
             <ColorControl label={t("Text", "文字颜色")} value={draft.buttonText} onChange={(value) => update("buttonText", value)} />
+            <ColorControl label={t("Focused/selected background", "聚焦/选中背景色")} value={draft.buttonFocusBackground} onChange={(value) => update("buttonFocusBackground", value)} />
             <RangeControl label={t("Height", "高度")} value={draft.buttonHeight} minimum={28} maximum={72} onChange={(value) => update("buttonHeight", value)} />
             <RangeControl label={t("Font size", "字号")} value={draft.buttonFontSize} minimum={11} maximum={22} onChange={(value) => update("buttonFontSize", value)} />
             <RangeControl label={t("Corner radius", "圆角")} value={draft.buttonRadius} minimum={0} maximum={32} onChange={(value) => update("buttonRadius", value)} />
