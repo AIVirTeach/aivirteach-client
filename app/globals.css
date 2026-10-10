@@ -2625,6 +2625,11 @@ html[data-ui-customized="true"] [data-slot="button"][data-variant="default"] {
   font-size: var(--ui-button-font-size) !important;
 }
 
+html[data-ui-customized="true"] [data-slot="button"]:focus-visible,
+html[data-ui-customized="true"] .top-nav [data-slot="button"][aria-current="page"] {
+  background: var(--ui-button-focus-bg) !important;
+}
+
 html[data-ui-customized="true"]:not([data-theme="dark"]) {
   --primary: var(--ui-accent);
 }
