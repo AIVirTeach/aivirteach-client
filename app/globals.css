@@ -1083,13 +1083,13 @@ html[data-theme="dark"] .message-form button { border-color: #fff; background: #
 .course-confirm-actions button { min-height: 44px; }
 
 .course-welcome-page { min-width: 0; min-height: 100vh; min-height: 100svh; display: grid; place-items: center; padding: 20px 32px; background: var(--surface); }
-.course-welcome-window { width: min(100%, 1320px); max-height: calc(100svh - 40px); overflow: auto; padding: 18px 28px 20px; border-right: 2px solid var(--ink); border-left: 2px solid var(--ink); }
+.course-welcome-window { width: min(100%, 1320px); height: min(700px, calc(100svh - 40px)); max-height: calc(100svh - 40px); display: flex; overflow: auto; flex-direction: column; padding: 18px 28px 20px; border-right: 2px solid var(--ink); border-left: 2px solid var(--ink); }
 .course-welcome-progress { min-height: 24px; display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-bottom: 12px; }
 .course-welcome-progress > span { color: var(--ink-soft); font-size: 10px; font-weight: 900; text-transform: uppercase; }
 .course-welcome-progress > div { display: flex; gap: 5px; }
 .course-welcome-progress i { width: 28px; height: 3px; background: var(--outline); }
 .course-welcome-progress i.active { background: var(--ink); }
-.course-welcome-grid { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(360px, .9fr); gap: clamp(22px, 3vw, 42px); align-items: start; }
+.course-welcome-grid { min-height: 0; display: grid; flex: 1; grid-template-columns: minmax(0, 1.3fr) minmax(360px, .9fr); gap: clamp(22px, 3vw, 42px); align-items: start; }
 .course-welcome-image { position: sticky; top: 20px; width: 100%; max-height: 52vh; overflow: hidden; aspect-ratio: 16 / 9; margin: 0; border: 2px solid var(--ink); border-radius: 6px; background: #080e22; }
 .course-welcome-image img { width: 100%; height: 100%; display: block; object-fit: contain; }
 .course-overview-copy > p { margin: 0 0 7px; color: var(--primary); font-size: 11px; font-weight: 900; text-transform: uppercase; }
@@ -1106,12 +1106,12 @@ html[data-theme="dark"] .message-form button { border-color: #fff; background: #
 .course-final-outcome { margin-top: 12px; border-left: 3px solid var(--primary); padding: 3px 0 3px 13px; }
 .course-final-outcome strong { font-size: 12px; }
 .course-final-outcome p { margin: 4px 0 0; color: var(--ink-soft); font-size: 11px; line-height: 1.5; }
-.course-how-to-step { width: min(100%, 1040px); margin: 0 auto; }
+.course-how-to-step { width: min(100%, 1040px); min-height: 0; display: flex; flex: 1; flex-direction: column; margin: 0 auto; }
 .course-how-to-step > header { margin-bottom: 14px; text-align: center; }
 .course-how-to-step > header p { margin: 0 0 6px; color: var(--primary); font-size: 10px; font-weight: 900; }
 .course-how-to-step > header h1 { margin: 0; font-size: 28px; letter-spacing: 0; }
 .course-how-to-step > header span { display: block; margin-top: 6px; color: var(--ink-soft); font-size: 13px; }
-.course-video-frame { width: 100%; height: min(46vh, 420px); overflow: hidden; border: 2px solid var(--ink); border-radius: 6px; background: #111; }
+.course-video-frame { width: min(100%, 760px); overflow: hidden; aspect-ratio: 16 / 9; margin: auto; border: 2px solid var(--ink); border-radius: 6px; background: #111; }
 .course-video-frame video { width: 100%; height: 100%; display: block; object-fit: contain; }
 .course-video-placeholder { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 7px; background: #15191e; color: #fff; text-align: center; }
 .course-video-placeholder > span { width: 54px; height: 54px; display: grid; place-items: center; border: 2px solid #fff; border-radius: 50%; }
@@ -1140,7 +1140,7 @@ html[data-theme="dark"] .account-menu-exit { color: #ff9c94 !important; }
   .course-confirm-actions { flex-direction: column-reverse; }
   .course-confirm-actions button { width: 100%; }
   .course-welcome-page { padding: 24px 16px; }
-  .course-welcome-window { padding: 26px 18px 30px; }
+  .course-welcome-window { height: auto; max-height: none; overflow: visible; padding: 26px 18px 30px; }
   .course-welcome-grid { grid-template-columns: 1fr; gap: 30px; }
   .course-welcome-image { position: static; }
   .catalog-image-dialog { max-height: calc(100vh - 28px); padding: 6px; }
