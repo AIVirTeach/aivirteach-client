@@ -1083,8 +1083,11 @@ html[data-theme="dark"] .message-form button { border-color: #fff; background: #
 .course-confirm-actions button { min-height: 44px; }
 
 .course-welcome-page { min-width: 0; min-height: 100vh; min-height: 100svh; display: grid; place-items: center; padding: 20px 32px; background: var(--surface); }
-.course-welcome-window { width: min(100%, 1320px); height: min(700px, calc(100svh - 40px)); max-height: calc(100svh - 40px); display: flex; overflow: auto; flex-direction: column; padding: 18px 28px 20px; border-right: 2px solid var(--ink); border-left: 2px solid var(--ink); }
-.course-welcome-progress { min-height: 24px; display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-bottom: 12px; }
+.course-welcome-window { position: relative; width: min(100%, 1320px); height: min(700px, calc(100svh - 40px)); max-height: calc(100svh - 40px); display: flex; overflow: auto; flex-direction: column; padding: 18px 28px 20px; border-right: 2px solid var(--ink); border-left: 2px solid var(--ink); }
+.course-welcome-close[data-slot="button"] { position: absolute; z-index: 2; top: 14px; right: 20px; width: 34px; min-height: 34px; height: 34px; border: 2px solid var(--ink); border-radius: 3px; padding: 0; background: var(--surface-lowest); color: var(--ink); box-shadow: 3px 3px 0 var(--ink); }
+.course-welcome-close[data-slot="button"]:hover { background: var(--surface-container); box-shadow: 1px 1px 0 var(--ink); transform: translate(2px, 2px); }
+.course-welcome-close svg { width: 17px; height: 17px; stroke-width: 3; }
+.course-welcome-progress { min-height: 34px; display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-bottom: 8px; padding-right: 48px; }
 .course-welcome-progress > span { color: var(--ink-soft); font-size: 10px; font-weight: 900; text-transform: uppercase; }
 .course-welcome-progress > div { display: flex; gap: 5px; }
 .course-welcome-progress i { width: 28px; height: 3px; background: var(--outline); }

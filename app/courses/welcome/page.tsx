@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { api, ApiError, courseAssetUrl, type ApiCourseDetail, type ApiCourseWelcome } from "../../lib/api";
@@ -92,6 +93,17 @@ export default function CourseWelcomePage() {
         <p className="course-welcome-loading" role="status">{t("Preparing your course...", "正在准备课程……")}</p>
       ) : course && welcome ? (
         <Card as="section" className="course-welcome-window" aria-label={`${course.title} welcome`}>
+          <Button
+            className="course-welcome-close"
+            variant="outline"
+            size="icon"
+            type="button"
+            onClick={() => router.replace("/courses")}
+            aria-label={t("Leave course welcome", "退出课程欢迎页")}
+            title={t("Leave course welcome", "退出课程欢迎页")}
+          >
+            <XIcon aria-hidden="true" />
+          </Button>
           <header className="course-welcome-progress">
             <span>{t(`${step} of 2`, `第 ${step} 步，共 2 步`)}</span>
             <div aria-hidden="true"><i className="active" /><i className={step === 2 ? "active" : ""} /></div>
