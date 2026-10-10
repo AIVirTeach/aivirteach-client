@@ -2651,10 +2651,8 @@ html[data-ui-customized="true"] [data-slot="card"] {
 
 html[data-ui-customized="true"] .settings-card { padding: var(--ui-card-padding) !important; }
 
-.settings-tabs { width: fit-content; display: flex; gap: 4px; margin: 0 0 22px; border: 2px solid var(--ink); padding: 4px; background: var(--surface-lowest); box-shadow: 3px 3px 0 var(--ink); }
-.settings-tabs button { min-width: 112px; min-height: 38px; border: 0; padding: 0 16px; background: transparent; color: var(--ink); font-weight: 800; }
-.settings-tabs button.active { background: var(--ink); color: var(--surface-lowest); }
-.settings-tabs button:focus-visible { outline-color: var(--ui-focus-border, #93c5fd) !important; }
+.advanced-settings-card .advanced-setting-icon { font-size: 22px; }
+.advanced-settings-back { margin-bottom: 18px; }
 
 .advanced-settings { display: grid; gap: 22px; }
 .advanced-settings-intro { display: grid; grid-template-columns: minmax(260px, .8fr) minmax(300px, 1.2fr); align-items: end; gap: 28px; border: 2px solid var(--ink); padding: 22px; background: var(--surface-lowest); box-shadow: 4px 4px 0 var(--ink); }
@@ -2693,8 +2691,6 @@ html[data-ui-customized="true"] .settings-card { padding: var(--ui-card-padding)
 }
 
 @media (max-width: 700px) {
-  .settings-tabs { width: 100%; }
-  .settings-tabs button { min-width: 0; flex: 1; }
   .advanced-settings-intro { grid-template-columns: 1fr; gap: 12px; }
   .advanced-controls, .component-catalog { grid-template-columns: 1fr; }
 }

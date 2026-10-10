@@ -84,11 +84,6 @@ export default function SettingsPage() {
           <p>{t("Personalize how AIVir Teacher looks and works for you.", "个性化 AIVir Teacher 的外观与使用方式。")}</p>
         </header>
 
-        <nav className="settings-tabs" aria-label={t("Settings sections", "设置分区")}>
-          <button type="button" className={settingsTab === "general" ? "active" : ""} aria-current={settingsTab === "general" ? "page" : undefined} onClick={() => setSettingsTab("general")}>{t("General", "常规")}</button>
-          <button type="button" className={settingsTab === "advanced" ? "active" : ""} aria-current={settingsTab === "advanced" ? "page" : undefined} onClick={() => setSettingsTab("advanced")}>{t("Advanced", "高级")}</button>
-        </nav>
-
         {settingsTab === "general" ? <section className="settings-list" aria-label={t("Application settings", "应用设置")}>
           <Card as="article" className="settings-card">
             <div><span className="settings-card-icon profile-setting-icon" aria-hidden="true" /><div><h2>{t("Profile", "个人资料")}</h2><p>{t("Update your learner name, focus, and demo account details.", "更新学习者姓名、学习方向和演示账户资料。")}</p></div></div>
@@ -131,6 +126,11 @@ export default function SettingsPage() {
             <SettingsToggle checked={scrollbarPreference === "hidden"} label={t("Scrollbar visibility", "滚动条显示")} offLabel={t("Visible", "显示")} onLabel={t("Hidden", "隐藏")} onChange={(checked) => chooseScrollbarPreference(checked ? "hidden" : "visible")} />
           </Card>
 
+          <Card as="article" className="settings-card advanced-settings-card">
+            <div><span className="settings-card-icon advanced-setting-icon" aria-hidden="true">⚙</span><div><h2>{t("Advanced settings", "高级设置")}</h2><p>{t("Preview and customize shared component colors, sizes, spacing, and focus styles.", "预览并自定义共享组件的颜色、尺寸、间距和聚焦样式。")}</p></div></div>
+            <Button variant="outline" type="button" onClick={() => setSettingsTab("advanced")}>{t("Open advanced", "打开高级设置")}</Button>
+          </Card>
+
           <Card as="article" className="settings-card">
             <div><span className="settings-card-icon notification-setting-icon" aria-hidden="true" /><div><h2>{t("Notifications", "通知")}</h2><p>{t("Control reminders, milestones, and learning updates.", "管理提醒、里程碑和学习更新。")}</p></div></div>
             <Button variant="outline" type="button" disabled>{t("Manage", "管理")} <small>{t("Coming soon", "即将推出")}</small></Button>
@@ -145,7 +145,10 @@ export default function SettingsPage() {
             <div><span className="settings-card-icon logout-setting-icon" aria-hidden="true" /><div><h2>{t("Log out", "退出登录")}</h2><p>{t("Return to the sign-in screen. Your demo progress and preferences will stay saved.", "返回登录页面。你的演示进度和偏好设置会继续保留。")}</p></div></div>
             <Button className="logout-button" variant="destructive" type="button" onClick={logOut}>{t("Log out", "退出登录")}</Button>
           </Card>
-        </section> : <AdvancedUiSettings t={t} />}
+        </section> : <>
+          <div className="advanced-settings-back"><Button variant="outline" type="button" onClick={() => setSettingsTab("general")}>← {t("Back to settings", "返回设置")}</Button></div>
+          <AdvancedUiSettings t={t} />
+        </>}
       </main>
     </div>
   );
