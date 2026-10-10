@@ -99,6 +99,7 @@ export function AdvancedUiSettings({ t }: { t: Translate }) {
           <fieldset><legend>{t("Brand and feedback", "品牌与反馈")}</legend>
             <ColorControl label={t("Accent color", "强调色")} value={draft.accentColor} onChange={(value) => update("accentColor", value)} />
             <ColorControl label={t("Focused field border", "字段聚焦边框")} value={draft.focusBorder} onChange={(value) => update("focusBorder", value)} />
+            <ColorControl label={t("Menu item hover", "菜单项悬停色")} value={draft.menuItemHover} onChange={(value) => update("menuItemHover", value)} />
           </fieldset>
           <fieldset><legend>{t("Buttons", "按钮")}</legend>
             <ColorControl label={t("Background", "背景色")} value={draft.buttonBackground} onChange={(value) => update("buttonBackground", value)} />

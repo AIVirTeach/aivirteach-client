@@ -1,5 +1,6 @@
 export type UiCustomization = {
   accentColor: string;
+  menuItemHover: string;
   buttonBackground: string;
   buttonText: string;
   buttonHeight: number;
@@ -20,6 +21,7 @@ export type UiCustomization = {
 
 export const defaultUiCustomization: UiCustomization = {
   accentColor: "#2563eb",
+  menuItemHover: "#d1d5db",
   buttonBackground: "#000000",
   buttonText: "#ffffff",
   buttonHeight: 42,
@@ -54,7 +56,7 @@ const numberRanges: Record<keyof Pick<UiCustomization, "buttonHeight" | "buttonF
 
 function sanitize(candidate: Partial<UiCustomization>): UiCustomization {
   const next = { ...defaultUiCustomization };
-  for (const key of ["accentColor", "buttonBackground", "buttonText", "fieldBackground", "fieldText", "fieldBorder", "focusBorder", "cardBackground", "cardBorder"] as const) {
+  for (const key of ["accentColor", "menuItemHover", "buttonBackground", "buttonText", "fieldBackground", "fieldText", "fieldBorder", "focusBorder", "cardBackground", "cardBorder"] as const) {
     if (typeof candidate[key] === "string" && colorPattern.test(candidate[key])) next[key] = candidate[key];
   }
   for (const key of Object.keys(numberRanges) as (keyof typeof numberRanges)[]) {
@@ -78,6 +80,7 @@ export function getStoredUiCustomization(): UiCustomization | null {
 
 const cssVariables: Record<keyof UiCustomization, string> = {
   accentColor: "--ui-accent",
+  menuItemHover: "--ui-menu-item-hover",
   buttonBackground: "--ui-button-bg",
   buttonText: "--ui-button-text",
   buttonHeight: "--ui-button-height",
