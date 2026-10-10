@@ -516,10 +516,10 @@ html[data-theme="dark"] .search-button:hover, html[data-theme="dark"] .search-bu
 .settings-toggle { display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: flex-end; gap: 10px; }
 .settings-toggle > span { color: var(--ink-soft); font-size: 13px; font-weight: 800; }
 .settings-toggle > span.active { color: var(--ink); }
-.settings-toggle-control { position: relative; width: 54px; height: 30px; flex: 0 0 54px; border: 2px solid var(--ink); border-radius: 999px; padding: 2px; background: var(--surface-container); color: inherit; cursor: pointer; box-shadow: none; transform: none; transition: background .18s ease; }
-.settings-toggle-control > span { display: block; width: 22px; height: 22px; border: 2px solid var(--ink); border-radius: 50%; background: var(--surface-lowest); transform: translateX(0); transition: transform .18s ease, background .18s ease; }
+.settings-toggle-control { position: relative; width: 54px; height: 30px; flex: 0 0 54px; border: 2px solid var(--ink); border-radius: 999px; padding: 0; background: var(--surface-container); color: inherit; cursor: pointer; box-shadow: none; transform: none; transition: background .18s ease; }
+.settings-toggle-control > [data-slot="switch-thumb"] { position: absolute; top: 50%; left: 2px; display: block; width: 22px; height: 22px; border: 2px solid var(--ink); border-radius: 50%; background: var(--surface-lowest); transform: translateY(-50%) !important; transition: left .18s ease, background .18s ease; }
 .settings-toggle-control[aria-checked="true"] { background: var(--primary); }
-.settings-toggle-control[aria-checked="true"] > span { background: #fff; transform: translateX(24px); }
+.settings-toggle-control[aria-checked="true"] > [data-slot="switch-thumb"] { left: calc(100% - 24px); background: #fff; transform: translate(-2px, -50%) !important; }
 .settings-toggle-control:hover, .settings-toggle-control:active { transform: none !important; }
 .settings-toggle-control:focus-visible { outline: 3px solid var(--primary-light); outline-offset: 3px; }
 .settings-select { position: relative; min-width: 220px; display: block; }
@@ -2713,11 +2713,11 @@ html[data-interface-version="brutal"] .settings-toggle-control[aria-checked="tru
   background: #2563eb;
 }
 
-html[data-interface-version="brutal"] .settings-toggle-control > span {
+html[data-interface-version="brutal"] .settings-toggle-control > [data-slot="switch-thumb"] {
   border-color: #000;
   border-radius: 0;
   background: #facc15;
-  transition: transform .18s ease;
+  transition: left .18s ease, background .18s ease;
 }
 
 html[data-interface-version="brutal"] .settings-toggle-control:hover,
