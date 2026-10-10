@@ -17,6 +17,14 @@ export type UiCustomization = {
   cardBorder: string;
   cardRadius: number;
   cardPadding: number;
+  darkBackground: string;
+  darkSurface: string;
+  darkSurfaceMuted: string;
+  darkText: string;
+  darkTextMuted: string;
+  darkBorder: string;
+  darkPrimary: string;
+  darkSecondary: string;
 };
 
 export const defaultUiCustomization: UiCustomization = {
@@ -38,6 +46,14 @@ export const defaultUiCustomization: UiCustomization = {
   cardBorder: "#000000",
   cardRadius: 0,
   cardPadding: 24,
+  darkBackground: "#141218",
+  darkSurface: "#242129",
+  darkSurfaceMuted: "#34303b",
+  darkText: "#fff8e7",
+  darkTextMuted: "#cfc7d8",
+  darkBorder: "#fff8e7",
+  darkPrimary: "#ff7b7b",
+  darkSecondary: "#5ee1d7",
 };
 
 const storageKey = "aivirteach-ui-customization";
@@ -56,7 +72,7 @@ const numberRanges: Record<keyof Pick<UiCustomization, "buttonHeight" | "buttonF
 
 function sanitize(candidate: Partial<UiCustomization>): UiCustomization {
   const next = { ...defaultUiCustomization };
-  for (const key of ["accentColor", "menuItemHover", "buttonBackground", "buttonText", "fieldBackground", "fieldText", "fieldBorder", "focusBorder", "cardBackground", "cardBorder"] as const) {
+  for (const key of ["accentColor", "menuItemHover", "buttonBackground", "buttonText", "fieldBackground", "fieldText", "fieldBorder", "focusBorder", "cardBackground", "cardBorder", "darkBackground", "darkSurface", "darkSurfaceMuted", "darkText", "darkTextMuted", "darkBorder", "darkPrimary", "darkSecondary"] as const) {
     if (typeof candidate[key] === "string" && colorPattern.test(candidate[key])) next[key] = candidate[key];
   }
   for (const key of Object.keys(numberRanges) as (keyof typeof numberRanges)[]) {
@@ -97,6 +113,14 @@ const cssVariables: Record<keyof UiCustomization, string> = {
   cardBorder: "--ui-card-border",
   cardRadius: "--ui-card-radius",
   cardPadding: "--ui-card-padding",
+  darkBackground: "--ui-dark-background",
+  darkSurface: "--ui-dark-surface",
+  darkSurfaceMuted: "--ui-dark-surface-muted",
+  darkText: "--ui-dark-text",
+  darkTextMuted: "--ui-dark-text-muted",
+  darkBorder: "--ui-dark-border",
+  darkPrimary: "--ui-dark-primary",
+  darkSecondary: "--ui-dark-secondary",
 };
 
 const pixelValues = new Set<keyof UiCustomization>(["buttonHeight", "buttonFontSize", "buttonRadius", "fieldHeight", "fieldFontSize", "fieldRadius", "cardRadius", "cardPadding"]);
@@ -108,7 +132,7 @@ export function previewUiCustomization(settings: UiCustomization) {
   for (const key of Object.keys(cssVariables) as (keyof UiCustomization)[]) {
     root.style.setProperty(cssVariables[key], `${safe[key]}${pixelValues.has(key) ? "px" : ""}`);
   }
-  root.style.setProperty("--primary", safe.accentColor);
+  root.style.removeProperty("--primary");
   root.style.setProperty("--ring", safe.focusBorder);
 }
 

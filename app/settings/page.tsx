@@ -6,43 +6,17 @@ import { useLayoutEffect, useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Select } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { Sidebar } from "../components/Sidebar";
 import { AdvancedUiSettings } from "../components/AdvancedUiSettings";
 import { api } from "../lib/api";
-import { applyInterfaceVersion, getServerInterfaceVersion, getStoredInterfaceVersion, subscribeToInterfaceVersion, type InterfaceVersion } from "../lib/interface-version";
 import { applyLearningLanguage, localize, useLearningLanguage, type LearningLanguage } from "../lib/language";
 import { applyTheme, getServerTheme, getStoredTheme, subscribeToTheme, type Theme } from "../lib/theme";
 import { applyScrollbarPreference, getServerScrollbarPreference, getStoredScrollbarPreference, subscribeToScrollbarPreference, type ScrollbarPreference } from "../lib/scrollbar-preference";
-
-type SettingsToggleProps = {
-  checked: boolean;
-  label: string;
-  offLabel: string;
-  onLabel: string;
-  onChange: (checked: boolean) => void;
-};
-
-function SettingsToggle({ checked, label, offLabel, onLabel, onChange }: SettingsToggleProps) {
-  return (
-    <div className="settings-toggle">
-      {offLabel && <span className={checked ? "" : "active"}>{offLabel}</span>}
-      <Switch
-        className="settings-toggle-control"
-        checked={checked}
-        aria-label={label}
-        onCheckedChange={onChange}
-      />
-      {onLabel && <span className={checked ? "active" : ""}>{onLabel}</span>}
-    </div>
-  );
-}
 
 export default function SettingsPage() {
   const router = useRouter();
   const [settingsTab, setSettingsTab] = useState<"general" | "advanced">("general");
   const theme = useSyncExternalStore(subscribeToTheme, getStoredTheme, getServerTheme);
-  const interfaceVersion = useSyncExternalStore(subscribeToInterfaceVersion, getStoredInterfaceVersion, getServerInterfaceVersion);
   const learningLanguage = useLearningLanguage();
   const t = (english: string, chinese: string) => localize(learningLanguage, english, chinese);
   const scrollbarPreference = useSyncExternalStore(subscribeToScrollbarPreference, getStoredScrollbarPreference, getServerScrollbarPreference);
@@ -54,10 +28,6 @@ export default function SettingsPage() {
 
   function chooseTheme(nextTheme: Theme) {
     applyTheme(nextTheme);
-  }
-
-  function chooseInterfaceVersion(nextVersion: InterfaceVersion) {
-    applyInterfaceVersion(nextVersion);
   }
 
   function chooseLearningLanguage(nextLanguage: LearningLanguage) {
@@ -89,21 +59,6 @@ export default function SettingsPage() {
           </Card>
 
           <Card as="article" className="settings-card">
-            <div><span className="settings-card-icon version-setting-icon" aria-hidden="true">V</span><div><h2>{t("Design theme", "设计主题")}</h2><p>{t("Choose the visual style used across the frontend.", "选择整个前端使用的视觉风格。")}</p></div></div>
-            <label className="settings-select">
-              <span>{t("Design theme", "设计主题")}</span>
-              <Select value={interfaceVersion} onChange={(event) => chooseInterfaceVersion(event.target.value as InterfaceVersion)}>
-                <option value="v1">{t("Original V1", "原版 V1")}</option>
-                <option value="v2">{t("Modern V2", "现代 V2")}</option>
-                <option value="soft">{t("Soft neumorphism", "柔和新拟态")}</option>
-                <option value="soft-brutal">{t("Soft brutalism", "柔和粗野主义")}</option>
-                <option value="brutal">{t("Brutalism V2", "粗野主义 V2")}</option>
-                <option value="neubrutal">{t("Neubrutalism", "新粗野主义")}</option>
-              </Select>
-            </label>
-          </Card>
-
-          <Card as="article" className="settings-card">
             <div><span className="settings-card-icon" aria-hidden="true">文</span><div><h2>{t("Language", "语言")}</h2><p>{t("Change the language across AIVirTeach, including Learning Lab V2.", "更改整个 AIVirTeach（包括学习实验室 V2）的语言。")}</p></div></div>
             <label className="settings-select">
               <span>{t("Application language", "应用语言")}</span>
@@ -116,17 +71,21 @@ export default function SettingsPage() {
 
           <Card as="article" className="settings-card">
             <div><span className="settings-card-icon theme-icon" aria-hidden="true" /><div><h2>{t("Theme", "外观主题")}</h2><p>{t("Choose the appearance that is most comfortable for you.", "选择最适合你的显示外观。")}</p></div></div>
-            <SettingsToggle checked={theme === "dark"} label={t("Color theme", "颜色主题")} offLabel={t("Light", "浅色")} onLabel={t("Dark", "深色")} onChange={(checked) => chooseTheme(checked ? "dark" : "light")} />
+            <Button className="settings-action-toggle" variant="outline" type="button" aria-label={theme === "dark" ? t("Switch to light theme", "切换到浅色主题") : t("Switch to dark theme", "切换到深色主题")} onClick={() => chooseTheme(theme === "dark" ? "light" : "dark")}>
+              {theme === "dark" ? t("Light", "浅色") : t("Dark", "深色")}
+            </Button>
           </Card>
 
           <Card as="article" className="settings-card">
             <div><span className="settings-card-icon" aria-hidden="true">↕</span><div><h2>{t("Toggle scrollbar visibility", "切换滚动条显示")}</h2><p>{t("Keep thin scrollbars visible for orientation, or hide them for a cleaner workspace.", "显示细滚动条以便定位，或将其隐藏以获得更简洁的工作区。")}</p></div></div>
-            <SettingsToggle checked={scrollbarPreference === "hidden"} label={t("Toggle scrollbar visibility", "切换滚动条显示")} offLabel="" onLabel="" onChange={(checked) => chooseScrollbarPreference(checked ? "hidden" : "visible")} />
+            <Button className="settings-action-toggle" variant="outline" type="button" aria-label={scrollbarPreference === "hidden" ? t("Show scrollbars", "显示滚动条") : t("Hide scrollbars", "隐藏滚动条")} onClick={() => chooseScrollbarPreference(scrollbarPreference === "hidden" ? "visible" : "hidden")}>
+              {scrollbarPreference === "hidden" ? t("Show", "显示") : t("Hide", "隐藏")}
+            </Button>
           </Card>
 
           <Card as="article" className="settings-card advanced-settings-card">
-            <div><span className="settings-card-icon advanced-setting-icon" aria-hidden="true">⚙</span><div><h2>{t("Advanced settings", "高级设置")}</h2><p>{t("Preview and customize shared component colors, sizes, spacing, and focus styles.", "预览并自定义共享组件的颜色、尺寸、间距和聚焦样式。")}</p></div></div>
-            <Button variant="outline" type="button" onClick={() => setSettingsTab("advanced")}>{t("Open advanced", "打开高级设置")}</Button>
+            <div><span className="settings-card-icon advanced-setting-icon" aria-hidden="true">⚙</span><div><h2>{t("Advanced theme settings", "高级主题设置")}</h2><p>{t("Choose an interface style and customize shared component colors, sizes, spacing, and focus styles.", "选择界面风格，并自定义共享组件的颜色、尺寸、间距和聚焦样式。")}</p></div></div>
+            <Button variant="outline" type="button" onClick={() => setSettingsTab("advanced")}>{t("Open themes", "打开主题设置")}</Button>
           </Card>
 
           <Card as="article" className="settings-card">
