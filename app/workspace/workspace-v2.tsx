@@ -205,11 +205,22 @@ export function WorkspaceV2() {
   }, [enrollment]);
 
   useEffect(() => {
-    if (!enrollment || workspace?.status !== "CREATING") return;
+    if (!enrollment || (workspace?.status !== "CREATING" && workspace?.status !== "RESETTING")) return;
+    let active = true;
     const timer = window.setInterval(() => {
-      api.workspace(enrollment.id).then(setWorkspace).catch(() => undefined);
+      api.workspace(enrollment.id)
+        .then((updated) => { if (active) setWorkspace(updated); })
+        .catch(async (caught) => {
+          if (!active || !(caught instanceof ApiError) || caught.status !== 404) return;
+          try {
+            const created = await api.createWorkspace(enrollment.id);
+            if (active) setWorkspace(created);
+          } catch {
+            // 清理结束后重试创建。
+          }
+        });
     }, 10000);
-    return () => window.clearInterval(timer);
+    return () => { active = false; window.clearInterval(timer); };
   }, [enrollment, workspace?.status]);
 
   // 与 V1 一致：运行中每 60 秒发心跳（仅页面可见且有焦点时），关标签页时 sendBeacon 立即停 VM。
@@ -587,7 +598,7 @@ export function WorkspaceV2() {
 
       <main className="lab-v2-vm vm-workspace">
         <header className="vm-toolbar"><div><span className="vm-status-dot" aria-hidden="true" /><strong>{t("Learning VM", "学习虚拟机")}</strong></div><div className="lab-v2-vm-status"><small>{workspace?.status === "RUNNING" && consoleSession ? t("Connected workspace", "工作区已连接") : t("Awaiting connection", "等待连接")}</small><span className={`lab-v2-latency ${latency === null ? "is-offline" : ""}`} role="img" aria-label={latency === null ? t("Server connection unavailable", "服务器连接不可用") : t(`Server latency ${latency} milliseconds`, `服务器延迟 ${latency} 毫秒`)} title={latency === null ? t("Server connection unavailable", "服务器连接不可用") : `${latency} ms`}>{latency === null ? <WifiOff aria-hidden="true" /> : <Wifi aria-hidden="true" />}</span>{workspace?.status === "RUNNING" && <Button type="button" variant="destructive" size="xs" className="vm-close-button" onClick={closeEnvironment} disabled={stopping}>{stopping ? t("Closing...", "正在关闭……") : t("Close environment", "关闭环境")}</Button>}</div></header>
-        {panel === "console" && consoleSession?.data ? <ConsoleViewer ref={consoleViewerRef} data={consoleSession.data} labId={consoleSession.labId} enrollmentId={enrollment.id} onError={handleConsoleError} /> : panel === "start-console" ? <section className="vm-empty-state" role="status"><span className="vm-display-icon" aria-hidden="true" /><h2>Learning VM</h2>{consoleError && <Alert className="auth-error" variant="destructive">{consoleError}</Alert>}<Button size="lg" type="button" onClick={() => void startConsoleSession()} disabled={consoleLoading}>{consoleLoading ? "Starting..." : "Start remote desktop"}</Button></section> : panel === "stopped" ? <section className="vm-empty-state" role="status"><span className="vm-display-icon" aria-hidden="true" /><h2>Learning VM</h2><p>Your Learning VM is closed. Resume it to keep working.</p>{resumeError && <Alert className="auth-error" variant="destructive">{resumeError}</Alert>}<Button size="lg" type="button" onClick={resumeWorkspace} disabled={resuming}>{resuming ? "Resuming..." : "Resume learning environment"}</Button></section> : panel === "error" ? <section className="vm-empty-state" role="status"><span className="vm-display-icon" aria-hidden="true" /><h2>Learning VM</h2><p>{workspace?.errorMessage || "Could not start your Learning VM."}</p><Button size="lg" type="button" onClick={retryWorkspace} disabled={retrying}>{retrying ? "Retrying..." : "Retry"}</Button></section> : <section className="vm-empty-state" role="status"><span className="vm-display-icon" aria-hidden="true" /><h2>Learning VM</h2><p>Preparing your Learning VM. This can take a few minutes.</p></section>}
+        {panel === "console" && consoleSession?.data ? <ConsoleViewer ref={consoleViewerRef} data={consoleSession.data} labId={consoleSession.labId} enrollmentId={enrollment.id} onError={handleConsoleError} /> : panel === "start-console" ? <section className="vm-empty-state" role="status"><span className="vm-display-icon" aria-hidden="true" /><h2>Learning VM</h2>{consoleError && <Alert className="auth-error" variant="destructive">{consoleError}</Alert>}<Button size="lg" type="button" onClick={() => void startConsoleSession()} disabled={consoleLoading}>{consoleLoading ? "Starting..." : "Start remote desktop"}</Button></section> : panel === "stopped" ? <section className="vm-empty-state" role="status"><span className="vm-display-icon" aria-hidden="true" /><h2>Learning VM</h2><p>Your Learning VM is closed. Resume it to keep working.</p>{resumeError && <Alert className="auth-error" variant="destructive">{resumeError}</Alert>}<Button size="lg" type="button" onClick={resumeWorkspace} disabled={resuming}>{resuming ? "Resuming..." : "Resume learning environment"}</Button></section> : panel === "error" ? <section className="vm-empty-state" role="status"><span className="vm-display-icon" aria-hidden="true" /><h2>Learning VM</h2><p>{workspace?.errorMessage || "Could not start your Learning VM."}</p><Button size="lg" type="button" onClick={retryWorkspace} disabled={retrying}>{retrying ? "Retrying..." : "Retry"}</Button></section> : <section className="vm-empty-state" role="status"><span className="vm-display-icon" aria-hidden="true" /><h2>Learning VM</h2><p>{workspace?.status === "RESETTING" ? t("Clearing the previous Learning VM. This can take a few minutes.", "正在清理之前的学习虚拟机，可能需要几分钟。") : t("Preparing your Learning VM. This can take a few minutes.", "正在准备学习虚拟机，可能需要几分钟。")}</p></section>}
       </main>
 
       <Dialog open={envVariablesOpen} onOpenChange={setEnvVariablesOpen}>

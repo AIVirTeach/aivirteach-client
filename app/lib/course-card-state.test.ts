@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { courseCardState, courseEntryPath, resolveEnrollmentStatus } from "./course-card-state";
+import { courseCardState, courseEntryPath, courseEntryPathAfterEnroll, courseIdAfterRestart, resolveEnrollmentStatus } from "./course-card-state";
 
 describe("courseCardState", () => {
   it("没有报名记录：未开始，只显示 Start", () => {
@@ -8,6 +8,10 @@ describe("courseCardState", () => {
 
   it("当前课即使尚未记录进度，也显示 Restart + Continue 而不是自相矛盾的 Start", () => {
     expect(courseCardState("not_started", true)).toEqual({ status: "not_started", isCurrent: true, actions: ["restart", "continue"] });
+  });
+
+  it("刚 restart 的课程不再标记为当前，按钮回到 Start", () => {
+    expect(courseCardState("not_started", false)).toEqual({ status: "not_started", isCurrent: false, actions: ["start"] });
   });
 
   it("学习中（包括暂停的课）：Restart + Continue", () => {
@@ -26,6 +30,13 @@ describe("courseCardState", () => {
 
   it("旧服务端没有 status，但这门课是当前课：按学习中处理，保留 Continue / Restart", () => {
     expect(courseCardState(undefined, true)).toEqual({ status: "in_progress", isCurrent: true, actions: ["restart", "continue"] });
+  });
+});
+
+describe("courseIdAfterRestart", () => {
+  it("重启其它课程也清除原来的当前课程", () => {
+    expect(courseIdAfterRestart({ courseId: "course-b", active: false })).toBeNull();
+    expect(courseIdAfterRestart({ courseId: "course-b", active: true })).toBe("course-b");
   });
 });
 
@@ -49,6 +60,19 @@ describe("resolveEnrollmentStatus", () => {
 });
 
 describe("courseEntryPath", () => {
+  it("重启后再次报名：首次进欢迎页，卡片随后显示 Continue 并进入工作区", () => {
+    const before = "not_started";
+    const after = resolveEnrollmentStatus("in_progress", true);
+    expect(courseEntryPathAfterEnroll(before, after)).toBe("/courses/welcome");
+    expect(courseCardState(after, true).actions).toEqual(["restart", "continue"]);
+    expect(courseEntryPath(after)).toBe("/workspace");
+  });
+
+  it("全新或重启后的课程 enroll 虽返回 in_progress，仍先进入欢迎页", () => {
+    expect(courseEntryPathAfterEnroll("not_started", "in_progress")).toBe("/courses/welcome");
+    expect(courseEntryPathAfterEnroll(undefined, "in_progress")).toBe("/courses/welcome");
+    expect(courseEntryPathAfterEnroll("in_progress", "in_progress")).toBe("/workspace");
+  });
   it("学习中直接进 workspace，其余先看欢迎页", () => {
     expect(courseEntryPath("in_progress")).toBe("/workspace");
     expect(courseEntryPath("not_started")).toBe("/courses/welcome");

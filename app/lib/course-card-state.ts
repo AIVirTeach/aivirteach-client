@@ -39,3 +39,18 @@ export function courseCardState(status: EnrollmentStatus | undefined, isCurrent:
 export function courseEntryPath(status: EnrollmentStatus | undefined): "/workspace" | "/courses/welcome" {
   return status === "in_progress" ? "/workspace" : "/courses/welcome";
 }
+
+// enroll 的结果表示“已经开始”，不能用它判断是否需要首次欢迎页。
+export function courseEntryPathAfterEnroll(
+  before: EnrollmentStatus | undefined,
+  after: EnrollmentStatus | undefined,
+): "/workspace" | "/courses/welcome" {
+  return before === undefined || before === "not_started"
+    ? "/courses/welcome"
+    : courseEntryPath(after ?? before);
+}
+
+// Restart deactivates every enrollment, including a different currently active course.
+export function courseIdAfterRestart(enrollment: { courseId: string; active: boolean }): string | null {
+  return enrollment.active ? enrollment.courseId : null;
+}

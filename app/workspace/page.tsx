@@ -165,10 +165,20 @@ function WorkspaceV1() {
   // 触发服务端 getForEnrollment 里"createdAt 超过 5 分钟即判超时"的兜底。轮询作为
   // 兜底而非替代：一旦状态变为终态就自动停止，不影响 WS 推送到达时的即时更新。
   useEffect(() => {
-    if (!enrollment || workspace?.status !== "CREATING") return;
+    if (!enrollment || (workspace?.status !== "CREATING" && workspace?.status !== "RESETTING")) return;
     let active = true;
     const interval = window.setInterval(() => {
-      api.workspace(enrollment.id).then((updated) => { if (active) setWorkspace(updated); }).catch(() => undefined);
+      api.workspace(enrollment.id)
+        .then((updated) => { if (active) setWorkspace(updated); })
+        .catch(async (caught) => {
+          if (!active || !(caught instanceof ApiError) || caught.status !== 404) return;
+          try {
+            const created = await api.createWorkspace(enrollment.id);
+            if (active) setWorkspace(created);
+          } catch {
+            // 下次轮询继续尝试；服务端会保留待清理记录并重试 Labs 删除。
+          }
+        });
     }, workspacePollIntervalMs);
     return () => { active = false; window.clearInterval(interval); };
   }, [enrollment, workspace?.status]);
@@ -555,7 +565,7 @@ function WorkspaceV1() {
             <section className="vm-empty-state" role="status">
               <span className="vm-display-icon" aria-hidden="true" />
               <h2>Learning VM</h2>
-              <p>Preparing your Learning VM. This can take a few minutes.</p>
+              <p>{workspace?.status === "RESETTING" ? t("Clearing the previous Learning VM. This can take a few minutes.", "正在清理之前的学习虚拟机，可能需要几分钟。") : t("Preparing your Learning VM. This can take a few minutes.", "正在准备学习虚拟机，可能需要几分钟。")}</p>
             </section>
           )}
         </main>
