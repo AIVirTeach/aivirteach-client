@@ -9,7 +9,7 @@ import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Sidebar } from "../components/Sidebar";
 import { api, courseAssetUrl, type ApiCourse, type EnrollmentStatus } from "../lib/api";
-import { courseCardState, courseEntryPath, resolveEnrollmentStatus } from "../lib/course-card-state";
+import { courseCardState, courseEntryPath, courseEntryPathAfterEnroll, courseIdAfterRestart, resolveEnrollmentStatus } from "../lib/course-card-state";
 import { activateCourse, clearActiveCourse, clearCourseProgressCache, type DemoCourse } from "../lib/courses";
 import { resetMockCourseProgress, startMockCourse } from "../lib/mock-course";
 import { localize, useLearningLanguage } from "../lib/language";
@@ -129,13 +129,14 @@ export default function CoursesPage() {
       return;
     }
     try {
+      const beforeEnroll = statusByCourse[course.id];
       const enrollment = await api.enroll(course.id);
+      const afterEnroll = resolveEnrollmentStatus(enrollment.status, enrollment.active);
       activateCourse(course.id);
       setActiveCourseId(course.id);
+      setStatusByCourse((previous) => ({ ...previous, [enrollment.courseId]: afterEnroll }));
       setPendingCourse(null);
-      // The enroll response is fresher than the status loaded with the page (progress
-      // may have changed in another tab); fall back to the loaded one for older servers.
-      router.push(courseEntryPath(resolveEnrollmentStatus(enrollment.status ?? statusByCourse[course.id], false)));
+      router.push(courseEntryPathAfterEnroll(beforeEnroll, afterEnroll));
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not start this course.");
       setPendingCourse(null);
@@ -167,12 +168,13 @@ export default function CoursesPage() {
       // back to "Start course" (a restart always ends not started, even if an older
       // server omits the status), and it is current only if the server says so.
       setStatusByCourse((previous) => ({ ...previous, [enrollment.courseId]: resolveEnrollmentStatus(enrollment.status ?? "not_started", enrollment.active) }));
-      if (enrollment.active) {
-        activateCourse(enrollment.courseId);
-        setActiveCourseId(enrollment.courseId);
+      const nextActiveCourseId = courseIdAfterRestart(enrollment);
+      if (nextActiveCourseId) {
+        activateCourse(nextActiveCourseId);
       } else {
-        setActiveCourseId((current) => (current === enrollment.courseId ? null : current));
+        clearActiveCourse();
       }
+      setActiveCourseId(nextActiveCourseId);
       setRestartCourseTarget(null);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not restart this course.");

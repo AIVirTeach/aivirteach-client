@@ -270,6 +270,7 @@ export type ApiEnrollment = {
   progressPercent: number;
   // Only the enrollment endpoints send this; the dashboard (and older servers) omit it.
   status?: EnrollmentStatus;
+  workspaceResetPending?: boolean;
   currentModule: string;
   enrolledAt: string;
   course: ApiCourse;
