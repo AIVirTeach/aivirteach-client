@@ -2,21 +2,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError, api, beaconStopWorkspace } from "./api";
 import { API_BASE_URL } from "./config";
 
-describe("api.courseDesigns", () => {
-  it("returns the HTML course designs bundled with the frontend", async () => {
-    const designs = await api.courseDesigns();
-
-    expect(designs.course.id).toBe("ai-daily-briefing");
-    expect(designs.themes).toEqual([
-      expect.objectContaining({
-        id: "ai-daily-briefing-v5-soft-neubrutalism",
-        url: "/course-designs/ai-daily-briefing-v5-soft-neubrutalism.html",
-      }),
-      expect.objectContaining({
-        id: "ai-daily-briefing-v5-soft-neubrutalism-zh-CN",
-        url: "/course-designs/ai-daily-briefing-v5-soft-neubrutalism-zh-CN.html",
-      }),
-    ]);
+describe("api.lesson", () => {
+  afterEach(() => vi.unstubAllGlobals());
+  it("loads published lesson content from the course API", async () => {
+    const lesson = { blocks: [], assets: {}, markdown: "legacy" };
+    const fetchMock = vi.fn<typeof fetch>(async () => new Response(JSON.stringify(lesson), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    expect(await api.lesson("a/b", "step one")).toEqual(lesson);
+    expect(fetchMock.mock.calls[0][0]).toBe(`${API_BASE_URL}/courses/a%2Fb/lessons/step%20one`);
   });
 });
 

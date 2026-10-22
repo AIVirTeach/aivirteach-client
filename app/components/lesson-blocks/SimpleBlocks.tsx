@@ -40,29 +40,29 @@ export function ListBlock({ id, props, ordered }: ListProps) {
   return <ul id={id}>{items.map((item, index) => <li key={`${index}-${item}`}>{renderInline(item)}</li>)}</ul>;
 }
 
+import { copyLessonCode, useCopyToVm, writeBrowserClipboard } from "./copy-code";
+
 type CopyButtonProps = { text: string };
 
 export function CopyButton({ text }: CopyButtonProps) {
-  const [state, setState] = useState<"ready" | "copied" | "failed">("ready");
+  const copyToVm = useCopyToVm();
+  const [state, setState] = useState("Copy");
 
   useEffect(() => {
-    if (state === "ready") return;
-    const timeout = window.setTimeout(() => setState("ready"), 1800);
+    if (state === "Copy") return;
+    const timeout = window.setTimeout(() => setState("Copy"), 1800);
     return () => window.clearTimeout(timeout);
   }, [state]);
 
   async function copy() {
-    try {
-      if (!navigator.clipboard?.writeText) throw new Error("Clipboard unavailable");
-      await navigator.clipboard.writeText(text);
-      setState("copied");
-    } catch {
-      setState("failed");
-    }
+    const result = await copyLessonCode(text, writeBrowserClipboard, copyToVm);
+    setState(copyToVm
+      ? result.vmCopied ? (result.clipboardCopied ? "Copied + VM" : "Copied to VM") : (result.clipboardCopied ? "Copied · VM unavailable" : "Copy failed")
+      : result.clipboardCopied ? "Copied" : "Copy failed");
   }
 
   return <Button variant="outline" size="xs" type="button" className="lesson-copy-button" aria-label="Copy code to clipboard" onClick={copy}>
-    {state === "copied" ? "Copied" : state === "failed" ? "Copy failed" : "Copy"}
+    {state}
   </Button>;
 }
 

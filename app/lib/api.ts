@@ -233,33 +233,6 @@ export type ApiCourseWelcome = {
   finalOutcome: { heading: string; description: string };
 };
 
-export type ApiCourseDesign = {
-  id: string;
-  label: string;
-  url: string;
-};
-
-export type ApiCourseDesignPackage = {
-  course: { id: "ai-daily-briefing"; title: "AI Daily Briefing" };
-  themes: ApiCourseDesign[];
-};
-
-const bundledCourseDesigns: ApiCourseDesignPackage = {
-  course: { id: "ai-daily-briefing", title: "AI Daily Briefing" },
-  themes: [
-    {
-      id: "ai-daily-briefing-v5-soft-neubrutalism",
-      label: "Soft Neubrutalism — English",
-      url: "/course-designs/ai-daily-briefing-v5-soft-neubrutalism.html",
-    },
-    {
-      id: "ai-daily-briefing-v5-soft-neubrutalism-zh-CN",
-      label: "Soft Neubrutalism — 简体中文",
-      url: "/course-designs/ai-daily-briefing-v5-soft-neubrutalism-zh-CN.html",
-    },
-  ],
-};
-
 export type EnrollmentStatus = "not_started" | "in_progress" | "completed";
 
 export type ApiEnrollment = {
@@ -386,7 +359,6 @@ export const api = {
   notifications: () => request<ApiNotification[]>("/notifications"),
   markAllNotificationsRead: () => request<{ updated: number; readAt: string }>("/notifications/read-all", { method: "POST" }),
   courses: () => request<ApiCourse[]>("/courses"),
-  courseDesigns: async () => bundledCourseDesigns,
   course: (courseId: string) => request<ApiCourseDetail>("/courses/" + encodeURIComponent(courseId)),
   courseWelcome: (courseId: string) => request<ApiCourseWelcome>("/courses/" + encodeURIComponent(courseId) + "/welcome"),
   lesson: (courseId: string, lessonId: string) => request<ApiLesson>("/courses/" + encodeURIComponent(courseId) + "/lessons/" + encodeURIComponent(lessonId)),
@@ -438,8 +410,4 @@ export function beaconStopWorkspace(enrollmentId: string, token: string | null):
 
 export function courseAssetUrl(courseId: string, assetId: string) {
   return `${API_BASE_URL}/courses/${encodeURIComponent(courseId)}/assets/${encodeURIComponent(assetId)}`;
-}
-
-export function courseDesignUrl(design: ApiCourseDesign) {
-  return design.url;
 }

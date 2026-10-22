@@ -1,0 +1,74 @@
+/* Shared Lab V2 reading surface. Tokens follow the existing V5 course design. */
+.course-lesson-view {
+  --ink: #302f2a;
+  --ink-soft: #625e55;
+  --outline: #d5d2c8;
+  --surface: #fffdf7;
+  --surface-container: #eeede5;
+  --terminal: #282d2b;
+  --primary: #236c5b;
+  color: var(--ink);
+  background: #f7f4ee;
+  font-family: 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', 'Segoe UI', Arial, sans-serif;
+  font-size: 15px;
+  line-height: 1.85;
+  container: course-lesson / inline-size;
+  min-width: 0;
+  width: 100%;
+  color-scheme: light;
+}
+.course-lesson-inner { padding: 28px; max-width: 1260px; margin: auto; }
+.course-lesson-heading { padding: 30px; border: 1px solid #b8b7ac; border-radius: 5px; background: #fffdf5; margin-bottom: 24px; }
+.course-lesson-heading > p { display: inline-block; padding: 4px 8px; margin: 0 0 16px; border: 1px solid #d6c46c; background: #fff2ae; border-radius: 3px; color: #574c22; font-size: 12px; overflow-wrap: anywhere; }
+.course-lesson-heading > h1 { margin: 0; font-size: 34px; font-weight: 650; line-height: 1.25; letter-spacing: -.035em; overflow-wrap: anywhere; text-transform: none; }
+.course-lesson-body { padding: 28px; background: var(--surface); border: 1px solid var(--outline); border-radius: 5px; min-width: 0; }
+.course-lesson-view .lesson-markdown { color: var(--ink); font-size: 15px; line-height: 1.85; }
+.course-lesson-view .lesson-markdown h2 { margin: 30px 0 18px; font-size: 25px; font-weight: 650; line-height: 1.3; letter-spacing: -.025em; color: var(--ink); }
+.course-lesson-view .lesson-markdown h3 { margin: 24px 0 12px; font-size: 19px; font-weight: 650; line-height: 1.35; color: var(--ink); }
+.course-lesson-view .lesson-markdown p { margin: 13px 0; overflow-wrap: anywhere; }
+.course-lesson-view .lesson-markdown li { margin-block: 7px; }
+.course-lesson-view .lesson-markdown li::marker { color: #688776; }
+.course-lesson-view .lesson-markdown a { color: #23667c; overflow-wrap: anywhere; }
+.course-lesson-view .lesson-markdown :not(pre) > code { color: #246858; background: #edf3e9; border-radius: 3px; }
+.course-lesson-view .lesson-code-block,
+.course-lesson-view .lb-code-source { background: #282d2b; border: 1px solid #373c39; border-radius: 6px; overflow: hidden; margin: 20px 0; color: #eef1e6; }
+.course-lesson-view .lesson-code-block > header,
+.course-lesson-view .lb-code-source > header { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; min-height: 48px; padding: 8px 12px; background: #343a36; border-bottom: 1px solid #4b514b; color: #dce4d9; font-size: 11px; }
+.course-lesson-view .lesson-markdown pre { margin: 0; padding: 20px; border: 0; border-radius: 0; background: #282d2b; color: #eef1e6; max-height: 560px; overflow: auto; font-size: 12px; line-height: 1.8; white-space: pre; }
+.course-lesson-view .lesson-markdown pre code { padding: 0; background: transparent; color: inherit; }
+.course-lesson-view .lesson-code-block > p { color: #eef1e6; padding: 0 16px 12px; }
+.course-lesson-view .lesson-copy-button { min-height: 32px; padding: 4px 10px; background: #e3edcf; color: #253b32; border: 1px solid #bed0a9; border-radius: 3px; font-size: 11px; box-shadow: none; }
+.course-lesson-view .lesson-copy-button:hover { background: #fff0a3; }
+.course-lesson-view .lesson-step { border: 1px solid #c8d5c3; border-radius: 5px; background: #f1f5ec; padding: 18px; }
+.course-lesson-view .lesson-step-number { color: #fffdf7; background: #356e58; border: 0; }
+.course-lesson-view .lesson-callout { padding: 18px; border: 1px solid var(--outline); border-radius: 5px; color: var(--ink); }
+.course-lesson-view .lesson-callout--success { background: #e2f1e9; }
+.course-lesson-view .lesson-callout--primary { background: #eaf2f3; }
+.course-lesson-view .lesson-callout--warning { background: #fbf2d9; }
+.course-lesson-view .lb-table-scroll { border: 1px solid var(--outline); border-radius: 5px; }
+.course-lesson-view .lb-table th { background: #eaf2f3; color: var(--ink); }
+.course-lesson-view .lb-table td { background: var(--surface); color: var(--ink); }
+.course-lesson-view .lb-image img { border: 1px solid var(--outline); border-radius: 5px; }
+.course-lesson-view .lb-code-step { background: #f4f0e6; border: 1px solid #b9b5a9; border-radius: 6px; }
+.course-lesson-view .lb-code-source { margin: 0; border-radius: 0; }
+.course-lesson-view .lb-code-explanation { padding: 18px; }
+.course-lesson-view .lb-diagram-node { background: #eaf2f3; border: 1px solid #abc3c7; border-radius: 5px; color: var(--ink); }
+.course-lesson-view .lb-resource-link { background: #f1f5ec; border: 1px solid #c8d5c3; border-radius: 5px; }
+.course-lesson-view .lb-warning { color: #735322; background: #fbf2d9; }
+.course-lesson-view .lb-invalid { color: #8e2626; background: #fff0ec; }
+.course-preview-page { margin: 0; min-height: 100vh; background: #f7f4ee; }
+.course-learning-path { overflow-y: auto; min-height: 0; flex: 1; background: #f7f4ee; }
+.course-lesson-navigation { padding: 16px 28px; color: #302f2a; background: #f7f4ee; border-bottom: 1px solid #d5d2c8; display: grid; gap: 10px; }
+.course-lesson-navigation > label { font-weight: 600; overflow-wrap: anywhere; }
+.course-lesson-navigation > select { width: 100%; min-width: 0; padding: 10px; background: #fffdf7; color: #302f2a; border: 1px solid #b8b7ac; border-radius: 5px; }
+.course-lesson-navigation > div { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.course-load-status { padding: 28px; color: #302f2a; }
+@container course-lesson (max-width: 480px) {
+  .course-lesson-inner { padding: 16px; }
+  .course-lesson-heading, .course-lesson-body { padding: 18px; }
+  .course-lesson-heading > h1 { font-size: 27px; }
+  .course-lesson-view .lesson-markdown h2 { font-size: 22px; }
+}
+@media (pointer: coarse) {
+  .course-lesson-view .lesson-copy-button { min-height: 44px; }
+}
