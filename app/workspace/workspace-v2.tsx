@@ -490,7 +490,7 @@ export function WorkspaceV2() {
         ) : (
           <div className="lab-v2-path" role="tabpanel">
             {error && <Alert variant="destructive">{error}</Alert>}
-            <CourseLearningPath key={course.id} course={course} progressPercent={enrollment.progressPercent} copyToVm={copyLessonCodeToVm} />
+            <CourseLearningPath key={course.id} course={course} copyToVm={copyLessonCodeToVm} />
           </div>
         )}
       </section>

@@ -235,6 +235,23 @@ export type ApiCourseWelcome = {
 
 export type EnrollmentStatus = "not_started" | "in_progress" | "completed";
 
+export type ApiLearningProgress = {
+  enrollmentId: string;
+  courseId: string;
+  generation: number;
+  revision: number;
+  courseVersionId: string;
+  courseVersion: number;
+  active: boolean;
+  completedLessonIds: string[];
+  totalLessons: number;
+  currentLessonId: string | null;
+  nextLessonId: string | null;
+  progressPercent: number;
+  status: EnrollmentStatus;
+  achievements: { generation: number; completedAt: string }[];
+};
+
 export type ApiEnrollment = {
   id: string;
   userId: string;
@@ -370,7 +387,13 @@ export const api = {
   createDemoUser: (input: { name: string; email: string }) => request<ApiLearner>("/demo/users", { method: "POST", body: JSON.stringify(input) }),
   resetProfile: () => request<ApiLearner>("/me/reset", { method: "POST" }),
   recordPractice: (minutes: number) => request("/practice-sessions", { method: "POST", body: JSON.stringify({ minutes }) }),
-  completeLesson: (lessonId: string) => request("/lessons/" + encodeURIComponent(lessonId) + "/complete", { method: "POST" }),
+  learningProgress: (courseId: string) => request<ApiLearningProgress>(`/courses/${encodeURIComponent(courseId)}/progress`),
+  setLessonProgress: (courseId: string, lessonId: string, state: ApiLearningProgress, completed: boolean) => request<ApiLearningProgress>(`/courses/${encodeURIComponent(courseId)}/lessons/${encodeURIComponent(lessonId)}/progress`, {
+    method: "PUT", body: JSON.stringify({ generation: state.generation, revision: state.revision, courseVersionId: state.courseVersionId, completed }),
+  }),
+  setReadingPosition: (courseId: string, lessonId: string, state: ApiLearningProgress) => request<ApiLearningProgress>(`/courses/${encodeURIComponent(courseId)}/reading-position`, {
+    method: "PUT", body: JSON.stringify({ generation: state.generation, courseVersionId: state.courseVersionId, lessonId }),
+  }),
   chatMessages: (enrollmentId: string) => request<ApiChatMessage[]>("/workspaces/" + encodeURIComponent(enrollmentId) + "/chat/messages"),
   sendChatMessage: (enrollmentId: string, text: string) => request<{ studentMessage: ApiChatMessage; tutorMessage: ApiChatMessage }>("/workspaces/" + encodeURIComponent(enrollmentId) + "/chat/messages", { method: "POST", body: JSON.stringify({ text }) }),
   streamChatMessage: (enrollmentId: string, text: string, signal?: AbortSignal) => streamRequest("/workspaces/" + encodeURIComponent(enrollmentId) + "/chat/messages/stream", { method: "POST", body: JSON.stringify({ text }), signal }),
