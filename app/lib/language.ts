@@ -34,8 +34,3 @@ export function useLearningLanguage() {
 export function localize(language: LearningLanguage, english: string, chinese: string) {
   return language === "zh-CN" ? chinese : english;
 }
-
-export function courseDesignMatchesLanguage(designId: string, language: LearningLanguage) {
-  const isSimplifiedChinese = designId.toLowerCase().endsWith("-zh-cn");
-  return language === "zh-CN" ? isSimplifiedChinese : !isSimplifiedChinese;
-}

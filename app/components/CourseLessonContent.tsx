@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
-import { Button } from "@/components/ui/button";
+import { type ReactNode } from "react";
+import { CopyButton } from "./lesson-blocks/SimpleBlocks";
 import { LessonBlocks } from "./LessonBlocks";
 import type { LessonAssets, RawLessonBlock } from "../lib/lesson-blocks/types";
 
@@ -96,31 +96,7 @@ function renderBlock(block: Block, index: number): ReactNode {
 }
 
 function CodeBlock({ language, text }: { language: string; text: string }) {
-  const [status, setStatus] = useState("Copy");
-
-  async function copyCode() {
-    try {
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(text);
-      } else {
-        const input = document.createElement("textarea");
-        input.value = text;
-        input.style.position = "fixed";
-        input.style.opacity = "0";
-        document.body.appendChild(input);
-        input.select();
-        const copied = document.execCommand("copy");
-        input.remove();
-        if (!copied) throw new Error("Clipboard unavailable");
-      }
-      setStatus("Copied");
-    } catch {
-      setStatus("Copy failed");
-    }
-    window.setTimeout(() => setStatus("Copy"), 1800);
-  }
-
-  return <div className="lesson-code-block"><header><span>{language || "code"}</span><Button variant="outline" size="xs" type="button" onClick={() => void copyCode()}>{status}</Button></header><pre><code data-language={language}>{text}</code></pre></div>;
+  return <div className="lesson-code-block"><header><span>{language || "code"}</span><CopyButton text={text} /></header><pre><code data-language={language}>{text}</code></pre></div>;
 }
 
 function inline(text: string) {

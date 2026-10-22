@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { LessonBlocks } from "../../components/LessonBlocks";
+import { CourseLessonView } from "../../components/CourseLessonView";
 import { parsePreviewMessage, type PreviewPayload } from "../../lib/lesson-blocks/preview-message";
 
 export function PreviewClient({ adminOrigin }: { adminOrigin?: string }) {
@@ -9,6 +9,7 @@ export function PreviewClient({ adminOrigin }: { adminOrigin?: string }) {
 
   useEffect(() => {
     const onMessage = (event: MessageEvent<unknown>) => {
+      if (event.source !== window.parent) return;
       const payload = parsePreviewMessage(event, adminOrigin);
       if (payload) setPreview(payload);
     };
@@ -25,12 +26,8 @@ export function PreviewClient({ adminOrigin }: { adminOrigin?: string }) {
   }
 
   return (
-    <main className="preview-page">
-      <header className="preview-header">
-        <p>{preview.lesson.moduleTitle}</p>
-        <h1>{preview.lesson.title}</h1>
-      </header>
-      <LessonBlocks blocks={preview.lesson.blocks} assets={preview.assets} problems={preview.problems} mode="preview" />
+    <main className="course-preview-page">
+      <CourseLessonView {...preview.lesson} assets={preview.assets} problems={preview.problems} mode="preview" />
     </main>
   );
 }

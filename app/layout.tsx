@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import "./components/course-lesson.css";
 import { Geist } from "next/font/google";
 import { cn } from "@/lib/utils";
 import { ScrollbarPreference } from "./components/ScrollbarPreference";

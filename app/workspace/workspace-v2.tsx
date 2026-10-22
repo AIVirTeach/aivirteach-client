@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { type CSSProperties, type FormEvent, type PointerEvent as ReactPointerEvent, type SyntheticEvent, useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { type CSSProperties, type FormEvent, type KeyboardEvent, type PointerEvent as ReactPointerEvent, useCallback, useEffect, useRef, useState } from "react";
 import { Check, Maximize2, Minimize2, Send, Wifi, WifiOff } from "lucide-react";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -9,12 +9,12 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { BrandLogo } from "../components/BrandLogo";
-import { api, ApiError, beaconStopWorkspace, courseDesignUrl, getAccessToken, type ApiConsoleSession, type ApiCourseDesignPackage, type ApiCourseDetail, type ApiEnrollment, type ApiWorkspace } from "../lib/api";
-import { applyLearningLanguage, courseDesignMatchesLanguage, localize, useLearningLanguage } from "../lib/language";
-import { getServerScrollbarPreference, getStoredScrollbarPreference, subscribeToScrollbarPreference, type ScrollbarPreference } from "../lib/scrollbar-preference";
+import { api, ApiError, beaconStopWorkspace, getAccessToken, type ApiConsoleSession, type ApiCourseDetail, type ApiEnrollment, type ApiWorkspace } from "../lib/api";
+import { applyLearningLanguage, localize, useLearningLanguage } from "../lib/language";
 import { ConsoleViewer, type ConsoleViewerHandle } from "./console-viewer";
 import { heartbeatIntervalMs, isHeartbeatDue } from "./heartbeat";
 import { upstreamErrorMessage } from "./upstream-error";
+import { CourseLearningPath } from "./CourseLearningPath";
 import { TutorMessage } from "./tutor-message";
 import { vmPanelState } from "./vm-panel-state";
 
@@ -25,7 +25,6 @@ const initialMessages: Message[] = [
   { role: "tutor", text: "I am ready to help with this course. Tell me what you are trying to do or where the result differs from the learning path." },
 ];
 const widthStorageKey = "aivirteach.lab.v2.leftWidth";
-const themeStorageKey = "aivirteach.lab.v2.aiDailyBriefingTheme";
 const floatingPositionStorageKey = "aivirteach.lab.v2.floatingAiPosition";
 const minLeftWidth = 380;
 const minVmWidth = 420;
@@ -33,15 +32,6 @@ const floatingButtonSize = 64;
 const floatingViewportMargin = 14;
 const floatingPromptGap = 12;
 const floatingPromptMaxWidth = 340;
-const courseCopySelector = ".copy-btn, .step-copy-btn, .inline-copy-link[data-copy-text]";
-
-type CourseFrameClipboardBridge = {
-  copyToVm: (text: string) => boolean;
-  language: "en" | "zh-CN";
-};
-
-const courseFrameClipboardBridges = new WeakMap<Document, CourseFrameClipboardBridge>();
-
 function floatingPromptWidth() {
   return Math.min(floatingPromptMaxWidth, window.innerWidth - (floatingViewportMargin * 2) - floatingButtonSize - floatingPromptGap);
 }
@@ -50,90 +40,10 @@ function floatingPromptMinX() {
   return floatingViewportMargin + Math.max(0, floatingPromptWidth()) + floatingPromptGap;
 }
 
-function lessonCodeForButton(button: HTMLElement): string {
-  if (button.dataset.copyText) return button.dataset.copyText;
-  const directCode = button.closest("pre")?.querySelector<HTMLElement>("code");
-  if (button.classList.contains("step-copy-btn") && directCode) {
-    return directCode.dataset.rawCode ?? directCode.textContent ?? "";
-  }
-  const block = button.closest(".code-wrap");
-  if (block) {
-    return [...block.querySelectorAll<HTMLElement>("pre code")]
-      .filter((code) => code.closest(".code-wrap") === block)
-      .map((code) => code.dataset.rawCode ?? code.textContent ?? "")
-      .join("\n\n");
-  }
-  return directCode?.dataset.rawCode ?? directCode?.textContent ?? "";
-}
-
-function prepareCourseFrame(
-  event: SyntheticEvent<HTMLIFrameElement>,
-  preference: ScrollbarPreference,
-  language: "en" | "zh-CN",
-  copyToVm: (text: string) => boolean,
-) {
-  const document = event.currentTarget.contentDocument;
-  if (!document?.head) return;
-  let style = document.getElementById("aivirteach-scrollbars") as HTMLStyleElement | null;
-  if (!style) {
-    style = document.createElement("style");
-    style.id = "aivirteach-scrollbars";
-    document.head.append(style);
-  }
-  style.textContent = preference === "hidden" ? `
-    * { scrollbar-width: none; }
-    *::-webkit-scrollbar { display: none; width: 0; height: 0; }
-  ` : `
-    * { scrollbar-width: thin; scrollbar-color: rgba(100, 116, 139, .72) rgba(15, 23, 42, .06); }
-    *::-webkit-scrollbar { width: 10px; height: 10px; }
-    *::-webkit-scrollbar-track { background: rgba(15, 23, 42, .06); }
-    *::-webkit-scrollbar-thumb { min-height: 36px; border: 2px solid transparent; border-radius: 999px; background: rgba(100, 116, 139, .72); background-clip: padding-box; }
-    *::-webkit-scrollbar-thumb:hover { background: rgba(71, 85, 105, .9); background-clip: padding-box; }
-    *::-webkit-scrollbar-corner { background: transparent; }
-  `;
-
-  let clipboardBridge = courseFrameClipboardBridges.get(document);
-  if (!clipboardBridge) {
-    clipboardBridge = { copyToVm, language };
-    courseFrameClipboardBridges.set(document, clipboardBridge);
-    document.addEventListener("click", (clickEvent) => {
-      const target = clickEvent.target as Element | null;
-      const copyButton = typeof target?.closest === "function"
-        ? target.closest<HTMLElement>(courseCopySelector)
-        : null;
-      if (!copyButton) return;
-      const code = lessonCodeForButton(copyButton);
-      if (code) courseFrameClipboardBridges.get(document)?.copyToVm(code);
-    }, true);
-  } else {
-    clipboardBridge.copyToVm = copyToVm;
-    clipboardBridge.language = language;
-  }
-
-  const annotateCopyButtons = () => {
-    const bridge = courseFrameClipboardBridges.get(document);
-    if (!bridge) return;
-    document.querySelectorAll<HTMLElement>(courseCopySelector).forEach((copyButton) => {
-      copyButton.dataset.vmClipboardBridge = "true";
-      copyButton.title = bridge.language === "zh-CN"
-        ? "同时复制到已连接的虚拟机剪贴板"
-        : "Also copies to the connected VM clipboard";
-    });
-  };
-  annotateCopyButtons();
-  if (document.body && document.body.dataset.vmClipboardObserver !== "true") {
-    document.body.dataset.vmClipboardObserver = "true";
-    const observer = new MutationObserver(annotateCopyButtons);
-    observer.observe(document.body, { childList: true, subtree: true });
-    document.defaultView?.addEventListener("unload", () => observer.disconnect(), { once: true });
-  }
-}
-
 export function WorkspaceV2() {
   const router = useRouter();
   const learningLanguage = useLearningLanguage();
   const t = (english: string, chinese: string) => localize(learningLanguage, english, chinese);
-  const scrollbarPreference = useSyncExternalStore(subscribeToScrollbarPreference, getStoredScrollbarPreference, getServerScrollbarPreference);
   const shellRef = useRef<HTMLDivElement>(null);
   const floatingPromptRef = useRef<HTMLInputElement>(null);
   const messagesRef = useRef<HTMLDivElement>(null);
@@ -145,8 +55,6 @@ export function WorkspaceV2() {
   const [enrollment, setEnrollment] = useState<ApiEnrollment | null>(null);
   const enrollmentId = enrollment?.id;
   const [workspace, setWorkspace] = useState<ApiWorkspace | null>(null);
-  const [designPackage, setDesignPackage] = useState<ApiCourseDesignPackage | null>(null);
-  const [selectedDesignId, setSelectedDesignId] = useState("");
   const [activeTab, setActiveTab] = useState<WorkspaceTab>("path");
   const [leftWidth, setLeftWidth] = useState(680);
   const [maximized, setMaximized] = useState(false);
@@ -171,17 +79,14 @@ export function WorkspaceV2() {
 
   useEffect(() => {
     let active = true;
-    Promise.all([api.enrollments(), api.courseDesigns()]).then(async ([enrollments, localDesignPackage]) => {
+    api.enrollments().then(async (enrollments) => {
       const current = enrollments.find((item) => item.active);
       if (!current) return;
       const courseData = await api.course(current.courseId);
       if (!active) return;
       setEnrollment(current);
       setCourse(courseData);
-      setDesignPackage(localDesignPackage);
-      const storedTheme = window.localStorage.getItem(themeStorageKey);
-      const initialTheme = localDesignPackage.themes.find((theme) => theme.id === storedTheme) ?? localDesignPackage.themes[0];
-      setSelectedDesignId(initialTheme?.id ?? "");
+
     }).catch((caught) => {
       if (active) setError(caught instanceof Error ? caught.message : "Could not open Learning Lab V2.");
     }).finally(() => { if (active) setChecked(true); });
@@ -543,11 +448,9 @@ export function WorkspaceV2() {
   }, []);
 
   if (!checked || !course || !enrollment) {
-    return <main className="lab-v2-gate" role="status"><BrandLogo /><h1>{checked ? t("Choose a course first", "请先选择课程") : t("Opening Learning Lab V2...", "正在打开学习实验室 V2……")}</h1><p>{error || (checked ? t("Choose a course before opening its workspace.", "请先选择课程，再打开其工作区。") : t("Loading your course and new learning path designs.", "正在加载课程和新的学习路径设计。"))}</p>{checked && <Button type="button" onClick={() => router.replace("/courses")}>{t("Browse courses", "浏览课程")}</Button>}</main>;
+    return <main className="lab-v2-gate" role="status"><BrandLogo /><h1>{checked ? t("Choose a course first", "请先选择课程") : t("Opening Learning Lab V2...", "正在打开学习实验室 V2……")}</h1><p>{error || (checked ? t("Choose a course before opening its workspace.", "请先选择课程，再打开其工作区。") : t("Loading your course.", "正在加载课程。"))}</p>{checked && <Button type="button" onClick={() => router.replace("/courses")}>{t("Browse courses", "浏览课程")}</Button>}</main>;
   }
 
-  const themes = (designPackage?.themes ?? []).filter((theme) => courseDesignMatchesLanguage(theme.id, learningLanguage));
-  const selectedDesign = themes.find((theme) => theme.id === selectedDesignId) ?? themes[0];
   const frameStyle = { "--lab-v2-left-width": `${leftWidth}px` } as CSSProperties;
   const panel = vmPanelState(workspace?.status, consoleSession?.state === "ready" && Boolean(consoleSession.data));
 
@@ -560,9 +463,6 @@ export function WorkspaceV2() {
               <BrandLogo className="lab-v2-logo" />
             </DropdownMenuTrigger>
             <DropdownMenuContent className="lab-v2-workspace-menu" align="start" side="bottom" sideOffset={8}>
-              <div className="lab-v2-menu-label">{t("Learning Path theme", "学习路径主题")}</div>
-              {themes.map((theme) => <DropdownMenuItem key={theme.id} onClick={() => { setSelectedDesignId(theme.id); window.localStorage.setItem(themeStorageKey, theme.id); }} aria-current={selectedDesign?.id === theme.id ? "page" : undefined}>{selectedDesign?.id === theme.id && <Check aria-hidden="true" />}<span>{theme.label}</span></DropdownMenuItem>)}
-              <div className="lab-v2-menu-separator" />
               <div className="lab-v2-menu-label">{t("Language", "语言")}</div>
               <DropdownMenuItem onClick={() => applyLearningLanguage("en")} aria-current={learningLanguage === "en" ? "true" : undefined}>{learningLanguage === "en" && <Check aria-hidden="true" />}<span>English</span></DropdownMenuItem>
               <DropdownMenuItem onClick={() => applyLearningLanguage("zh-CN")} aria-current={learningLanguage === "zh-CN" ? "true" : undefined}>{learningLanguage === "zh-CN" && <Check aria-hidden="true" />}<span>简体中文</span></DropdownMenuItem>
@@ -590,7 +490,7 @@ export function WorkspaceV2() {
         ) : (
           <div className="lab-v2-path" role="tabpanel">
             {error && <Alert variant="destructive">{error}</Alert>}
-            {selectedDesign ? <iframe className="lab-v2-course-frame" src={courseDesignUrl(selectedDesign)} title={`${course.title} — ${selectedDesign.label}`} onLoad={(event) => prepareCourseFrame(event, scrollbarPreference, learningLanguage, copyLessonCodeToVm)} /> : <div className="lab-v2-path-empty" role="status"><h2>{t("No learning path designs found", "未找到学习路径设计")}</h2><p>{t("No bundled course HTML is available.", "没有可用的内置课程 HTML。")}</p></div>}
+            <CourseLearningPath key={course.id} course={course} progressPercent={enrollment.progressPercent} copyToVm={copyLessonCodeToVm} />
           </div>
         )}
       </section>

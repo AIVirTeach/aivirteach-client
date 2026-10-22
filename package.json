@@ -12,7 +12,10 @@
     "test": "npm run test:unit && npm run build && node --test tests/rendered-html.test.mjs",
     "test:unit": "vitest run",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
-    "db:generate": "drizzle-kit generate"
+    "db:generate": "drizzle-kit generate",
+    "build:cloudflare": "node scripts/build-cloudflare.mjs && node scripts/verify-cloudflare.mjs",
+    "deploy:cloudflare": "npm run build:cloudflare && wrangler deploy --config dist/server/wrangler.json --keep-vars",
+    "typecheck": "mkdir -p work && wrangler types work/worker-types.d.ts --config wrangler.production.jsonc && tsc --noEmit"
   },
   "dependencies": {
     "@tanstack/markdown": "^0.0.15",

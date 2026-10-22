@@ -68,3 +68,19 @@ npm run build
 npm test
 npm run lint
 ```
+
+## Deploy the production Cloudflare client
+
+Run `npm run deploy:cloudflare` after `npm ci` and `wrangler login`.
+The command builds for the existing `aivir-client-pr` Worker, verifies the generated
+preview response, then deploys it. It preserves existing Worker variables.
+
+Production public addresses live in `scripts/build-cloudflare.mjs`. They are set
+before compilation because `NEXT_PUBLIC_*` values are embedded in browser bundles.
+The preview accepts messages and framing from `https://aivirteach-admin.vercel.app`.
+The client uses the API at `https://aivirteach-server.vercel.app/api/v1`.
+To change these addresses, update the build script and the artifact verification.
+
+`npm run build:cloudflare` builds and verifies without deploying. The check rejects
+an incorrect Worker target, missing bindings, a blocked preview CSP, or an absent
+admin message origin. Local `npm run dev` still uses `.env.local` and local bindings.
