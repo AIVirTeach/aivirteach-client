@@ -1,9 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { type ComponentPropsWithoutRef, type CSSProperties, type FormEvent, type KeyboardEvent, type PointerEvent as ReactPointerEvent, useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { Markdown } from "@tanstack/markdown/react";
-import { streamingMarkdownExtension } from "@tanstack/markdown/extensions/streaming";
+import { type CSSProperties, type FormEvent, type KeyboardEvent, type PointerEvent as ReactPointerEvent, useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
 import { Card } from "@/components/ui/card";
@@ -21,7 +19,7 @@ import { ConsoleViewer } from "./console-viewer";
 import { heartbeatIntervalMs, isHeartbeatDue } from "./heartbeat";
 import { TypingIndicator } from "./typing-indicator";
 import { parseChatStreamFrame } from "./chat-stream-frame";
-import { isSafeMarkdownHref } from "./markdown-safety";
+import { TutorMessage } from "./tutor-message";
 import { typewriterChunks, typewriterDelayMs } from "./typewriter";
 import { upstreamErrorMessage, type UpstreamErrorMessages } from "./upstream-error";
 import { getServerInterfaceVersion, getStoredInterfaceVersion, subscribeToInterfaceVersion } from "../lib/interface-version";
@@ -49,13 +47,6 @@ const AGENT_MESSAGES: UpstreamErrorMessages = {
   retryable: "助教暂时没有回应，请重试一次。",
   unavailable: "助教服务暂时不可用，请联系客服。",
 };
-
-const markdownExtensions = [streamingMarkdownExtension()];
-
-function SafeAnchor({ href, children, ...rest }: ComponentPropsWithoutRef<"a">) {
-  return <a {...rest} href={isSafeMarkdownHref(href) ? href : undefined}>{children}</a>;
-}
-const markdownComponents = { a: SafeAnchor };
 
 const courseRailWidthStorageKey = "aivirteach.lab.courseRailWidth.v1";
 const minCourseRailWidth = 320;
@@ -570,7 +561,7 @@ function WorkspaceV1() {
           )}
         </main>
 
-        <Card as="aside" className={`lab-tutor-rail ${tutorCollapsed ? "collapsed" : ""}`} aria-label={t("AI teacher", "AI 教师")}>{tutorCollapsed ? <Button className="lab-tutor-expand" variant="ghost" size="icon" type="button" onClick={() => setTutorCollapsed(false)} aria-label={t("Expand AI teacher", "展开 AI 教师")}><span className="bot-mark">AI</span><i className="collapse-glyph points-left" aria-hidden="true" /></Button> : <><header><div className="tutor-heading"><span className="bot-mark">AI</span><div><strong>AIVir Teacher</strong><small><i /> {t("Online", "在线")}</small></div></div><div className="tutor-header-actions"><Button className={`tutor-refresh ${refreshing ? "refreshing" : ""}`} variant="ghost" size="icon" type="button" onClick={refreshTutor} aria-label={t("Refresh tutor conversation", "刷新教师对话")}><img src="/refresh-icon.png" alt="" aria-hidden="true" /></Button><Button className="lab-rail-toggle points-right" variant="ghost" size="icon" type="button" onClick={() => setTutorCollapsed(true)} aria-label={t("Collapse AI teacher", "收起 AI 教师")}><span aria-hidden="true" /></Button></div></header><div className={`messages ${refreshing ? "refreshing" : ""}`}>{messages.map((item, index) => <article className={`message ${item.role}`} key={`${item.role}-${index}`}><div>{item.role === "tutor" ? <Markdown extensions={markdownExtensions} components={markdownComponents}>{item.text}</Markdown> : <p>{item.text}</p>}<small>{index === messages.length - 1 && !streaming ? t("Just now", "刚刚") : t("Earlier", "较早")}</small></div></article>)}{streaming && <article className="message tutor pending"><div>{streamingText ? <Markdown extensions={markdownExtensions} components={markdownComponents}>{streamingText}</Markdown> : <TypingIndicator />}<small>{t("Just now", "刚刚")}</small></div></article>}</div><form className="message-form" onSubmit={sendMessage}><Input value={message} onChange={(event) => setMessage(event.target.value)} aria-label={t("Ask the tutor for help", "向教师寻求帮助")} placeholder={t("Ask about this step...", "询问此步骤……")} disabled={streaming} /><Button size="icon" type="submit" aria-label={t("Send message", "发送消息")} disabled={streaming}>{t("Send", "发送")}</Button></form></> }</Card>
+        <Card as="aside" className={`lab-tutor-rail ${tutorCollapsed ? "collapsed" : ""}`} aria-label={t("AI teacher", "AI 教师")}>{tutorCollapsed ? <Button className="lab-tutor-expand" variant="ghost" size="icon" type="button" onClick={() => setTutorCollapsed(false)} aria-label={t("Expand AI teacher", "展开 AI 教师")}><span className="bot-mark">AI</span><i className="collapse-glyph points-left" aria-hidden="true" /></Button> : <><header><div className="tutor-heading"><span className="bot-mark">AI</span><div><strong>AIVir Teacher</strong><small><i /> {t("Online", "在线")}</small></div></div><div className="tutor-header-actions"><Button className={`tutor-refresh ${refreshing ? "refreshing" : ""}`} variant="ghost" size="icon" type="button" onClick={refreshTutor} aria-label={t("Refresh tutor conversation", "刷新教师对话")}><img src="/refresh-icon.png" alt="" aria-hidden="true" /></Button><Button className="lab-rail-toggle points-right" variant="ghost" size="icon" type="button" onClick={() => setTutorCollapsed(true)} aria-label={t("Collapse AI teacher", "收起 AI 教师")}><span aria-hidden="true" /></Button></div></header><div className={`messages ${refreshing ? "refreshing" : ""}`}>{messages.map((item, index) => <article className={`message ${item.role}`} key={`${item.role}-${index}`}><div>{item.role === "tutor" ? <TutorMessage text={item.text} /> : <p>{item.text}</p>}<small>{index === messages.length - 1 && !streaming ? t("Just now", "刚刚") : t("Earlier", "较早")}</small></div></article>)}{streaming && <article className="message tutor pending"><div>{streamingText ? <TutorMessage text={streamingText} /> : <TypingIndicator />}<small>{t("Just now", "刚刚")}</small></div></article>}</div><form className="message-form" onSubmit={sendMessage}><Input value={message} onChange={(event) => setMessage(event.target.value)} aria-label={t("Ask the tutor for help", "向教师寻求帮助")} placeholder={t("Ask about this step...", "询问此步骤……")} disabled={streaming} /><Button size="icon" type="submit" aria-label={t("Send message", "发送消息")} disabled={streaming}>{t("Send", "发送")}</Button></form></> }</Card>
       </div>
       <Dialog open={vmEnvOpen} onOpenChange={setVmEnvOpen}>
         {vmEnvOpen && <DialogContent className="vm-env-dialog" showCloseButton={false}>

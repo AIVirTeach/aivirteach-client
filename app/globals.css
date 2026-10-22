@@ -3277,3 +3277,26 @@ html[data-interface-version="neubrutal"] .floating-ai-prompt > [data-slot="butto
   .lab-v2-tabs [data-slot="button"] { padding-inline: 9px; }
   .left-maximized .lab-v2-left { height: 100vh; }
 }
+
+/* Shared tutor content for both workspace layouts. */
+.message.tutor > div { min-width: 0; max-width: 100%; }
+.tutor-markdown { min-width: 0; line-height: 1.65; overflow-wrap: anywhere; }
+.message.tutor .tutor-markdown p { margin: 0 0 .85em; line-height: inherit; }
+.tutor-markdown > :last-child { margin-bottom: 0; }
+.tutor-markdown :is(ul, ol) { margin: .65em 0 1em; padding-left: 1.5em; }
+.tutor-markdown ul { list-style: disc; }
+.tutor-markdown ol { list-style: decimal; }
+.tutor-markdown li + li { margin-top: .4em; }
+.tutor-markdown :is(h1, h2, h3, h4, h5, h6) { margin: 1em 0 .5em; font-size: 1em; font-weight: 700; }
+.tutor-markdown a { color: var(--primary); text-decoration: underline; text-underline-offset: 3px; }
+.tutor-markdown code { font-family: Consolas, "Courier New", monospace; font-size: .88em; }
+.tutor-markdown :not(pre) > code { padding: .12em .3em; border-radius: 3px; background: var(--surface-container); }
+.tutor-code-block { margin: .8em 0 1em; overflow: hidden; border: 1px solid var(--outline); border-radius: 6px; background: var(--surface-lowest); }
+.tutor-code-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 6px 10px; border-bottom: 1px solid var(--outline); font-size: 12px; }
+.tutor-code-toolbar button { padding: 3px 6px; border: 1px solid var(--outline); border-radius: 3px; background: var(--surface); color: var(--ink); cursor: pointer; }
+.tutor-code-toolbar button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.tutor-code-toolbar span { color: var(--ink-soft); }
+.tutor-markdown pre { margin: 0; padding: 12px; max-width: 100%; overflow-x: auto; white-space: pre; line-height: 1.55; }
+.tutor-markdown blockquote { margin: .8em 0; padding-left: 12px; border-left: 3px solid var(--outline); color: var(--ink-soft); }
+.tutor-markdown table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; margin: .8em 0; }
+.tutor-markdown :is(th, td) { padding: 6px 10px; border: 1px solid var(--outline); text-align: left; }

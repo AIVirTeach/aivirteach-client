@@ -15,6 +15,7 @@ import { getServerScrollbarPreference, getStoredScrollbarPreference, subscribeTo
 import { ConsoleViewer, type ConsoleViewerHandle } from "./console-viewer";
 import { heartbeatIntervalMs, isHeartbeatDue } from "./heartbeat";
 import { upstreamErrorMessage } from "./upstream-error";
+import { TutorMessage } from "./tutor-message";
 import { vmPanelState } from "./vm-panel-state";
 
 type Message = { role: "tutor" | "student"; text: string };
@@ -583,7 +584,7 @@ export function WorkspaceV2() {
         {activeTab === "teacher" ? (
           <div className="lab-v2-teacher" role="tabpanel">
             <header><div className="tutor-heading"><span className="bot-mark">AI</span><div><strong>AIVir Teacher</strong><small><i /> {t("Online", "在线")}</small></div></div><p>{course.title}</p></header>
-            <div ref={messagesRef} className="messages">{messages.map((item, index) => <article className={`message ${item.role}`} key={`${item.role}-${index}`}><div><p>{item.text}</p><small>{index === messages.length - 1 ? t("Just now", "刚刚") : t("Earlier", "较早")}</small></div></article>)}</div>
+            <div ref={messagesRef} className="messages">{messages.map((item, index) => <article className={`message ${item.role}`} key={`${item.role}-${index}`}><div>{item.role === "tutor" ? <TutorMessage text={item.text} /> : <p>{item.text}</p>}<small>{index === messages.length - 1 ? t("Just now", "刚刚") : t("Earlier", "较早")}</small></div></article>)}</div>
             <form className="message-form" onSubmit={sendMessage}><Input value={message} onChange={(event) => setMessage(event.target.value)} aria-label={t("Ask AIVir Teacher", "向 AIVir Teacher 提问")} placeholder={t("Ask about this course...", "询问这门课程……")} /><Button type="submit">{t("Send", "发送")}</Button></form>
           </div>
         ) : (
