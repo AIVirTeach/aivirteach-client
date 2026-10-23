@@ -3,6 +3,8 @@
 import { hasTutorVersionMismatch, loadedTutorContext, tutorContextKey } from "./tutor-context";
 import { useTutorRequest } from "./use-tutor-request";
 import { initialLessonId } from "./course-lesson-loader";
+import { useChatMessages } from "./use-chat-messages";
+import { useLessonSelection } from "./use-lesson-selection";
 import { useLearningProgress } from "./use-learning-progress";
 
 import { useRouter } from "next/navigation";
@@ -78,19 +80,18 @@ function WorkspaceV1() {
   const [enrollment, setEnrollment] = useState<ApiEnrollment | null>(null);
   const [workspace, setWorkspace] = useState<ApiWorkspace | null>(null);
   const [loadedLesson, setLoadedLesson] = useState<{ key: string; lesson: ApiLesson } | null>(null);
-  const [selection, setSelection] = useState({ courseId: "", courseVersionId: "", generation: -1, lessonId: "" });
   const [courseChecked, setCourseChecked] = useState(false);
   const [contentError, setContentError] = useState("");
   const [lessonLoading, setLessonLoading] = useState(false);
   const learning = useLearningProgress(course?.id, course?.version);
   const { snapshot: learningSnapshot, visit: visitLesson } = learning;
   const lessonKey = course && learningSnapshot ? `${course.id}:${course.version}:${learningSnapshot.courseVersionId}:${learningSnapshot.generation}` : "";
-  const selectionMatches = !!lessonKey && selection.courseId === course?.id && selection.courseVersionId === learningSnapshot?.courseVersionId && selection.generation === learningSnapshot?.generation;
-  const selectedLessonId = selectionMatches ? selection.lessonId : course && learningSnapshot ? initialLessonId(course, learningSnapshot) : null;
+  const initialSelectionId = course && learningSnapshot ? initialLessonId(course, learningSnapshot) : "";
+  const { selectedId: selectedLessonId, select: setSessionLesson } = useLessonSelection(lessonKey, initialSelectionId);
   const lesson = loadedLesson?.key === `${lessonKey}:${selectedLessonId}` ? loadedLesson.lesson : null;
   const initialVisitKey = useRef("");
   const [message, setMessage] = useState("");
-  const [messages, setMessages] = useState<Message[]>(initialMessages);
+  const { messages, appendMessage, loadMessages } = useChatMessages(enrollment?.id, learningSnapshot?.generation, initialMessages);
   const chatContext = loadedTutorContext(course, selectedLessonId, lessonLoading ? null : lesson, learning.snapshot);
   const chatKey = tutorContextKey(enrollment?.id, chatContext);
   const chat = useTutorRequest(chatKey);
@@ -255,13 +256,6 @@ function WorkspaceV1() {
   }, [course, lessonKey, selectedLessonId]);
 
   useEffect(() => {
-    if (!enrollment) return;
-    api.chatMessages(enrollment.id).then((items) => {
-      if (items.length) setMessages(items.map((item) => ({ role: item.role, text: item.text })));
-    }).catch(() => undefined);
-  }, [enrollment]);
-
-  useEffect(() => {
     if (!course) return;
     const storageKey = `aivirteach.lab.activeSeconds.${course.id}`;
     const savedSeconds = Number(window.localStorage.getItem(storageKey));
@@ -305,7 +299,7 @@ function WorkspaceV1() {
 
   function selectLesson(lessonId: string | null) {
     if (lessonId && course && learningSnapshot) {
-      setSelection({ courseId: course.id, courseVersionId: learningSnapshot.courseVersionId, generation: learningSnapshot.generation, lessonId });
+      setSessionLesson(lessonId);
       void visitLesson(lessonId);
     }
   }
@@ -368,7 +362,7 @@ function WorkspaceV1() {
     const request = chat.begin();
     if (!request) return;
     setMessage("");
-    setMessages((current) => [...current, { role: "student", text }]);
+    appendMessage({ role: "student", text });
     setStreamingTextState({ key: chatKey, text: "" });
     try {
       const response = await api.streamChatMessage(enrollment.id, { requestId: crypto.randomUUID(), text, context: chatContext }, request.signal);
@@ -384,13 +378,13 @@ function WorkspaceV1() {
       if (tutorText === null) throw new Error("The tutor is unavailable.");
       await revealTutorText(tutorText, request.signal);
       if (!request.isCurrent()) return;
-      setMessages((current) => [...current, { role: "tutor", text: tutorText! }]);
+      appendMessage({ role: "tutor", text: tutorText! });
     } catch (caught) {
       // 上面两处 throw new Error(...) 不是 ApiError，upstreamErrorMessage 会把它们归为
       // retryable（提示重试）而不是 unavailable——这是有意为之：响应体缺失/流结束却没有最终
       // 消息通常是瞬时的网络或流式问题，值得让用户重试，不该直接判定为服务不可用。
       if (!request.isCurrent()) return;
-      setMessages((current) => [...current, { role: "tutor", text: upstreamErrorMessage(caught, AGENT_MESSAGES) }]);
+      appendMessage({ role: "tutor", text: upstreamErrorMessage(caught, AGENT_MESSAGES) });
     } finally {
       if (request.isCurrent()) setStreamingTextState(null);
       request.finish();
@@ -473,9 +467,7 @@ function WorkspaceV1() {
     if (refreshTimer.current || !enrollment) return;
     setRefreshing(true);
     refreshTimer.current = setTimeout(() => {
-      api.chatMessages(enrollment.id).then((items) => {
-        setMessages(items.length ? items.map((item) => ({ role: item.role, text: item.text })) : initialMessages);
-      }).finally(() => { setRefreshing(false); refreshTimer.current = null; });
+      void loadMessages(initialMessages).finally(() => { setRefreshing(false); refreshTimer.current = null; });
     }, 500);
   }
 

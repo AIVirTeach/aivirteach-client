@@ -13,6 +13,19 @@ describe("api.lesson", () => {
   });
 });
 
+describe("api.chatMessages", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("loads chat history for the requested enrollment generation", async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () => new Response(JSON.stringify([]), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await api.chatMessages("enrollment/1", 7);
+
+    expect(fetchMock.mock.calls[0][0]).toBe(`${API_BASE_URL}/workspaces/enrollment%2F1/chat/messages?generation=7`);
+  });
+});
+
 describe("api.stopWorkspace / startWorkspace / workspaceHeartbeat", () => {
   const originalFetch = global.fetch;
 

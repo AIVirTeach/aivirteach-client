@@ -19,6 +19,7 @@ import { TutorMessage } from "./tutor-message";
 import { vmPanelState } from "./vm-panel-state";
 import { hasTutorVersionMismatch, loadedTutorContext, tutorContextKey } from "./tutor-context";
 import { useCourseLearningSession } from "./use-course-learning-session";
+import { useChatMessages } from "./use-chat-messages";
 import { useTutorRequest } from "./use-tutor-request";
 
 type Message = { role: "tutor" | "student"; text: string };
@@ -63,7 +64,6 @@ export function WorkspaceV2() {
   const [maximized, setMaximized] = useState(false);
   const [checked, setChecked] = useState(false);
   const [error, setError] = useState("");
-  const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [message, setMessage] = useState("");
   const [consoleSession, setConsoleSession] = useState<ApiConsoleSession | null>(null);
   const [consoleError, setConsoleError] = useState("");
@@ -80,6 +80,7 @@ export function WorkspaceV2() {
   const [floatingUnreadKey, setFloatingUnreadKey] = useState<string | null>(null);
   const [floatingPosition, setFloatingPosition] = useState({ x: -100, y: -100 });
   const learningSession = useCourseLearningSession(course);
+  const { messages, appendMessage } = useChatMessages(enrollment?.id, learningSession.progress.snapshot?.generation, initialMessages);
   const displayedLesson = learningSession.state?.status === "ready" && learningSession.state.id === learningSession.selectedId ? learningSession.state.lesson : null;
   const chatContext = loadedTutorContext(course, learningSession.selectedId, displayedLesson, learningSession.progress.snapshot);
   const tutorVersionMismatch = hasTutorVersionMismatch(course, learningSession.selectedId, displayedLesson, learningSession.progress.snapshot);
@@ -157,13 +158,6 @@ export function WorkspaceV2() {
       window.removeEventListener("pagehide", stopOnClose);
     };
   }, [enrollmentId, workspace?.status]);
-
-  useEffect(() => {
-    if (!enrollment) return;
-    api.chatMessages(enrollment.id).then((items) => {
-      if (items.length) setMessages(items.map((item) => ({ role: item.role, text: item.text })));
-    }).catch(() => undefined);
-  }, [enrollment]);
 
   useEffect(() => {
     const saved = Number(window.localStorage.getItem(widthStorageKey));
@@ -292,12 +286,12 @@ export function WorkspaceV2() {
     if (!request) return;
     const floatingOwnerId = notifyWhenReady ? crypto.randomUUID() : null;
     if (floatingOwnerId) setFloatingOwner({ id: floatingOwnerId, contextKey: chatKey });
-    setMessages((current) => [...current, { role: "student", text }]);
+    appendMessage({ role: "student", text });
     try {
       const response = await api.sendChatMessage(enrollment.id, { requestId: crypto.randomUUID(), text, context: chatContext }, request.signal);
-      if (request.isCurrent()) setMessages((current) => [...current, { role: "tutor", text: response.tutorMessage.text }]);
+      if (request.isCurrent()) appendMessage({ role: "tutor", text: response.tutorMessage.text });
     } catch (caught) {
-      if (request.isCurrent()) setMessages((current) => [...current, { role: "tutor", text: caught instanceof Error ? caught.message : "The tutor is unavailable." }]);
+      if (request.isCurrent()) appendMessage({ role: "tutor", text: caught instanceof Error ? caught.message : "The tutor is unavailable." });
     } finally {
       const isCurrent = request.isCurrent();
       request.finish();

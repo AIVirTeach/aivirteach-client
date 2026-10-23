@@ -3,22 +3,19 @@
 import { useEffect, useRef, useState } from "react";
 import { api, type ApiCourseDetail } from "../lib/api";
 import { createLessonLoader, initialLessonId, type LessonLoadState } from "./course-lesson-loader";
+import { useLessonSelection } from "./use-lesson-selection";
 import { loadedTutorContext } from "./tutor-context";
 import { useLearningProgress } from "./use-learning-progress";
 
 export function useCourseLearningSession(course: ApiCourseDetail | null) {
   const progress = useLearningProgress(course?.id, course?.version);
-  const [selection, setSelection] = useState({ courseId: "", courseVersionId: "", generation: -1, lessonId: "" });
   const [loadedState, setLoadedState] = useState<{ key: string; state: LessonLoadState } | null>(null);
   const [attempt, setAttempt] = useState(0);
   const initialVisitKey = useRef("");
   const { snapshot, visit } = progress;
   const sessionKey = course && snapshot ? `${course.id}:${course.version}:${snapshot.courseVersionId}:${snapshot.generation}` : "";
-  const selectedId = sessionKey && selection.courseId === course?.id && selection.courseVersionId === snapshot?.courseVersionId && selection.generation === snapshot?.generation
-    ? selection.lessonId
-    : !course || !snapshot
-      ? ""
-      : initialLessonId(course, snapshot);
+  const initialSelectionId = course && snapshot ? initialLessonId(course, snapshot) : "";
+  const { selectedId, select: selectLesson } = useLessonSelection(sessionKey, initialSelectionId);
   useEffect(() => {
     if (!course || !snapshot) return;
     const key = `${course.id}:${snapshot.courseVersionId}:${snapshot.generation}`;
@@ -39,7 +36,7 @@ export function useCourseLearningSession(course: ApiCourseDetail | null) {
     context: loadedTutorContext(course, selectedId, loaded, snapshot),
     select(id: string) {
       if (!course || !snapshot) return;
-      setSelection({ courseId: course.id, courseVersionId: snapshot.courseVersionId, generation: snapshot.generation, lessonId: id });
+      selectLesson(id);
       void visit(id);
     },
     retry() { setAttempt((value) => value + 1); },

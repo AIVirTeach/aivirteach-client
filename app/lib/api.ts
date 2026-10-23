@@ -399,7 +399,7 @@ export const api = {
   setReadingPosition: (courseId: string, lessonId: string, state: ApiLearningProgress) => request<ApiLearningProgress>(`/courses/${encodeURIComponent(courseId)}/reading-position`, {
     method: "PUT", body: JSON.stringify({ generation: state.generation, courseVersionId: state.courseVersionId, lessonId }),
   }),
-  chatMessages: (enrollmentId: string) => request<ApiChatMessage[]>("/workspaces/" + encodeURIComponent(enrollmentId) + "/chat/messages"),
+  chatMessages: (enrollmentId: string, generation: number) => request<ApiChatMessage[]>("/workspaces/" + encodeURIComponent(enrollmentId) + "/chat/messages?generation=" + generation),
   sendChatMessage: (enrollmentId: string, command: AskTutorCommand, signal?: AbortSignal) => request<{ studentMessage: ApiChatMessage; tutorMessage: ApiChatMessage }>("/workspaces/" + encodeURIComponent(enrollmentId) + "/chat/messages", { method: "POST", body: JSON.stringify(command), signal }),
   streamChatMessage: (enrollmentId: string, command: AskTutorCommand, signal?: AbortSignal) => streamRequest("/workspaces/" + encodeURIComponent(enrollmentId) + "/chat/messages/stream", { method: "POST", body: JSON.stringify(command), signal }),
   workspace: (enrollmentId: string) => request<ApiWorkspace>("/workspaces/" + encodeURIComponent(enrollmentId)),
