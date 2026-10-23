@@ -48,6 +48,6 @@ export function CourseLearningPath({ course, copyToVm, session }: {
     {!lessons.length ? <p className="course-load-status" role="status">课程暂无课时 / No lessons yet</p>
       : state?.id !== selectedId || state?.status === "loading" || !state ? <p className="course-load-status" role="status">正在加载课时… / Loading lesson…</p>
       : state.status === "error" ? <div className="course-load-status" role="alert"><p>{state.message}</p><Button onClick={retry}>重试 / Retry</Button></div>
-      : <CourseLessonView key={selectedId} mode="learner" title={state.lesson.lesson.title} moduleTitle={state.lesson.module.title} blocks={state.lesson.blocks} assets={state.lesson.assets} markdown={state.lesson.markdown} copyToVm={copyToVm} />}
+      : <CourseLessonView key={selectedId} mode="learner" title={state.lesson.lesson.title} moduleTitle={state.lesson.module.title} blocks={state.lesson.blocks} assets={state.lesson.assets} copyToVm={copyToVm} />}
   </div>;
 }

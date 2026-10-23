@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { LessonBlocks } from "../../components/LessonBlocks";
 import { parsePreviewMessage } from "../../lib/lesson-blocks/preview-message";
+import { CourseLessonView } from "../../components/CourseLessonView";
 import type { RawLessonBlock } from "../../lib/lesson-blocks/types";
 import fixture from "../../lib/lesson-blocks/__fixtures__/canonical-lesson.json";
 
@@ -44,15 +45,15 @@ describe("preview renderer canonical fixture", () => {
     }
   });
 
-  it("normalizes and safely renders the non-object content invalid fixture", () => {
+  it("keeps non-object lesson content invalid and shows a visible error", () => {
     const invalid = fixture.invalid.find((item) => item.name === "content is not an object")!;
     const parsed = parsePreviewMessage({
       origin: "https://admin.example.com",
       data: { type: "lesson-preview", lesson: invalid.content },
     }, "https://admin.example.com");
-    expect(parsed?.lesson.blocks).toEqual([]);
-    expect(() => renderToStaticMarkup(<LessonBlocks blocks={parsed!.lesson.blocks} assets={parsed!.assets} mode="preview" />)).not.toThrow();
-    expect(() => renderToStaticMarkup(<LessonBlocks blocks={parsed!.lesson.blocks} assets={parsed!.assets} mode="learner" />)).not.toThrow();
+    expect(parsed?.lesson.blocks).toBeUndefined();
+    const html = renderToStaticMarkup(<CourseLessonView mode="preview" {...parsed!.lesson} assets={parsed!.assets} problems={parsed!.problems} />);
+    expect(html).toContain("Lesson content is missing or invalid");
   });
 
   it("renders safely when same-origin messages contain malformed problem entries", () => {

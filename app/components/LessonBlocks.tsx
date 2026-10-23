@@ -22,7 +22,7 @@ import type { LessonAssets, RawLessonBlock } from "../lib/lesson-blocks/types";
 
 export type LessonBlockProblem = { blockId?: string; level: "error" | "warning"; message: string };
 export type LessonBlocksProps = {
-  blocks: RawLessonBlock[];
+  blocks: unknown;
   assets: LessonAssets;
   mode: "learner" | "preview";
   problems?: LessonBlockProblem[];
@@ -94,8 +94,9 @@ function InvalidBlock({ messages }: { messages: string[] }) {
 }
 
 export function LessonBlocks({ blocks, assets, mode, problems = [] }: LessonBlocksProps) {
-  return <div className="lesson-blocks lesson-markdown">{blocks.map((block, index) => {
-    const candidate = block as unknown;
+  if (!Array.isArray(blocks)) return <div className="lesson-blocks lesson-markdown"><InvalidBlock messages={["课时内容格式无效 · Lesson content is missing or invalid"]} /></div>;
+  return <div className="lesson-blocks lesson-markdown">{blocks.map((candidate, index) => {
+    const block = candidate as RawLessonBlock;
     const blockRecord = candidate !== null && typeof candidate === "object" && !Array.isArray(candidate)
       ? candidate as Record<string, unknown>
       : null;
@@ -105,7 +106,6 @@ export function LessonBlocks({ blocks, assets, mode, problems = [] }: LessonBloc
     const errors = blockProblems.filter((problem) => problem.level === "error");
     const warningLabels = mode === "preview" ? blockProblems.filter((problem) => problem.level === "warning") : [];
     if (!rendered || (mode === "preview" && errors.length > 0)) {
-      if (mode === "learner") return null;
       const messages = errors.map((problem) => problem.message);
       return <div className="lb-block" key={`${blockId ?? "invalid"}-${index}`}><InvalidBlock messages={messages.length ? messages : ["该块无法渲染"]} />{warningLabels.map((warning, warningIndex) => <small className="lb-warning" key={`${warningIndex}-${warning.message}`}>{warning.message}</small>)}</div>;
     }
