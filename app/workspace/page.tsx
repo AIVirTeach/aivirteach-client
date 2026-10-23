@@ -6,6 +6,10 @@ import { initialLessonId } from "./course-lesson-loader";
 import { useChatMessages } from "./use-chat-messages";
 import { useLessonSelection } from "./use-lesson-selection";
 import { useLearningProgress } from "./use-learning-progress";
+import { LearningSnapshots } from "./LearningSnapshots";
+import { useBrowserNumber } from "../hooks/use-browser-number";
+import { useWorkspaceConsoleState } from "./use-workspace-console-state";
+import { createAsyncRequestOwner } from "./async-request-owner";
 
 import { useRouter } from "next/navigation";
 import { type CSSProperties, type FormEvent, type KeyboardEvent, type PointerEvent as ReactPointerEvent, useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
@@ -19,7 +23,7 @@ import { AccountMenu } from "../components/AccountMenu";
 import { BrandLogo } from "../components/BrandLogo";
 import { CourseLessonContent } from "../components/CourseLessonContent";
 import { Sidebar } from "../components/Sidebar";
-import { api, ApiError, beaconStopWorkspace, getAccessToken, type ApiConsoleSession, type ApiCourseDetail, type ApiEnrollment, type ApiLesson, type ApiWorkspace } from "../lib/api";
+import { api, ApiError, beaconStopWorkspace, getAccessToken, type ApiCourseDetail, type ApiEnrollment, type ApiLesson, type ApiWorkspace } from "../lib/api";
 import { parseSseStream } from "../lib/sse";
 import { subscribeWorkspace } from "../lib/ws";
 import { ConsoleViewer } from "./console-viewer";
@@ -79,16 +83,18 @@ function WorkspaceV1() {
   const [course, setCourse] = useState<ApiCourseDetail | null>(null);
   const [enrollment, setEnrollment] = useState<ApiEnrollment | null>(null);
   const [workspace, setWorkspace] = useState<ApiWorkspace | null>(null);
-  const [loadedLesson, setLoadedLesson] = useState<{ key: string; lesson: ApiLesson } | null>(null);
+  const [loadedLesson, setLoadedLesson] = useState<{ key: string; status: "ready"; lesson: ApiLesson } | { key: string; status: "error"; message: string } | null>(null);
+  const [lessonAttempt, setLessonAttempt] = useState(0);
   const [courseChecked, setCourseChecked] = useState(false);
   const [contentError, setContentError] = useState("");
-  const [lessonLoading, setLessonLoading] = useState(false);
   const learning = useLearningProgress(course?.id, course?.version);
   const { snapshot: learningSnapshot, visit: visitLesson } = learning;
   const lessonKey = course && learningSnapshot ? `${course.id}:${course.version}:${learningSnapshot.courseVersionId}:${learningSnapshot.generation}` : "";
   const initialSelectionId = course && learningSnapshot ? initialLessonId(course, learningSnapshot) : "";
   const { selectedId: selectedLessonId, select: setSessionLesson } = useLessonSelection(lessonKey, initialSelectionId);
-  const lesson = loadedLesson?.key === `${lessonKey}:${selectedLessonId}` ? loadedLesson.lesson : null;
+  const loadedLessonForSelection = loadedLesson?.key === `${lessonKey}:${selectedLessonId}` ? loadedLesson : null;
+  const lesson = loadedLessonForSelection?.status === "ready" ? loadedLessonForSelection.lesson : null;
+  const lessonLoading = Boolean(course && selectedLessonId && !loadedLessonForSelection);
   const initialVisitKey = useRef("");
   const [message, setMessage] = useState("");
   const { messages, appendMessage, loadMessages } = useChatMessages(enrollment?.id, learningSnapshot?.generation, initialMessages);
@@ -101,18 +107,20 @@ function WorkspaceV1() {
   const [refreshing, setRefreshing] = useState(false);
   const [courseSummaryCollapsed, setCourseSummaryCollapsed] = useState(false);
   const [tutorCollapsed, setTutorCollapsed] = useState(false);
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [elapsedSeconds, setElapsedSeconds] = useBrowserNumber(course ? `aivirteach.lab.activeSeconds.${course.id}` : "aivirteach.lab.activeSeconds.none", 0);
   const [latency, setLatency] = useState<number | null>(null);
-  const [courseRailWidth, setCourseRailWidth] = useState(420);
+  const [courseRailWidth, setCourseRailWidth] = useBrowserNumber(courseRailWidthStorageKey, 420, { min: minCourseRailWidth, max: maxCourseRailWidth });
   const [vmEnvOpen, setVmEnvOpen] = useState(false);
-  const [consoleSession, setConsoleSession] = useState<ApiConsoleSession | null>(null);
-  const [consoleError, setConsoleError] = useState("");
-  const [consoleLoading, setConsoleLoading] = useState(false);
+  const consoleState = useWorkspaceConsoleState(workspace);
+  const { setError: setConsoleStateError, setSession: setConsoleStateSession } = consoleState;
+  const visibleConsoleSession = consoleState.session;
   const [retrying, setRetrying] = useState(false);
   const [stopping, setStopping] = useState(false);
   const [resuming, setResuming] = useState(false);
   const consolePollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const consolePollDeadlineTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const consolePollCancelled = useRef(false);
+  const consolePollOwner = useRef(createAsyncRequestOwner());
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const vmEnvCloseButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -217,13 +225,12 @@ function WorkspaceV1() {
   useEffect(() => {
     if (workspace?.status !== "RUNNING") {
       consolePollCancelled.current = true;
-      setConsoleSession(null);
-      setConsoleError("");
-      setConsoleLoading(false);
+      consolePollOwner.current.invalidate();
       if (consolePollTimer.current) {
         clearTimeout(consolePollTimer.current);
         consolePollTimer.current = null;
       }
+      if (consolePollDeadlineTimer.current) { clearTimeout(consolePollDeadlineTimer.current); consolePollDeadlineTimer.current = null; }
     }
   }, [workspace?.status]);
 
@@ -245,31 +252,23 @@ function WorkspaceV1() {
   useEffect(() => {
     if (!course || !selectedLessonId) return;
     let active = true;
-    setLessonLoading(true);
     api.lesson(course.id, selectedLessonId).then((lessonData) => {
       if (!active) return;
-      setLoadedLesson({ key: `${lessonKey}:${selectedLessonId}`, lesson: lessonData });
+      setLoadedLesson({ key: `${lessonKey}:${selectedLessonId}`, status: "ready", lesson: lessonData });
     }).catch(() => {
-      if (active) setContentError("Could not load this step.");
-    }).finally(() => { if (active) setLessonLoading(false); });
+      if (active) setLoadedLesson({ key: `${lessonKey}:${selectedLessonId}`, status: "error", message: "Could not load this step. / 无法加载此课时。" });
+    });
     return () => { active = false; };
-  }, [course, lessonKey, selectedLessonId]);
+  }, [course, lessonKey, selectedLessonId, lessonAttempt]);
 
   useEffect(() => {
     if (!course) return;
-    const storageKey = `aivirteach.lab.activeSeconds.${course.id}`;
-    const savedSeconds = Number(window.localStorage.getItem(storageKey));
-    if (Number.isFinite(savedSeconds) && savedSeconds > 0) setElapsedSeconds(savedSeconds);
     const timer = window.setInterval(() => {
       if (document.visibilityState !== "visible" || !document.hasFocus()) return;
-      setElapsedSeconds((current) => {
-        const next = current + 1;
-        window.localStorage.setItem(storageKey, String(next));
-        return next;
-      });
+      setElapsedSeconds((current) => current + 1);
     }, 1000);
     return () => window.clearInterval(timer);
-  }, [course]);
+  }, [course, setElapsedSeconds]);
 
   useEffect(() => {
     let active = true;
@@ -289,12 +288,9 @@ function WorkspaceV1() {
 
   useEffect(() => () => {
     consolePollCancelled.current = true;
+    consolePollOwner.current.invalidate();
     if (consolePollTimer.current) clearTimeout(consolePollTimer.current);
-  }, []);
-
-  useEffect(() => {
-    const savedWidth = Number(window.localStorage.getItem(courseRailWidthStorageKey));
-    if (Number.isFinite(savedWidth)) setCourseRailWidth(Math.min(maxCourseRailWidth, Math.max(minCourseRailWidth, savedWidth)));
+    if (consolePollDeadlineTimer.current) clearTimeout(consolePollDeadlineTimer.current);
   }, []);
 
   function selectLesson(lessonId: string | null) {
@@ -427,41 +423,45 @@ function WorkspaceV1() {
       clearTimeout(consolePollTimer.current);
       consolePollTimer.current = null;
     }
+    if (consolePollDeadlineTimer.current) clearTimeout(consolePollDeadlineTimer.current);
     consolePollCancelled.current = false;
-    setConsoleLoading(true);
-    setConsoleError("");
-    const deadline = Date.now() + consolePollDeadlineMs;
+    const pollOwner = consolePollOwner.current.begin();
+    consoleState.clear();
+    consoleState.setLoading(true);
+    consoleState.setError("");
+    consolePollDeadlineTimer.current = setTimeout(() => {
+      if (!consolePollOwner.current.isCurrent(pollOwner)) return;
+      consolePollCancelled.current = true;
+      consoleState.setError("启动超时，请重试");
+      consoleState.setLoading(false);
+    }, consolePollDeadlineMs);
 
     async function poll() {
       if (!enrollment) return;
-      try {
-        const session = await api.consoleSession(enrollment.id);
-        if (consolePollCancelled.current) return; // 请求在飞行中时这一轮轮询已经作废，结果直接丢弃
+      await consolePollOwner.current.run(pollOwner, () => api.consoleSession(enrollment.id), (session) => {
+        if (consolePollCancelled.current) return;
         if (session.state === "ready") {
-          setConsoleSession(session);
-          setConsoleLoading(false);
-          return;
-        }
-        if (Date.now() >= deadline) {
-          setConsoleError("启动超时，请重试");
-          setConsoleLoading(false);
+          if (consolePollDeadlineTimer.current) { clearTimeout(consolePollDeadlineTimer.current); consolePollDeadlineTimer.current = null; }
+          consoleState.setSession(session);
+          consoleState.setLoading(false);
           return;
         }
         consolePollTimer.current = setTimeout(() => void poll(), consolePollIntervalMs);
-      } catch (caught) {
+      }, (caught) => {
         if (consolePollCancelled.current) return;
-        setConsoleError(upstreamErrorMessage(caught, REMOTE_DESKTOP_MESSAGES));
-        setConsoleLoading(false);
-      }
+        if (consolePollDeadlineTimer.current) { clearTimeout(consolePollDeadlineTimer.current); consolePollDeadlineTimer.current = null; }
+        consoleState.setError(upstreamErrorMessage(caught, REMOTE_DESKTOP_MESSAGES));
+        consoleState.setLoading(false);
+      });
     }
 
     void poll();
   }
 
   const handleConsoleError = useCallback((message: string) => {
-    setConsoleError(message);
-    setConsoleSession(null);
-  }, []);
+    setConsoleStateError(message);
+    setConsoleStateSession(null);
+  }, [setConsoleStateError, setConsoleStateSession]);
 
   function refreshTutor() {
     if (refreshTimer.current || !enrollment) return;
@@ -505,12 +505,12 @@ function WorkspaceV1() {
                 })}</ol>
               </li>;
             })}</ol></nav></CollapsibleContent></Collapsible>
-            {lessonLoading || !lesson || lesson.lesson.id !== selectedLessonId ? <p className="sidebar-lesson-loading" role="status">Loading course step...</p> : <section className="sidebar-lesson">
+            {lessonLoading ? <p className="sidebar-lesson-loading" role="status">Loading course step...</p> : loadedLessonForSelection?.status === "error" ? <div role="alert"><Alert className="auth-error" variant="destructive">{loadedLessonForSelection.message}</Alert><Button variant="outline" type="button" onClick={() => setLessonAttempt((value) => value + 1)}>重试 / Retry</Button></div> : !lesson || lesson.lesson.id !== selectedLessonId ? <p className="sidebar-lesson-loading" role="status">Loading course step...</p> : <section className="sidebar-lesson">
               <header className="sidebar-lesson-header"><span>{lesson.module.position}.{lesson.lesson.position}</span><div><small>{lesson.module.title}</small><h2>{lesson.lesson.title}</h2><p>{lesson.lesson.estimatedMinutes} minutes</p></div></header>
-              {contentError && <Alert className="auth-error" variant="destructive">{contentError}</Alert>}
               <CourseLessonContent markdown={lesson.markdown} blocks={lesson.blocks} assets={lesson.assets} />
               <Card as="section" className="lesson-activity sidebar-lesson-activity"><small>{t("LEARNING PROGRESS", "学习进度")}</small>{learning.snapshot && <p>{learning.snapshot.completedLessonIds.length} / {learning.snapshot.totalLessons} · {learning.snapshot.progressPercent}%</p>}<h3>{lesson.lesson.activity.prompt}</h3>{learning.snapshot?.achievements.length ? <p>{t("Previous course completion retained", "历史结课记录已保留")}</p> : null}<Button className="primary-button" size="lg" type="button" onClick={() => void completeStep()} disabled={learning.busy || !learning.snapshot?.active}>{learning.snapshot?.completedLessonIds.includes(lesson.lesson.id) ? t("Mark incomplete", "取消完成") : t("Mark complete", "标记完成")}</Button><p>{t("Self-reported progress; assessment results are separate.", "这是学习记录；评测通过由系统单独判定。")}</p></Card>
             </section>}
+            <LearningSnapshots key={`${course.id}:${learning.snapshot?.generation ?? "pending"}`} courseId={course.id} progress={learning} />
           </div>}
           <AccountMenu placement="lab" collapsed={courseSummaryCollapsed} onVmEnv={() => setVmEnvOpen(true)} />
           {!courseSummaryCollapsed && <div className="lab-course-resizer" role="separator" aria-label="Resize course sidebar" aria-orientation="vertical" aria-valuemin={minCourseRailWidth} aria-valuemax={maxCourseRailWidth} aria-valuenow={courseRailWidth} tabIndex={0} onPointerDown={startCourseRailResize} onKeyDown={resizeCourseRailWithKeyboard} />}
@@ -519,11 +519,11 @@ function WorkspaceV1() {
         <header className="lab-project-header"><div className="lab-project-title"><small>{t("COURSE", "课程")}</small><h1>{course.title}</h1></div><div className="lab-project-status"><div className="latency-status"><span className="latency-bars" aria-hidden="true">{[1,2,3,4].map((bar) => <i className={bar <= latencyBars ? "active" : ""} key={bar} />)}</span><span><small>{t("SERVER", "服务器")}</small><strong>{latency === null ? t("Offline", "离线") : `${latency} ms`}</strong></span></div><div className="lab-active-timer"><span className="timer-glyph" aria-hidden="true" /><span><small>{t("ACTIVE TIME", "有效时间")}</small><strong>{formatElapsed(elapsedSeconds)}</strong></span></div></div></header>
 
         <main className="lab-workspace vm-workspace">
-          <header className="vm-toolbar"><div><span className="vm-status-dot" aria-hidden="true" /><strong>{t("Learning VM", "学习虚拟机")}</strong></div><div className="vm-toolbar-actions"><small>{workspace?.status === "RUNNING" && consoleSession ? t("Connected workspace", "工作区已连接") : t("Awaiting connection", "等待连接")}</small>{workspace?.status === "RUNNING" && <Button type="button" variant="destructive" size="xs" className="vm-close-button" onClick={closeEnvironment} disabled={stopping}>{stopping ? t("Closing...", "正在关闭……") : t("Close environment", "关闭环境")}</Button>}</div></header>
-          {workspace?.status === "RUNNING" && consoleSession?.state === "ready" && consoleSession.data ? (
+          <header className="vm-toolbar"><div><span className="vm-status-dot" aria-hidden="true" /><strong>{t("Learning VM", "学习虚拟机")}</strong></div><div className="vm-toolbar-actions"><small>{visibleConsoleSession ? t("Connected workspace", "工作区已连接") : t("Awaiting connection", "等待连接")}</small>{workspace?.status === "RUNNING" && <Button type="button" variant="destructive" size="xs" className="vm-close-button" onClick={closeEnvironment} disabled={stopping}>{stopping ? t("Closing...", "正在关闭……") : t("Close environment", "关闭环境")}</Button>}</div></header>
+          {workspace?.status === "RUNNING" && visibleConsoleSession?.state === "ready" && visibleConsoleSession.data ? (
             <ConsoleViewer
-              data={consoleSession.data}
-              labId={consoleSession.labId}
+              data={visibleConsoleSession.data}
+              labId={visibleConsoleSession.labId}
               enrollmentId={enrollment.id}
               onError={handleConsoleError}
             />
@@ -531,9 +531,9 @@ function WorkspaceV1() {
             <section className="vm-empty-state" role="status">
               <span className="vm-display-icon" aria-hidden="true" />
               <h2>Learning VM</h2>
-              {consoleError && <Alert className="auth-error" variant="destructive">{consoleError}</Alert>}
-              <Button className="primary-button" size="lg" type="button" onClick={() => void startConsoleSession()} disabled={consoleLoading}>
-                {consoleLoading ? "Starting..." : "Start remote desktop"}
+              {consoleState.error && <Alert className="auth-error" variant="destructive">{consoleState.error}</Alert>}
+              <Button className="primary-button" size="lg" type="button" onClick={() => void startConsoleSession()} disabled={consoleState.loading}>
+                {consoleState.loading ? "Starting..." : "Start remote desktop"}
               </Button>
             </section>
           ) : workspace?.status === "STOPPED" ? (

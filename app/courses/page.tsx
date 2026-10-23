@@ -8,8 +8,9 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Sidebar } from "../components/Sidebar";
-import { api, courseAssetUrl, type ApiCourse, type EnrollmentStatus } from "../lib/api";
+import { api, ApiError, courseAssetUrl, type ApiCourse, type EnrollmentStatus, type LearningSnapshotCommand } from "../lib/api";
 import { courseCardState, courseEntryPath, courseEntryPathAfterEnroll, courseIdAfterRestart, resolveEnrollmentStatus } from "../lib/course-card-state";
+import { restartCommandForCourse } from "../lib/restart-command";
 import { activateCourse, clearActiveCourse, clearCourseProgressCache, type DemoCourse } from "../lib/courses";
 import { resetMockCourseProgress, startMockCourse } from "../lib/mock-course";
 import { localize, useLearningLanguage } from "../lib/language";
@@ -24,11 +25,14 @@ export default function CoursesPage() {
   const [starting, setStarting] = useState(false);
   const [restartCourseTarget, setRestartCourseTarget] = useState<DemoCourse | null>(null);
   const [restarting, setRestarting] = useState(false);
+  const [restartRetryCourseId, setRestartRetryCourseId] = useState<string | null>(null);
+  const [restartError, setRestartError] = useState("");
   const [previewCourse, setPreviewCourse] = useState<DemoCourse | null>(null);
   const confirmButtonRef = useRef<HTMLButtonElement>(null);
   const restartConfirmButtonRef = useRef<HTMLButtonElement>(null);
   const previewTriggerRef = useRef<HTMLButtonElement>(null);
   const previewCloseRef = useRef<HTMLButtonElement>(null);
+  const restartCommands = useRef(new Map<string, LearningSnapshotCommand>());
   const language = useLearningLanguage();
   const t = (english: string, chinese: string) => localize(language, english, chinese);
   const pauseLabWarning = t(
@@ -152,6 +156,7 @@ export default function CoursesPage() {
   async function confirmRestartCourse() {
     if (!restartCourseTarget) return;
     setRestarting(true);
+    setRestartError("");
     setError("");
     if (restartCourseTarget.localOnly) {
       resetMockCourseProgress();
@@ -162,7 +167,14 @@ export default function CoursesPage() {
       return;
     }
     try {
-      const enrollment = await api.restartCourse(restartCourseTarget.id);
+      let command = restartCommands.current.get(restartCourseTarget.id);
+      if (!command) {
+        const current = await api.learningProgress(restartCourseTarget.id);
+        command = restartCommandForCourse(restartCommands.current, restartCourseTarget.id, current, () => crypto.randomUUID());
+      }
+      const enrollment = await api.restartCourse(restartCourseTarget.id, command);
+      restartCommands.current.delete(restartCourseTarget.id);
+      setRestartRetryCourseId(null);
       clearCourseProgressCache(restartCourseTarget.id);
       // Apply the server's answer directly: the restarted course card flips
       // back to "Start course" (a restart always ends not started, even if an older
@@ -177,8 +189,15 @@ export default function CoursesPage() {
       setActiveCourseId(nextActiveCourseId);
       setRestartCourseTarget(null);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not restart this course.");
-      setRestartCourseTarget(null);
+      const conflict = caught instanceof ApiError && caught.status === 409;
+      if (conflict) {
+        restartCommands.current.delete(restartCourseTarget.id);
+        setRestartRetryCourseId(null);
+        setRestartError(t("Progress changed before the restart. Your course was not reset; press Restart again to capture the latest progress.", "重新开始前学习进度已变化。课程尚未重置；请再次点击“重新开始”以获取最新进度。"));
+      } else {
+        setRestartRetryCourseId(restartCourseTarget.id);
+        setRestartError(t("The result is not confirmed. Retry to safely finish the same restart command.", "操作结果尚未确认。点击重试可安全完成同一条重新开始命令。"));
+      }
     } finally {
       setRestarting(false);
     }
@@ -267,10 +286,11 @@ export default function CoursesPage() {
           <DialogContent className="course-confirm-dialog course-restart-dialog" showCloseButton={false}>
             <span className="course-confirm-mark restart" aria-hidden="true">!</span>
             <DialogTitle id="course-restart-title">{t(`Restart ${restartCourseTarget.title}?`, `重新开始“${restartCourseTarget.title}”？`)}</DialogTitle>
-            <DialogDescription id="course-restart-description">{restartCourseTarget.localOnly ? t("This removes the Python course progress, answers, and learning time saved in this browser.", "这将删除此浏览器中保存的 Python 课程进度、答案和学习时间。") : t(`This resets your saved progress, chat history, and Learning Lab. You'll start the course from the beginning.${activeCourseId && restartCourseTarget.id !== activeCourseId ? ` It will also pause your current course. ${pauseLabWarning}` : ""}`, `这将重置已保存的进度、聊天记录和学习实验室。你将从头开始课程。${activeCourseId && restartCourseTarget.id !== activeCourseId ? `当前课程也会暂停。${pauseLabWarning}` : ""}`)}</DialogDescription>
+            <DialogDescription id="course-restart-description">{restartCourseTarget.localOnly ? t("This removes the Python course progress, answers, and learning time saved in this browser.", "这将删除此浏览器中保存的 Python 课程进度、答案和学习时间。") : t(`Your progress will be archived before reset. Chat history and the Learning Lab will reset, and used quota will not be restored. You'll start the course from the beginning.${activeCourseId && restartCourseTarget.id !== activeCourseId ? ` It will also pause your current course. ${pauseLabWarning}` : ""}`, `重置前会先归档你的学习进度。聊天记录和学习实验室将重置，已使用的额度不会返还。你将从头开始课程。${activeCourseId && restartCourseTarget.id !== activeCourseId ? `当前课程也会暂停。${pauseLabWarning}` : ""}`)}</DialogDescription>
+            {restartError && <Alert className="auth-error" variant="destructive" role="alert">{restartError}</Alert>}
             <div className="course-confirm-actions">
               <Button variant="outline" size="lg" type="button" onClick={() => setRestartCourseTarget(null)} disabled={restarting}>{t("Cancel", "取消")}</Button>
-              <Button className="restart-confirm-button" variant="destructive" size="lg" type="button" onClick={() => void confirmRestartCourse()} disabled={restarting} ref={restartConfirmButtonRef}>{restarting ? t("Restarting...", "正在重新开始……") : t("Restart course", "重新开始课程")}</Button>
+              <Button className="restart-confirm-button" variant="destructive" size="lg" type="button" onClick={() => void confirmRestartCourse()} disabled={restarting} ref={restartConfirmButtonRef}>{restarting ? t("Restarting...", "正在重新开始……") : restartRetryCourseId === restartCourseTarget.id ? t("Retry same restart", "重试同一条命令") : t("Restart course", "重新开始课程")}</Button>
             </div>
           </DialogContent>
         )}

@@ -257,6 +257,38 @@ export type ApiLearningProgress = {
   achievements: { generation: number; completedAt: string }[];
 };
 
+export type LearningSnapshotCommand = {
+  requestId: string;
+  generation: number;
+  revision: number;
+  courseVersionId: string;
+};
+export type SnapshotCourseVersion = {
+  version: number;
+  modules: Array<{ title: string; lessons: Array<{ contentId: string; title: string }> }>;
+} | null;
+export type ApiLearningSnapshot = {
+  id: string;
+  enrollmentId: string;
+  sourceGeneration: number;
+  sourceRevision: number;
+  courseVersionId: string | null;
+  courseVersion: SnapshotCourseVersion;
+  schemaVersion: number;
+  state: { schemaVersion: 1; readingLessonId: string | null; lessons: Record<string, { completedAt: string | null; firstCompletedAt: string | null }>; completedAt: string | null } | { legacy: true; completeStateAvailable: false; completedAt: string | null };
+  reason: "MANUAL" | "RESTART" | "COMPLETED" | "LEGACY_ACHIEVEMENT";
+  createdAt: string;
+};
+export type ApiCreatedLearningSnapshot = Omit<ApiLearningSnapshot, "courseVersion">;
+export type ApiLearningSnapshotSummary = Omit<ApiLearningSnapshot, "state"> & {
+  completeStateAvailable: boolean;
+  completedLessonCount: number | null;
+  totalLessons: number | null;
+  progressPercent: number | null;
+};
+export type ApiLearningSnapshotPage = { items: ApiLearningSnapshotSummary[]; nextCursor: string | null };
+export type ApiRestartResult = ApiEnrollment;
+
 export type ApiEnrollment = {
   id: string;
   userId: string;
@@ -386,13 +418,16 @@ export const api = {
   lesson: (courseId: string, lessonId: string) => request<ApiLesson>("/courses/" + encodeURIComponent(courseId) + "/lessons/" + encodeURIComponent(lessonId)),
   enrollments: () => request<ApiEnrollment[]>("/me/enrollments"),
   enroll: (courseId: string) => request<ApiEnrollment>("/courses/" + encodeURIComponent(courseId) + "/enroll", { method: "POST" }),
-  restartCourse: (courseId: string) => request<ApiEnrollment>("/courses/" + encodeURIComponent(courseId) + "/restart", { method: "POST" }),
+  restartCourse: (courseId: string, command: LearningSnapshotCommand) => request<ApiRestartResult>("/courses/" + encodeURIComponent(courseId) + "/restart", { method: "POST", body: JSON.stringify(command) }),
   submitAssessment: (courseId: string, lessonId: string, answer: unknown) => request<{ correct: boolean; explanation: string }>("/courses/" + encodeURIComponent(courseId) + "/lessons/" + encodeURIComponent(lessonId) + "/assessment", { method: "POST", body: JSON.stringify({ answer }) }),
   updateProfile: (input: { name?: string; role?: string; timezone?: string }) => request<ApiLearner>("/me", { method: "PATCH", body: JSON.stringify(input) }),
   createDemoUser: (input: { name: string; email: string }) => request<ApiLearner>("/demo/users", { method: "POST", body: JSON.stringify(input) }),
   resetProfile: () => request<ApiLearner>("/me/reset", { method: "POST" }),
   recordPractice: (minutes: number) => request("/practice-sessions", { method: "POST", body: JSON.stringify({ minutes }) }),
   learningProgress: (courseId: string) => request<ApiLearningProgress>(`/courses/${encodeURIComponent(courseId)}/progress`),
+  createLearningSnapshot: (courseId: string, command: LearningSnapshotCommand) => request<ApiCreatedLearningSnapshot>(`/courses/${encodeURIComponent(courseId)}/snapshots`, { method: "POST", body: JSON.stringify(command) }),
+  learningSnapshots: (courseId: string, cursor?: string) => request<ApiLearningSnapshotPage>(`/courses/${encodeURIComponent(courseId)}/snapshots${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`),
+  learningSnapshot: (courseId: string, snapshotId: string) => request<ApiLearningSnapshot>(`/courses/${encodeURIComponent(courseId)}/snapshots/${encodeURIComponent(snapshotId)}`),
   setLessonProgress: (courseId: string, lessonId: string, state: ApiLearningProgress, completed: boolean) => request<ApiLearningProgress>(`/courses/${encodeURIComponent(courseId)}/lessons/${encodeURIComponent(lessonId)}/progress`, {
     method: "PUT", body: JSON.stringify({ generation: state.generation, revision: state.revision, courseVersionId: state.courseVersionId, completed }),
   }),

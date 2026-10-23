@@ -6,6 +6,7 @@ import { type ApiCourseDetail } from "../lib/api";
 import type { useCourseLearningSession } from "./use-course-learning-session";
 import { CourseLessonView } from "../components/CourseLessonView";
 import type { CopyToVm } from "../components/lesson-blocks/copy-code";
+import { LearningSnapshots } from "./LearningSnapshots";
 
 export function CourseLearningPath({ course, copyToVm, session }: {
   course: ApiCourseDetail;
@@ -41,6 +42,7 @@ export function CourseLearningPath({ course, copyToVm, session }: {
         {progress.busy ? "同步中… / Syncing…" : progress.snapshot?.completedLessonIds.includes(selectedId) ? "取消完成 / Mark incomplete" : "标记完成 / Mark complete"}
       </Button>
       <p>这是学习记录；评测通过由系统单独判定。 / Self-reported progress; assessment results are separate.</p>
+      <LearningSnapshots key={`${course.id}:${progress.snapshot?.generation ?? "pending"}`} courseId={course.id} progress={progress} />
       {progress.error && <div role="alert">{progress.error}<Button variant="outline" disabled={progress.busy} onClick={() => void progress.reload()}>刷新进度 / Refresh progress</Button></div>}
     </section>
     {!lessons.length ? <p className="course-load-status" role="status">课程暂无课时 / No lessons yet</p>

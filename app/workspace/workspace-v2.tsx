@@ -9,12 +9,17 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { BrandLogo } from "../components/BrandLogo";
-import { api, ApiError, beaconStopWorkspace, getAccessToken, type ApiConsoleSession, type ApiCourseDetail, type ApiEnrollment, type ApiWorkspace } from "../lib/api";
+import { api, ApiError, beaconStopWorkspace, getAccessToken, type ApiCourseDetail, type ApiEnrollment, type ApiWorkspace } from "../lib/api";
 import { applyLearningLanguage, localize, useLearningLanguage } from "../lib/language";
 import { ConsoleViewer, type ConsoleViewerHandle } from "./console-viewer";
 import { heartbeatIntervalMs, isHeartbeatDue } from "./heartbeat";
 import { upstreamErrorMessage } from "./upstream-error";
 import { CourseLearningPath } from "./CourseLearningPath";
+import { useBrowserNumber } from "../hooks/use-browser-number";
+import { useBrowserJson } from "../hooks/use-browser-json";
+import { useWorkspaceConsoleState } from "./use-workspace-console-state";
+import { createAsyncRequestOwner } from "./async-request-owner";
+import { parseFloatingPosition, type FloatingPosition } from "./floating-position";
 import { TutorMessage } from "./tutor-message";
 import { vmPanelState } from "./vm-panel-state";
 import { hasTutorVersionMismatch, loadedTutorContext, tutorContextKey } from "./tutor-context";
@@ -31,11 +36,22 @@ const initialMessages: Message[] = [
 const widthStorageKey = "aivirteach.lab.v2.leftWidth";
 const floatingPositionStorageKey = "aivirteach.lab.v2.floatingAiPosition";
 const minLeftWidth = 380;
+const maxLeftWidth = Number.MAX_SAFE_INTEGER;
 const minVmWidth = 420;
 const floatingButtonSize = 64;
 const floatingViewportMargin = 14;
 const floatingPromptGap = 12;
 const floatingPromptMaxWidth = 340;
+const floatingPositionServerFallback: FloatingPosition = { x: -100, y: -100 };
+function defaultFloatingPosition(): FloatingPosition {
+  return { x: window.innerWidth - floatingButtonSize - 28, y: window.innerHeight - floatingButtonSize - 28 };
+}
+function clampFloatingPosition(position: FloatingPosition): FloatingPosition {
+  return {
+    x: Math.min(window.innerWidth - floatingButtonSize - floatingViewportMargin, Math.max(floatingViewportMargin, position.x)),
+    y: Math.min(window.innerHeight - floatingButtonSize - floatingViewportMargin, Math.max(floatingViewportMargin, position.y)),
+  };
+}
 function floatingPromptWidth() {
   return Math.min(floatingPromptMaxWidth, window.innerWidth - (floatingViewportMargin * 2) - floatingButtonSize - floatingPromptGap);
 }
@@ -54,20 +70,23 @@ export function WorkspaceV2() {
   const consoleViewerRef = useRef<ConsoleViewerHandle>(null);
   const floatingWasDraggedRef = useRef(false);
   const consolePollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const consolePollDeadlineTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const consolePollCancelled = useRef(false);
+  const consolePollOwner = useRef(createAsyncRequestOwner());
   const [course, setCourse] = useState<ApiCourseDetail | null>(null);
   const [enrollment, setEnrollment] = useState<ApiEnrollment | null>(null);
   const enrollmentId = enrollment?.id;
   const [workspace, setWorkspace] = useState<ApiWorkspace | null>(null);
   const [activeTab, setActiveTab] = useState<WorkspaceTab>("path");
-  const [leftWidth, setLeftWidth] = useState(680);
+  const [leftWidth, setLeftWidth] = useBrowserNumber(widthStorageKey, 680, { min: minLeftWidth, max: maxLeftWidth });
   const [maximized, setMaximized] = useState(false);
   const [checked, setChecked] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
-  const [consoleSession, setConsoleSession] = useState<ApiConsoleSession | null>(null);
-  const [consoleError, setConsoleError] = useState("");
-  const [consoleLoading, setConsoleLoading] = useState(false);
+  const consoleState = useWorkspaceConsoleState(workspace);
+  const consoleSession = consoleState.session;
+  const consoleError = consoleState.error;
+  const consoleLoading = consoleState.loading;
   const [retrying, setRetrying] = useState(false);
   const [resuming, setResuming] = useState(false);
   const [stopping, setStopping] = useState(false);
@@ -78,7 +97,9 @@ export function WorkspaceV2() {
   const [floatingPrompt, setFloatingPrompt] = useState("");
   const [floatingOwner, setFloatingOwner] = useState<{ id: string; contextKey: string } | null>(null);
   const [floatingUnreadKey, setFloatingUnreadKey] = useState<string | null>(null);
-  const [floatingPosition, setFloatingPosition] = useState({ x: -100, y: -100 });
+  const [savedFloatingPosition, setSavedFloatingPosition] = useBrowserJson(floatingPositionStorageKey, floatingPositionServerFallback, defaultFloatingPosition, parseFloatingPosition, clampFloatingPosition);
+  const [draggedFloatingPosition, setDraggedFloatingPosition] = useState<FloatingPosition | null>(null);
+  const floatingPosition = draggedFloatingPosition ?? savedFloatingPosition;
   const learningSession = useCourseLearningSession(course);
   const { messages, appendMessage } = useChatMessages(enrollment?.id, learningSession.progress.snapshot?.generation, initialMessages);
   const displayedLesson = learningSession.state?.status === "ready" && learningSession.state.id === learningSession.selectedId ? learningSession.state.lesson : null;
@@ -160,27 +181,15 @@ export function WorkspaceV2() {
   }, [enrollmentId, workspace?.status]);
 
   useEffect(() => {
-    const saved = Number(window.localStorage.getItem(widthStorageKey));
-    if (Number.isFinite(saved)) setLeftWidth(Math.max(minLeftWidth, saved));
-
-    const clampPosition = (position: { x: number; y: number }) => ({
-      x: Math.min(window.innerWidth - floatingButtonSize - floatingViewportMargin, Math.max(floatingViewportMargin, position.x)),
-      y: Math.min(window.innerHeight - floatingButtonSize - floatingViewportMargin, Math.max(floatingViewportMargin, position.y)),
-    });
-    let initialPosition = { x: window.innerWidth - floatingButtonSize - 28, y: window.innerHeight - floatingButtonSize - 28 };
-    try {
-      const savedPosition = JSON.parse(window.localStorage.getItem(floatingPositionStorageKey) ?? "null") as { x?: unknown; y?: unknown } | null;
-      if (typeof savedPosition?.x === "number" && typeof savedPosition.y === "number") initialPosition = { x: savedPosition.x, y: savedPosition.y };
-    } catch {
-      // Ignore a malformed saved position and use the default.
-    }
-    setFloatingPosition(clampPosition(initialPosition));
-    const keepFloatingButtonInView = () => setFloatingPosition((current) => clampPosition(current));
+    const pollOwnerRef = consolePollOwner;
+    const keepFloatingButtonInView = () => window.dispatchEvent(new Event("aivirteach-storage-change"));
     window.addEventListener("resize", keepFloatingButtonInView);
     return () => {
       window.removeEventListener("resize", keepFloatingButtonInView);
       consolePollCancelled.current = true;
+      pollOwnerRef.current.invalidate();
       if (consolePollTimer.current) clearTimeout(consolePollTimer.current);
+      if (consolePollDeadlineTimer.current) clearTimeout(consolePollDeadlineTimer.current);
     };
   }, []);
 
@@ -196,8 +205,9 @@ export function WorkspaceV2() {
   useEffect(() => {
     if (workspace?.status === "RUNNING") return;
     consolePollCancelled.current = true;
-    setConsoleSession(null);
-    setConsoleLoading(false);
+    consolePollOwner.current.invalidate();
+    if (consolePollTimer.current) clearTimeout(consolePollTimer.current);
+    if (consolePollDeadlineTimer.current) clearTimeout(consolePollDeadlineTimer.current);
   }, [workspace?.status]);
 
   useEffect(() => {
@@ -333,7 +343,7 @@ export function WorkspaceV2() {
     }
     if (!floatingThinking) {
       setFloatingPromptOpen((current) => {
-        if (!current) setFloatingPosition((position) => ({ ...position, x: Math.max(floatingPromptMinX(), position.x) }));
+        if (!current) setSavedFloatingPosition((position) => ({ ...position, x: Math.max(floatingPromptMinX(), position.x) }));
         return !current;
       });
     }
@@ -356,14 +366,15 @@ export function WorkspaceV2() {
         x: Math.min(window.innerWidth - floatingButtonSize - floatingViewportMargin, Math.max(floatingPromptOpen ? floatingPromptMinX() : floatingViewportMargin, startPosition.x + deltaX)),
         y: Math.min(window.innerHeight - floatingButtonSize - floatingViewportMargin, Math.max(floatingViewportMargin, startPosition.y + deltaY)),
       };
-      setFloatingPosition(latestPosition);
+      setDraggedFloatingPosition(latestPosition);
     }
 
     function stop() {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", stop);
       window.removeEventListener("pointercancel", stop);
-      window.localStorage.setItem(floatingPositionStorageKey, JSON.stringify(latestPosition));
+      setSavedFloatingPosition(latestPosition);
+      setDraggedFloatingPosition(null);
     }
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", stop);
@@ -373,31 +384,35 @@ export function WorkspaceV2() {
   async function startConsoleSession() {
     if (!enrollment) return;
     if (consolePollTimer.current) clearTimeout(consolePollTimer.current);
+    if (consolePollDeadlineTimer.current) clearTimeout(consolePollDeadlineTimer.current);
     consolePollCancelled.current = false;
-    setConsoleLoading(true);
-    setConsoleError("");
-    const deadline = Date.now() + 120000;
+    const pollOwner = consolePollOwner.current.begin();
+    consoleState.clear();
+    consoleState.setLoading(true);
+    consoleState.setError("");
+    consolePollDeadlineTimer.current = setTimeout(() => {
+      if (!consolePollOwner.current.isCurrent(pollOwner)) return;
+      consolePollCancelled.current = true;
+      consoleState.setError("The remote desktop took too long to start. Please retry.");
+      consoleState.setLoading(false);
+    }, 120000);
     async function poll() {
-      try {
-        const session = await api.consoleSession(enrollment!.id);
+      await consolePollOwner.current.run(pollOwner, () => api.consoleSession(enrollment!.id), (session) => {
         if (consolePollCancelled.current) return;
         if (session.state === "ready") {
-          setConsoleSession(session);
-          setConsoleLoading(false);
-          return;
-        }
-        if (Date.now() >= deadline) {
-          setConsoleError("The remote desktop took too long to start. Please retry.");
-          setConsoleLoading(false);
+          if (consolePollDeadlineTimer.current) clearTimeout(consolePollDeadlineTimer.current);
+          consoleState.setSession(session);
+          consoleState.setLoading(false);
           return;
         }
         consolePollTimer.current = setTimeout(() => void poll(), 2500);
-      } catch (caught) {
+      }, (caught) => {
         if (consolePollCancelled.current) return;
-        setConsoleError(caught instanceof Error ? caught.message : "Could not start the remote desktop.");
-        setConsoleLoading(false);
+        if (consolePollDeadlineTimer.current) clearTimeout(consolePollDeadlineTimer.current);
+        consoleState.setError(caught instanceof Error ? caught.message : "Could not start the remote desktop.");
+        consoleState.setLoading(false);
         refreshWorkspace();
-      }
+      });
     }
     void poll();
   }
@@ -430,7 +445,7 @@ export function WorkspaceV2() {
     api.stopWorkspace(enrollment.id).then((stoppedWorkspace) => {
       consolePollCancelled.current = true;
       if (consolePollTimer.current) clearTimeout(consolePollTimer.current);
-      setConsoleSession(null);
+      consoleState.clear();
       setWorkspace(stoppedWorkspace);
     }).catch((caught) => {
       setError(upstreamErrorMessage(caught, {
@@ -448,10 +463,10 @@ export function WorkspaceV2() {
   }, [enrollmentId]);
 
   const handleConsoleError = useCallback((nextError: string) => {
-    setConsoleError(nextError);
-    setConsoleSession(null);
+    consoleState.setError(nextError);
+    consoleState.setSession(null);
     refreshWorkspace();
-  }, [refreshWorkspace]);
+  }, [consoleState, refreshWorkspace]);
 
   const copyLessonCodeToVm = useCallback((text: string) => {
     return consoleViewerRef.current?.writeClipboard(text) ?? false;
