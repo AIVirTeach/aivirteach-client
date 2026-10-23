@@ -1,6 +1,6 @@
 "use client";
 
-import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef } from "react";
 import Guacamole from "guacamole-common-js";
 import { Button } from "@/components/ui/button";
 import { api } from "../lib/api";
@@ -33,8 +33,11 @@ export const ConsoleViewer = forwardRef<ConsoleViewerHandle, ConsoleViewerProps>
   const clientRef = useRef<Guacamole.Client | null>(null);
   const connectedRef = useRef(false);
   const pendingClipboardRef = useRef<string | null>(null);
+  const connectionEpochRef = useRef(0);
+  const onErrorRef = useRef(onError);
+  useLayoutEffect(() => { onErrorRef.current = onError; }, [onError]);
 
-  function sendClipboard(text: string): boolean {
+  const sendClipboard = useCallback((text: string): boolean => {
     const guacClient = clientRef.current;
     if (!guacClient || !connectedRef.current) return false;
     const stream = guacClient.createClipboardStream("text/plain");
@@ -42,32 +45,34 @@ export const ConsoleViewer = forwardRef<ConsoleViewerHandle, ConsoleViewerProps>
     writer.sendText(text);
     writer.sendEnd();
     return true;
-  }
+  }, []);
 
-  function writeClipboard(text: string): boolean {
+  const writeClipboard = useCallback((text: string): boolean => {
     if (!text) return false;
     if (sendClipboard(text)) return true;
     pendingClipboardRef.current = text;
     return true;
-  }
+  }, [sendClipboard]);
 
-  useImperativeHandle(ref, () => ({ writeClipboard }), []);
+  useImperativeHandle(ref, () => ({ writeClipboard }), [writeClipboard]);
 
-  async function syncClipboardToVm() {
+  const syncClipboardToVm = useCallback(async () => {
+    const epoch = connectionEpochRef.current;
     let text: string;
     try {
       text = await navigator.clipboard.readText();
     } catch {
       return;
     }
-    if (!text) return;
+    if (!text || epoch !== connectionEpochRef.current) return;
     writeClipboard(text);
-  }
+  }, [writeClipboard]);
 
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
+    const epoch = ++connectionEpochRef.current;
     let cancelled = false;
     let client: Guacamole.Client | null = null;
     let keyboard: Guacamole.Keyboard | null = null;
@@ -82,6 +87,7 @@ export const ConsoleViewer = forwardRef<ConsoleViewerHandle, ConsoleViewerProps>
       client = guacClient;
       clientRef.current = guacClient;
       guacClient.onstatechange = (state) => {
+        if (cancelled || connectionEpochRef.current !== epoch || clientRef.current !== guacClient) return;
         connectedRef.current = state === Guacamole.Client.State.CONNECTED;
         if (connectedRef.current && pendingClipboardRef.current) {
           const pendingText = pendingClipboardRef.current;
@@ -91,12 +97,12 @@ export const ConsoleViewer = forwardRef<ConsoleViewerHandle, ConsoleViewerProps>
       };
 
       guacClient.onerror = (status) => {
-        if (cancelled) return;
-        onError(status.message || "远程桌面连接出错");
+        if (cancelled || connectionEpochRef.current !== epoch || clientRef.current !== guacClient) return;
+        onErrorRef.current(status.message || "远程桌面连接出错");
       };
       tunnel.onerror = (status) => {
-        if (cancelled) return;
-        onError(status.message || "无法连接远程桌面服务");
+        if (cancelled || connectionEpochRef.current !== epoch || clientRef.current !== guacClient) return;
+        onErrorRef.current(status.message || "无法连接远程桌面服务");
       };
 
       // 剪贴板同步：远程 -> 本地（从 VM 里复制出来）。
@@ -108,6 +114,7 @@ export const ConsoleViewer = forwardRef<ConsoleViewerHandle, ConsoleViewerProps>
           text += chunk;
         };
         reader.onend = () => {
+          if (cancelled || connectionEpochRef.current !== epoch || clientRef.current !== guacClient) return;
           navigator.clipboard.writeText(text).catch(() => {});
         };
       };
@@ -166,11 +173,12 @@ export const ConsoleViewer = forwardRef<ConsoleViewerHandle, ConsoleViewerProps>
     }
 
     connect(container).catch((error: unknown) => {
-      if (!cancelled) onError(error instanceof Error ? error.message : "无法连接远程桌面");
+      if (!cancelled && connectionEpochRef.current === epoch) onErrorRef.current(error instanceof Error ? error.message : "无法连接远程桌面");
     });
 
     return () => {
       cancelled = true;
+      connectionEpochRef.current += 1;
       resizeObserver?.disconnect();
       if (keyboard) {
         keyboard.onkeydown = null;
@@ -183,7 +191,7 @@ export const ConsoleViewer = forwardRef<ConsoleViewerHandle, ConsoleViewerProps>
       pendingClipboardRef.current = null;
       if (container) container.innerHTML = "";
     };
-  }, [data, labId, enrollmentId, onError]);
+  }, [data, labId, enrollmentId, sendClipboard]);
 
   return (
     <div className="console-viewer-wrap">

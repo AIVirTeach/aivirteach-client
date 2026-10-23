@@ -8,8 +8,7 @@ import { useLessonSelection } from "./use-lesson-selection";
 import { useLearningProgress } from "./use-learning-progress";
 import { LearningSnapshots } from "./LearningSnapshots";
 import { useBrowserNumber } from "../hooks/use-browser-number";
-import { useWorkspaceConsoleState } from "./use-workspace-console-state";
-import { createAsyncRequestOwner } from "./async-request-owner";
+import { useConsoleSession } from "./use-console-session";
 
 import { useRouter } from "next/navigation";
 import { type CSSProperties, type FormEvent, type KeyboardEvent, type PointerEvent as ReactPointerEvent, useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
@@ -111,16 +110,17 @@ function WorkspaceV1() {
   const [latency, setLatency] = useState<number | null>(null);
   const [courseRailWidth, setCourseRailWidth] = useBrowserNumber(courseRailWidthStorageKey, 420, { min: minCourseRailWidth, max: maxCourseRailWidth });
   const [vmEnvOpen, setVmEnvOpen] = useState(false);
-  const consoleState = useWorkspaceConsoleState(workspace);
-  const { setError: setConsoleStateError, setSession: setConsoleStateSession } = consoleState;
+  const formatConsolePollError = useCallback((caught: unknown) => upstreamErrorMessage(caught, REMOTE_DESKTOP_MESSAGES), []);
+  const consoleState = useConsoleSession({
+    enrollmentId: enrollment?.id,
+    workspace,
+    timeoutMessage: t("Remote desktop startup timed out. Please retry.", "启动超时，请重试"),
+    formatPollError: formatConsolePollError,
+  });
   const visibleConsoleSession = consoleState.session;
   const [retrying, setRetrying] = useState(false);
   const [stopping, setStopping] = useState(false);
   const [resuming, setResuming] = useState(false);
-  const consolePollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const consolePollDeadlineTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const consolePollCancelled = useRef(false);
-  const consolePollOwner = useRef(createAsyncRequestOwner());
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const vmEnvCloseButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -223,18 +223,6 @@ function WorkspaceV1() {
   }, [enrollment, workspace?.status]);
 
   useEffect(() => {
-    if (workspace?.status !== "RUNNING") {
-      consolePollCancelled.current = true;
-      consolePollOwner.current.invalidate();
-      if (consolePollTimer.current) {
-        clearTimeout(consolePollTimer.current);
-        consolePollTimer.current = null;
-      }
-      if (consolePollDeadlineTimer.current) { clearTimeout(consolePollDeadlineTimer.current); consolePollDeadlineTimer.current = null; }
-    }
-  }, [workspace?.status]);
-
-  useEffect(() => {
     if (!vmEnvOpen) return;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -285,13 +273,6 @@ function WorkspaceV1() {
   }, []);
 
   useEffect(() => () => { if (refreshTimer.current) clearTimeout(refreshTimer.current); }, []);
-
-  useEffect(() => () => {
-    consolePollCancelled.current = true;
-    consolePollOwner.current.invalidate();
-    if (consolePollTimer.current) clearTimeout(consolePollTimer.current);
-    if (consolePollDeadlineTimer.current) clearTimeout(consolePollDeadlineTimer.current);
-  }, []);
 
   function selectLesson(lessonId: string | null) {
     if (lessonId && course && learningSnapshot) {
@@ -399,6 +380,7 @@ function WorkspaceV1() {
     if (!enrollment || stopping) return;
     if (!window.confirm("Close the learning environment? You can resume it anytime.")) return;
     setStopping(true);
+    consoleState.stop();
     void api.stopWorkspace(enrollment.id).then(setWorkspace).catch((caught) => {
       setContentError(upstreamErrorMessage(caught, VM_MESSAGES));
     }).finally(() => setStopping(false));
@@ -412,56 +394,8 @@ function WorkspaceV1() {
     }).finally(() => setResuming(false));
   }
 
-  const consolePollDeadlineMs = 2 * 60 * 1000;
-  const consolePollIntervalMs = 2500;
-
-  async function startConsoleSession() {
-    if (!enrollment) return;
-    // 上一轮轮询可能因为超时/报错而结束但定时器已经清空、也可能是用户重新点击重试——
-    // 无论哪种情况，开始新一轮之前先把旧状态清干净，保证同一时刻只有一条轮询链在跑。
-    if (consolePollTimer.current) {
-      clearTimeout(consolePollTimer.current);
-      consolePollTimer.current = null;
-    }
-    if (consolePollDeadlineTimer.current) clearTimeout(consolePollDeadlineTimer.current);
-    consolePollCancelled.current = false;
-    const pollOwner = consolePollOwner.current.begin();
-    consoleState.clear();
-    consoleState.setLoading(true);
-    consoleState.setError("");
-    consolePollDeadlineTimer.current = setTimeout(() => {
-      if (!consolePollOwner.current.isCurrent(pollOwner)) return;
-      consolePollCancelled.current = true;
-      consoleState.setError("启动超时，请重试");
-      consoleState.setLoading(false);
-    }, consolePollDeadlineMs);
-
-    async function poll() {
-      if (!enrollment) return;
-      await consolePollOwner.current.run(pollOwner, () => api.consoleSession(enrollment.id), (session) => {
-        if (consolePollCancelled.current) return;
-        if (session.state === "ready") {
-          if (consolePollDeadlineTimer.current) { clearTimeout(consolePollDeadlineTimer.current); consolePollDeadlineTimer.current = null; }
-          consoleState.setSession(session);
-          consoleState.setLoading(false);
-          return;
-        }
-        consolePollTimer.current = setTimeout(() => void poll(), consolePollIntervalMs);
-      }, (caught) => {
-        if (consolePollCancelled.current) return;
-        if (consolePollDeadlineTimer.current) { clearTimeout(consolePollDeadlineTimer.current); consolePollDeadlineTimer.current = null; }
-        consoleState.setError(upstreamErrorMessage(caught, REMOTE_DESKTOP_MESSAGES));
-        consoleState.setLoading(false);
-      });
-    }
-
-    void poll();
-  }
-
-  const handleConsoleError = useCallback((message: string) => {
-    setConsoleStateError(message);
-    setConsoleStateSession(null);
-  }, [setConsoleStateError, setConsoleStateSession]);
+  const startConsoleSession = consoleState.start;
+  const handleConsoleError = consoleState.reportViewerError;
 
   function refreshTutor() {
     if (refreshTimer.current || !enrollment) return;
@@ -532,7 +466,7 @@ function WorkspaceV1() {
               <span className="vm-display-icon" aria-hidden="true" />
               <h2>Learning VM</h2>
               {consoleState.error && <Alert className="auth-error" variant="destructive">{consoleState.error}</Alert>}
-              <Button className="primary-button" size="lg" type="button" onClick={() => void startConsoleSession()} disabled={consoleState.loading}>
+              <Button className="primary-button" size="lg" type="button" onClick={() => void startConsoleSession()} disabled={consoleState.loading || stopping}>
                 {consoleState.loading ? "Starting..." : "Start remote desktop"}
               </Button>
             </section>

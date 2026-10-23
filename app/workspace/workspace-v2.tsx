@@ -17,8 +17,7 @@ import { upstreamErrorMessage } from "./upstream-error";
 import { CourseLearningPath } from "./CourseLearningPath";
 import { useBrowserNumber } from "../hooks/use-browser-number";
 import { useBrowserJson } from "../hooks/use-browser-json";
-import { useWorkspaceConsoleState } from "./use-workspace-console-state";
-import { createAsyncRequestOwner } from "./async-request-owner";
+import { useConsoleSession } from "./use-console-session";
 import { parseFloatingPosition, type FloatingPosition } from "./floating-position";
 import { TutorMessage } from "./tutor-message";
 import { vmPanelState } from "./vm-panel-state";
@@ -69,21 +68,29 @@ export function WorkspaceV2() {
   const messagesRef = useRef<HTMLDivElement>(null);
   const consoleViewerRef = useRef<ConsoleViewerHandle>(null);
   const floatingWasDraggedRef = useRef(false);
-  const consolePollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const consolePollDeadlineTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const consolePollCancelled = useRef(false);
-  const consolePollOwner = useRef(createAsyncRequestOwner());
   const [course, setCourse] = useState<ApiCourseDetail | null>(null);
   const [enrollment, setEnrollment] = useState<ApiEnrollment | null>(null);
   const enrollmentId = enrollment?.id;
   const [workspace, setWorkspace] = useState<ApiWorkspace | null>(null);
+  const refreshWorkspace = useCallback(() => {
+    if (!enrollmentId) return;
+    api.workspace(enrollmentId).then(setWorkspace).catch(() => undefined);
+  }, [enrollmentId]);
+  const formatConsolePollError = useCallback((caught: unknown) => caught instanceof Error ? caught.message : "Could not start the remote desktop.", []);
   const [activeTab, setActiveTab] = useState<WorkspaceTab>("path");
   const [leftWidth, setLeftWidth] = useBrowserNumber(widthStorageKey, 680, { min: minLeftWidth, max: maxLeftWidth });
   const [maximized, setMaximized] = useState(false);
   const [checked, setChecked] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
-  const consoleState = useWorkspaceConsoleState(workspace);
+  const consoleState = useConsoleSession({
+    enrollmentId,
+    workspace,
+    timeoutMessage: "The remote desktop took too long to start. Please retry.",
+    formatPollError: formatConsolePollError,
+    onViewerError: refreshWorkspace,
+    onPollError: refreshWorkspace,
+  });
   const consoleSession = consoleState.session;
   const consoleError = consoleState.error;
   const consoleLoading = consoleState.loading;
@@ -181,15 +188,10 @@ export function WorkspaceV2() {
   }, [enrollmentId, workspace?.status]);
 
   useEffect(() => {
-    const pollOwnerRef = consolePollOwner;
     const keepFloatingButtonInView = () => window.dispatchEvent(new Event("aivirteach-storage-change"));
     window.addEventListener("resize", keepFloatingButtonInView);
     return () => {
       window.removeEventListener("resize", keepFloatingButtonInView);
-      consolePollCancelled.current = true;
-      pollOwnerRef.current.invalidate();
-      if (consolePollTimer.current) clearTimeout(consolePollTimer.current);
-      if (consolePollDeadlineTimer.current) clearTimeout(consolePollDeadlineTimer.current);
     };
   }, []);
 
@@ -201,14 +203,6 @@ export function WorkspaceV2() {
     if (activeTab !== "teacher") return;
     messagesRef.current?.scrollTo({ top: messagesRef.current.scrollHeight, behavior: "smooth" });
   }, [activeTab, messages]);
-
-  useEffect(() => {
-    if (workspace?.status === "RUNNING") return;
-    consolePollCancelled.current = true;
-    consolePollOwner.current.invalidate();
-    if (consolePollTimer.current) clearTimeout(consolePollTimer.current);
-    if (consolePollDeadlineTimer.current) clearTimeout(consolePollDeadlineTimer.current);
-  }, [workspace?.status]);
 
   useEffect(() => {
     let active = true;
@@ -381,41 +375,7 @@ export function WorkspaceV2() {
     window.addEventListener("pointercancel", stop);
   }
 
-  async function startConsoleSession() {
-    if (!enrollment) return;
-    if (consolePollTimer.current) clearTimeout(consolePollTimer.current);
-    if (consolePollDeadlineTimer.current) clearTimeout(consolePollDeadlineTimer.current);
-    consolePollCancelled.current = false;
-    const pollOwner = consolePollOwner.current.begin();
-    consoleState.clear();
-    consoleState.setLoading(true);
-    consoleState.setError("");
-    consolePollDeadlineTimer.current = setTimeout(() => {
-      if (!consolePollOwner.current.isCurrent(pollOwner)) return;
-      consolePollCancelled.current = true;
-      consoleState.setError("The remote desktop took too long to start. Please retry.");
-      consoleState.setLoading(false);
-    }, 120000);
-    async function poll() {
-      await consolePollOwner.current.run(pollOwner, () => api.consoleSession(enrollment!.id), (session) => {
-        if (consolePollCancelled.current) return;
-        if (session.state === "ready") {
-          if (consolePollDeadlineTimer.current) clearTimeout(consolePollDeadlineTimer.current);
-          consoleState.setSession(session);
-          consoleState.setLoading(false);
-          return;
-        }
-        consolePollTimer.current = setTimeout(() => void poll(), 2500);
-      }, (caught) => {
-        if (consolePollCancelled.current) return;
-        if (consolePollDeadlineTimer.current) clearTimeout(consolePollDeadlineTimer.current);
-        consoleState.setError(caught instanceof Error ? caught.message : "Could not start the remote desktop.");
-        consoleState.setLoading(false);
-        refreshWorkspace();
-      });
-    }
-    void poll();
-  }
+  const startConsoleSession = consoleState.start;
 
   function retryWorkspace() {
     if (!enrollment || retrying) return;
@@ -442,10 +402,8 @@ export function WorkspaceV2() {
     if (!window.confirm(t("Close the learning environment? You can resume it anytime.", "要关闭学习环境吗？你可以随时恢复。"))) return;
     setStopping(true);
     setError("");
+    consoleState.stop();
     api.stopWorkspace(enrollment.id).then((stoppedWorkspace) => {
-      consolePollCancelled.current = true;
-      if (consolePollTimer.current) clearTimeout(consolePollTimer.current);
-      consoleState.clear();
       setWorkspace(stoppedWorkspace);
     }).catch((caught) => {
       setError(upstreamErrorMessage(caught, {
@@ -457,16 +415,7 @@ export function WorkspaceV2() {
 
   // V2 没有心跳，空闲 15 分钟后服务端会停掉 VM，但页面不会被通知；控制台出错时重新拉一次状态，
   // 让面板能切到"已关闭"。拉取失败就保持原样，不覆盖已有的控制台错误提示。
-  const refreshWorkspace = useCallback(() => {
-    if (!enrollmentId) return;
-    api.workspace(enrollmentId).then(setWorkspace).catch(() => undefined);
-  }, [enrollmentId]);
-
-  const handleConsoleError = useCallback((nextError: string) => {
-    consoleState.setError(nextError);
-    consoleState.setSession(null);
-    refreshWorkspace();
-  }, [consoleState, refreshWorkspace]);
+  const handleConsoleError = consoleState.reportViewerError;
 
   const copyLessonCodeToVm = useCallback((text: string) => {
     return consoleViewerRef.current?.writeClipboard(text) ?? false;
@@ -525,7 +474,7 @@ export function WorkspaceV2() {
 
       <main className="lab-v2-vm vm-workspace">
         <header className="vm-toolbar"><div><span className="vm-status-dot" aria-hidden="true" /><strong>{t("Learning VM", "学习虚拟机")}</strong></div><div className="lab-v2-vm-status"><small>{workspace?.status === "RUNNING" && consoleSession ? t("Connected workspace", "工作区已连接") : t("Awaiting connection", "等待连接")}</small><span className={`lab-v2-latency ${latency === null ? "is-offline" : ""}`} role="img" aria-label={latency === null ? t("Server connection unavailable", "服务器连接不可用") : t(`Server latency ${latency} milliseconds`, `服务器延迟 ${latency} 毫秒`)} title={latency === null ? t("Server connection unavailable", "服务器连接不可用") : `${latency} ms`}>{latency === null ? <WifiOff aria-hidden="true" /> : <Wifi aria-hidden="true" />}</span>{workspace?.status === "RUNNING" && <Button type="button" variant="destructive" size="xs" className="vm-close-button" onClick={closeEnvironment} disabled={stopping}>{stopping ? t("Closing...", "正在关闭……") : t("Close environment", "关闭环境")}</Button>}</div></header>
-        {panel === "console" && consoleSession?.data ? <ConsoleViewer ref={consoleViewerRef} data={consoleSession.data} labId={consoleSession.labId} enrollmentId={enrollment.id} onError={handleConsoleError} /> : panel === "start-console" ? <section className="vm-empty-state" role="status"><span className="vm-display-icon" aria-hidden="true" /><h2>Learning VM</h2>{consoleError && <Alert className="auth-error" variant="destructive">{consoleError}</Alert>}<Button size="lg" type="button" onClick={() => void startConsoleSession()} disabled={consoleLoading}>{consoleLoading ? "Starting..." : "Start remote desktop"}</Button></section> : panel === "stopped" ? <section className="vm-empty-state" role="status"><span className="vm-display-icon" aria-hidden="true" /><h2>Learning VM</h2><p>Your Learning VM is closed. Resume it to keep working.</p>{resumeError && <Alert className="auth-error" variant="destructive">{resumeError}</Alert>}<Button size="lg" type="button" onClick={resumeWorkspace} disabled={resuming}>{resuming ? "Resuming..." : "Resume learning environment"}</Button></section> : panel === "error" ? <section className="vm-empty-state" role="status"><span className="vm-display-icon" aria-hidden="true" /><h2>Learning VM</h2><p>{workspace?.errorMessage || "Could not start your Learning VM."}</p><Button size="lg" type="button" onClick={retryWorkspace} disabled={retrying}>{retrying ? "Retrying..." : "Retry"}</Button></section> : <section className="vm-empty-state" role="status"><span className="vm-display-icon" aria-hidden="true" /><h2>Learning VM</h2><p>{workspace?.status === "RESETTING" ? t("Clearing the previous Learning VM. This can take a few minutes.", "正在清理之前的学习虚拟机，可能需要几分钟。") : t("Preparing your Learning VM. This can take a few minutes.", "正在准备学习虚拟机，可能需要几分钟。")}</p></section>}
+        {panel === "console" && consoleSession?.data ? <ConsoleViewer ref={consoleViewerRef} data={consoleSession.data} labId={consoleSession.labId} enrollmentId={enrollment.id} onError={handleConsoleError} /> : panel === "start-console" ? <section className="vm-empty-state" role="status"><span className="vm-display-icon" aria-hidden="true" /><h2>Learning VM</h2>{consoleError && <Alert className="auth-error" variant="destructive">{consoleError}</Alert>}<Button size="lg" type="button" onClick={() => void startConsoleSession()} disabled={consoleLoading || stopping}>{consoleLoading ? "Starting..." : "Start remote desktop"}</Button></section> : panel === "stopped" ? <section className="vm-empty-state" role="status"><span className="vm-display-icon" aria-hidden="true" /><h2>Learning VM</h2><p>Your Learning VM is closed. Resume it to keep working.</p>{resumeError && <Alert className="auth-error" variant="destructive">{resumeError}</Alert>}<Button size="lg" type="button" onClick={resumeWorkspace} disabled={resuming}>{resuming ? "Resuming..." : "Resume learning environment"}</Button></section> : panel === "error" ? <section className="vm-empty-state" role="status"><span className="vm-display-icon" aria-hidden="true" /><h2>Learning VM</h2><p>{workspace?.errorMessage || "Could not start your Learning VM."}</p><Button size="lg" type="button" onClick={retryWorkspace} disabled={retrying}>{retrying ? "Retrying..." : "Retry"}</Button></section> : <section className="vm-empty-state" role="status"><span className="vm-display-icon" aria-hidden="true" /><h2>Learning VM</h2><p>{workspace?.status === "RESETTING" ? t("Clearing the previous Learning VM. This can take a few minutes.", "正在清理之前的学习虚拟机，可能需要几分钟。") : t("Preparing your Learning VM. This can take a few minutes.", "正在准备学习虚拟机，可能需要几分钟。")}</p></section>}
       </main>
 
       <Dialog open={envVariablesOpen} onOpenChange={setEnvVariablesOpen}>
