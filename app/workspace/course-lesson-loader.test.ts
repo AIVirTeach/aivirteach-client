@@ -4,11 +4,11 @@ import type { ApiCourseDetail, ApiLesson } from "../lib/api";
 
 const course = { modules: [{ lessons: [{ id: "a" }, { id: "b" }] }] } as ApiCourseDetail;
 describe("published lesson selection", () => {
-  it("restores only IDs that still exist and bounds completed progress", () => {
-    expect(initialLessonId(course, "a", 100)).toBe("a");
-    expect(initialLessonId(course, "removed", 100)).toBe("b");
-    expect(initialLessonId(course, null, 0)).toBe("a");
-    expect(initialLessonId({ modules: [] } as unknown as ApiCourseDetail, null, 100)).toBe("");
+  it("uses server reading position then next pending lesson, without percentage inference", () => {
+    expect(initialLessonId(course, { currentLessonId: "a", nextLessonId: "b" })).toBe("a");
+    expect(initialLessonId(course, { currentLessonId: "removed", nextLessonId: "b" })).toBe("b");
+    expect(initialLessonId(course, { currentLessonId: null, nextLessonId: null })).toBe("a");
+    expect(initialLessonId({ modules: [] } as unknown as ApiCourseDetail, { currentLessonId: null, nextLessonId: null })).toBe("");
   });
   it("ignores a late response after selecting a different lesson", async () => {
     const states: LessonLoadState[] = [];

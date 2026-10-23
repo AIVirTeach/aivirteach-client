@@ -1,5 +1,8 @@
 "use client";
 
+import { initialLessonId } from "./course-lesson-loader";
+import { useLearningProgress } from "./use-learning-progress";
+
 import { useRouter } from "next/navigation";
 import { type CSSProperties, type FormEvent, type KeyboardEvent, type PointerEvent as ReactPointerEvent, useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
@@ -77,7 +80,7 @@ function WorkspaceV1() {
   const [courseChecked, setCourseChecked] = useState(false);
   const [contentError, setContentError] = useState("");
   const [lessonLoading, setLessonLoading] = useState(false);
-  const [completionStatus, setCompletionStatus] = useState("");
+  const learning = useLearningProgress(course?.id, course?.version);
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [streaming, setStreaming] = useState(false);
@@ -112,14 +115,8 @@ function WorkspaceV1() {
       if (!activeEnrollment) return;
       const courseData = await api.course(activeEnrollment.courseId);
       if (!active) return;
-      const lessons = courseData.modules.flatMap((module) => module.lessons);
-      const storedLessonId = window.localStorage.getItem(`aivirteach.course.lesson.${courseData.id}`);
-      const completedSteps = Math.floor((activeEnrollment.progressPercent / 100) * lessons.length);
-      const fallbackLesson = lessons[Math.min(completedSteps, lessons.length - 1)] ?? lessons[0];
-      const initialLesson = lessons.find((item) => item.id === storedLessonId) ?? fallbackLesson;
       setEnrollment(activeEnrollment);
       setCourse(courseData);
-      setSelectedLessonId(initialLesson?.id ?? null);
     }).catch(() => {
       if (active) setContentError("Could not load the course.");
     }).finally(() => { if (active) setCourseChecked(true); });
@@ -149,7 +146,15 @@ function WorkspaceV1() {
     });
 
     return () => { active = false; unsubscribe?.(); };
-  }, [enrollment]);
+  }, [enrollment?.id]);
+
+  useEffect(() => {
+    if (!course || !learning.snapshot) return;
+    if (!selectedLessonId && !learning.busy && !learning.error) {
+      const id = initialLessonId(course, learning.snapshot);
+      if (id) void learning.visit(id).then(saved => { if (saved) setSelectedLessonId(id); });
+    }
+  }, [course, learning.snapshot, learning.busy, learning.error, learning.visit, selectedLessonId]);
 
   // WS 推送在服务端 waitUntil 后台任务被 Vercel 回收时不会产生任何广播（DB 也不会
   // 更新），重连 WS 接不到一条不存在的消息——这种情况下只有客户端主动重新 GET 才能
@@ -229,11 +234,9 @@ function WorkspaceV1() {
     if (!course || !selectedLessonId) return;
     let active = true;
     setLessonLoading(true);
-    setCompletionStatus("");
     api.lesson(course.id, selectedLessonId).then((lessonData) => {
       if (!active) return;
       setLesson(lessonData);
-      window.localStorage.setItem(`aivirteach.course.lesson.${course.id}`, selectedLessonId);
     }).catch(() => {
       if (active) setContentError("Could not load this step.");
     }).finally(() => { if (active) setLessonLoading(false); });
@@ -290,7 +293,7 @@ function WorkspaceV1() {
   }, []);
 
   function selectLesson(lessonId: string | null) {
-    if (lessonId) setSelectedLessonId(lessonId);
+    if (lessonId) void learning.visit(lessonId).then(saved => { if (saved) setSelectedLessonId(lessonId); });
   }
 
   function startCourseRailResize(event: ReactPointerEvent<HTMLDivElement>) {
@@ -329,16 +332,8 @@ function WorkspaceV1() {
   }
 
   async function completeStep() {
-    if (!lesson) return;
-    setCompletionStatus("Saving...");
-    try {
-      const result = await api.completeLesson(lesson.lesson.id) as { enrollment: ApiEnrollment };
-      setEnrollment((current) => current ? { ...current, ...result.enrollment } : current);
-      setCompletionStatus("Step completed");
-      if (lesson.navigation.nextLessonId) selectLesson(lesson.navigation.nextLessonId);
-    } catch {
-      setCompletionStatus("Could not complete this step.");
-    }
+    if (!lesson || !learning.snapshot) return;
+    await learning.setCompleted(lesson.lesson.id, !learning.snapshot.completedLessonIds.includes(lesson.lesson.id));
   }
 
   async function revealTutorText(text: string, signal: AbortSignal) {
@@ -479,7 +474,7 @@ function WorkspaceV1() {
 
   const allLessons = course.modules.flatMap((module) => module.lessons.map((item) => ({ ...item, module })));
   const currentIndex = allLessons.findIndex((item) => item.id === selectedLessonId);
-  const completedSteps = Math.round((enrollment.progressPercent / 100) * allLessons.length);
+
   const latencyBars = latency === null ? 0 : latency < 80 ? 4 : latency < 160 ? 3 : latency < 300 ? 2 : 1;
 
   const frameStyle = { "--course-rail-width": `${courseRailWidth}px` } as CSSProperties;
@@ -492,18 +487,18 @@ function WorkspaceV1() {
           {courseSummaryCollapsed && <Button className="lab-course-rail-expand" variant="ghost" size="icon" type="button" onClick={() => setCourseSummaryCollapsed(false)} aria-label="Expand course steps" />}
           {!courseSummaryCollapsed && <div className="lab-course-content">
             <section className="lab-step-navigation" aria-label="Step navigation">
-              <Button variant="outline" size="sm" type="button" onClick={() => selectLesson(lesson?.navigation.previousLessonId ?? null)} disabled={!lesson?.navigation.previousLessonId}>{t("Previous step", "上一步")}</Button>
+              {learning.error && <div role="alert">{learning.error}<Button disabled={learning.busy} onClick={() => void learning.reload()}>刷新进度 / Refresh progress</Button></div>}
+              <Button variant="outline" size="sm" type="button" onClick={() => selectLesson(lesson?.navigation.previousLessonId ?? null)} disabled={learning.busy || !learning.snapshot?.active || !lesson?.navigation.previousLessonId}>{t("Previous step", "上一步")}</Button>
               <span>Step {currentIndex + 1} of {allLessons.length}</span>
-              <Button variant="outline" size="sm" type="button" onClick={() => selectLesson(lesson?.navigation.nextLessonId ?? null)} disabled={!lesson?.navigation.nextLessonId}>{t("Next step", "下一步")}</Button>
+              <Button variant="outline" size="sm" type="button" onClick={() => selectLesson(lesson?.navigation.nextLessonId ?? null)} disabled={learning.busy || !learning.snapshot?.active || !lesson?.navigation.nextLessonId}>{t("Next step", "下一步")}</Button>
             </section>
             <Collapsible className="course-outline-panel"><CollapsibleTrigger render={<Button className="course-outline-trigger" variant="ghost" type="button" />}>{t("Course outline", "课程大纲")}</CollapsibleTrigger><CollapsibleContent><nav className="chapter-timeline course-step-outline" aria-label={t("Course outline", "课程大纲")}><ol>{course.modules.map((module) => {
               const moduleActive = module.lessons.some((item) => item.id === selectedLessonId);
               return <li className={moduleActive ? "active" : ""} key={module.id}>
                 <div className="chapter-row"><span>{module.position}</span><div><small>Module {module.position}</small><strong>{module.title}</strong></div></div>
                 <ol className="chapter-steps">{module.lessons.map((item) => {
-                  const stepIndex = allLessons.findIndex((lessonItem) => lessonItem.id === item.id);
-                  const status = item.id === selectedLessonId ? "current" : stepIndex < completedSteps ? "complete" : "upcoming";
-                  return <li className={status} key={item.id}><Button variant="ghost" type="button" onClick={() => selectLesson(item.id)}><span>{module.position}.{item.position}</span><strong>{item.title}</strong></Button></li>;
+                  const status = item.id === selectedLessonId ? "current" : learning.snapshot?.completedLessonIds.includes(item.id) ? "complete" : "upcoming";
+                  return <li className={status} key={item.id}><Button variant="ghost" type="button" disabled={learning.busy || !learning.snapshot?.active} onClick={() => selectLesson(item.id)}><span>{module.position}.{item.position}</span><strong>{item.title}</strong></Button></li>;
                 })}</ol>
               </li>;
             })}</ol></nav></CollapsibleContent></Collapsible>
@@ -511,7 +506,7 @@ function WorkspaceV1() {
               <header className="sidebar-lesson-header"><span>{lesson.module.position}.{lesson.lesson.position}</span><div><small>{lesson.module.title}</small><h2>{lesson.lesson.title}</h2><p>{lesson.lesson.estimatedMinutes} minutes</p></div></header>
               {contentError && <Alert className="auth-error" variant="destructive">{contentError}</Alert>}
               <CourseLessonContent markdown={lesson.markdown} blocks={lesson.blocks} assets={lesson.assets} />
-              <Card as="section" className="lesson-activity sidebar-lesson-activity"><small>{t("STEP CHECK", "步骤检查")}</small><h3>{lesson.lesson.activity.prompt}</h3><Button className="primary-button" size="lg" type="button" onClick={() => void completeStep()} disabled={completionStatus === "Saving..."}>{lesson.navigation.nextLessonId ? t("Complete and continue", "完成并继续") : t("Complete course", "完成课程")}</Button>{completionStatus && <p role="status">{completionStatus}</p>}</Card>
+              <Card as="section" className="lesson-activity sidebar-lesson-activity"><small>{t("LEARNING PROGRESS", "学习进度")}</small>{learning.snapshot && <p>{learning.snapshot.completedLessonIds.length} / {learning.snapshot.totalLessons} · {learning.snapshot.progressPercent}%</p>}<h3>{lesson.lesson.activity.prompt}</h3>{learning.snapshot?.achievements.length ? <p>{t("Previous course completion retained", "历史结课记录已保留")}</p> : null}<Button className="primary-button" size="lg" type="button" onClick={() => void completeStep()} disabled={learning.busy || !learning.snapshot?.active}>{learning.snapshot?.completedLessonIds.includes(lesson.lesson.id) ? t("Mark incomplete", "取消完成") : t("Mark complete", "标记完成")}</Button><p>{t("Self-reported progress; assessment results are separate.", "这是学习记录；评测通过由系统单独判定。")}</p></Card>
             </section>}
           </div>}
           <AccountMenu placement="lab" collapsed={courseSummaryCollapsed} onVmEnv={() => setVmEnvOpen(true)} />
