@@ -17,6 +17,9 @@ import { upstreamErrorMessage } from "./upstream-error";
 import { CourseLearningPath } from "./CourseLearningPath";
 import { TutorMessage } from "./tutor-message";
 import { vmPanelState } from "./vm-panel-state";
+import { hasTutorVersionMismatch, loadedTutorContext, tutorContextKey } from "./tutor-context";
+import { useCourseLearningSession } from "./use-course-learning-session";
+import { useTutorRequest } from "./use-tutor-request";
 
 type Message = { role: "tutor" | "student"; text: string };
 type WorkspaceTab = "teacher" | "path";
@@ -73,9 +76,17 @@ export function WorkspaceV2() {
   const [envVariablesOpen, setEnvVariablesOpen] = useState(false);
   const [floatingPromptOpen, setFloatingPromptOpen] = useState(false);
   const [floatingPrompt, setFloatingPrompt] = useState("");
-  const [floatingThinking, setFloatingThinking] = useState(false);
-  const [floatingUnread, setFloatingUnread] = useState(false);
+  const [floatingOwner, setFloatingOwner] = useState<{ id: string; contextKey: string } | null>(null);
+  const [floatingUnreadKey, setFloatingUnreadKey] = useState<string | null>(null);
   const [floatingPosition, setFloatingPosition] = useState({ x: -100, y: -100 });
+  const learningSession = useCourseLearningSession(course);
+  const displayedLesson = learningSession.state?.status === "ready" && learningSession.state.id === learningSession.selectedId ? learningSession.state.lesson : null;
+  const chatContext = loadedTutorContext(course, learningSession.selectedId, displayedLesson, learningSession.progress.snapshot);
+  const tutorVersionMismatch = hasTutorVersionMismatch(course, learningSession.selectedId, displayedLesson, learningSession.progress.snapshot);
+  const chatKey = tutorContextKey(enrollment?.id, chatContext);
+  const chat = useTutorRequest(chatKey);
+  const floatingThinking = floatingOwner?.contextKey === chatKey;
+  const floatingUnread = floatingUnreadKey === chatKey;
 
   useEffect(() => {
     let active = true;
@@ -276,25 +287,30 @@ export function WorkspaceV2() {
   }
 
   async function requestTutorResponse(text: string, notifyWhenReady: boolean) {
-    if (!enrollment) return;
+    if (!enrollment || !chatContext) return;
+    const request = chat.begin();
+    if (!request) return;
+    const floatingOwnerId = notifyWhenReady ? crypto.randomUUID() : null;
+    if (floatingOwnerId) setFloatingOwner({ id: floatingOwnerId, contextKey: chatKey });
     setMessages((current) => [...current, { role: "student", text }]);
-    if (notifyWhenReady) setFloatingThinking(true);
     try {
-      const response = await api.sendChatMessage(enrollment.id, text);
-      setMessages((current) => [...current, { role: "tutor", text: response.tutorMessage.text }]);
+      const response = await api.sendChatMessage(enrollment.id, { requestId: crypto.randomUUID(), text, context: chatContext }, request.signal);
+      if (request.isCurrent()) setMessages((current) => [...current, { role: "tutor", text: response.tutorMessage.text }]);
     } catch (caught) {
-      setMessages((current) => [...current, { role: "tutor", text: caught instanceof Error ? caught.message : "The tutor is unavailable." }]);
+      if (request.isCurrent()) setMessages((current) => [...current, { role: "tutor", text: caught instanceof Error ? caught.message : "The tutor is unavailable." }]);
     } finally {
-      if (notifyWhenReady) {
-        setFloatingThinking(false);
-        setFloatingUnread(true);
+      const isCurrent = request.isCurrent();
+      request.finish();
+      if (floatingOwnerId) {
+        setFloatingOwner((current) => current?.id === floatingOwnerId ? null : current);
+        if (isCurrent) setFloatingUnreadKey(chatKey);
       }
     }
   }
 
   async function sendMessage(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!enrollment || !message.trim()) return;
+    if (!enrollment || !chatContext || chat.busy || !message.trim()) return;
     const text = message.trim();
     setMessage("");
     await requestTutorResponse(text, false);
@@ -302,11 +318,11 @@ export function WorkspaceV2() {
 
   function sendFloatingPrompt(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!enrollment || floatingThinking || !floatingPrompt.trim()) return;
+    if (!enrollment || !chatContext || chat.busy || floatingThinking || !floatingPrompt.trim()) return;
     const text = floatingPrompt.trim();
     setFloatingPrompt("");
     setFloatingPromptOpen(false);
-    setFloatingUnread(false);
+    setFloatingUnreadKey(null);
     void requestTutorResponse(text, true);
   }
 
@@ -317,7 +333,7 @@ export function WorkspaceV2() {
     }
     if (floatingUnread) {
       setActiveTab("teacher");
-      setFloatingUnread(false);
+      setFloatingUnreadKey(null);
       setFloatingPromptOpen(false);
       return;
     }
@@ -485,12 +501,13 @@ export function WorkspaceV2() {
           <div className="lab-v2-teacher" role="tabpanel">
             <header><div className="tutor-heading"><span className="bot-mark">AI</span><div><strong>AIVir Teacher</strong><small><i /> {t("Online", "在线")}</small></div></div><p>{course.title}</p></header>
             <div ref={messagesRef} className="messages">{messages.map((item, index) => <article className={`message ${item.role}`} key={`${item.role}-${index}`}><div>{item.role === "tutor" ? <TutorMessage text={item.text} /> : <p>{item.text}</p>}<small>{index === messages.length - 1 ? t("Just now", "刚刚") : t("Earlier", "较早")}</small></div></article>)}</div>
-            <form className="message-form" onSubmit={sendMessage}><Input value={message} onChange={(event) => setMessage(event.target.value)} aria-label={t("Ask AIVir Teacher", "向 AIVir Teacher 提问")} placeholder={t("Ask about this course...", "询问这门课程……")} /><Button type="submit">{t("Send", "发送")}</Button></form>
+            {tutorVersionMismatch && <Alert variant="destructive">{t("This lesson does not match the active course version. Reload the course before asking the tutor.", "当前课时与课程版本不匹配，请刷新课程后再向教师提问。")}<Button variant="outline" type="button" onClick={() => window.location.reload()}>{t("Reload course", "刷新课程")}</Button></Alert>}
+            <form className="message-form" onSubmit={sendMessage}><Input value={message} onChange={(event) => setMessage(event.target.value)} aria-label={t("Ask AIVir Teacher", "向 AIVir Teacher 提问")} placeholder={t("Ask about this course step...", "询问此课程步骤……")} disabled={!chatContext || chat.busy} /><Button type="submit" disabled={!chatContext || chat.busy}>{chat.busy ? t("Sending...", "发送中……") : t("Send", "发送")}</Button></form>
           </div>
         ) : (
           <div className="lab-v2-path" role="tabpanel">
             {error && <Alert variant="destructive">{error}</Alert>}
-            <CourseLearningPath key={course.id} course={course} copyToVm={copyLessonCodeToVm} />
+            <CourseLearningPath key={course.id} course={course} copyToVm={copyLessonCodeToVm} session={learningSession} />
           </div>
         )}
       </section>
@@ -518,8 +535,8 @@ export function WorkspaceV2() {
       <div className="floating-ai" style={{ left: floatingPosition.x, top: floatingPosition.y }}>
         {floatingPromptOpen && (
           <form className="floating-ai-prompt" onSubmit={sendFloatingPrompt}>
-            <input ref={floatingPromptRef} value={floatingPrompt} onChange={(event) => setFloatingPrompt(event.target.value)} placeholder={t("\u00A0\u00A0Ask AIVirTeach...", "\u00A0\u00A0向 AIVirTeach 提问……")} aria-label={t("Ask AIVirTeach", "向 AIVirTeach 提问")} />
-            <Button variant="ghost" size="icon" type="submit" disabled={!floatingPrompt.trim()} aria-label={t("Send prompt", "发送问题")}><Send aria-hidden="true" /></Button>
+            <input ref={floatingPromptRef} value={floatingPrompt} onChange={(event) => setFloatingPrompt(event.target.value)} placeholder={t("\u00A0\u00A0Ask AIVirTeach...", "\u00A0\u00A0向 AIVirTeach 提问……")} aria-label={t("Ask AIVirTeach", "向 AIVirTeach 提问")} disabled={!chatContext || chat.busy} />
+            <Button variant="ghost" size="icon" type="submit" disabled={!floatingPrompt.trim() || !chatContext || chat.busy} aria-label={t("Send prompt", "发送问题")}><Send aria-hidden="true" /></Button>
           </form>
         )}
         <button className={`floating-ai-button ${floatingThinking ? "thinking" : ""}`} type="button" onPointerDown={startFloatingDrag} onClick={handleFloatingButtonClick} aria-label={floatingUnread ? t("Open new AIVirTeach response", "打开 AIVirTeach 的新回复") : floatingThinking ? t("AIVirTeach is replying", "AIVirTeach 正在回复") : t("Ask AIVirTeach", "向 AIVirTeach 提问")} aria-expanded={floatingPromptOpen}>

@@ -5,7 +5,7 @@ import { API_BASE_URL } from "./config";
 describe("api.lesson", () => {
   afterEach(() => vi.unstubAllGlobals());
   it("loads published lesson content from the course API", async () => {
-    const lesson = { blocks: [], assets: {}, markdown: "legacy" };
+    const lesson = { courseId: "a/b", courseVersionId: "cv-1", courseVersion: 3, lesson: { id: "step one" }, blocks: [], assets: {}, markdown: "legacy" };
     const fetchMock = vi.fn<typeof fetch>(async () => new Response(JSON.stringify(lesson), { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
     expect(await api.lesson("a/b", "step one")).toEqual(lesson);
@@ -108,14 +108,15 @@ describe("api.streamChatMessage", () => {
   it("POST 到 /workspaces/:enrollmentId/chat/messages/stream，带上 text 和 SSE Accept 头", async () => {
     const body = new ReadableStream();
     vi.mocked(fetch).mockResolvedValue(new Response(body, { status: 200 }));
+    const command = { requestId: "c9a91c1d-e1f8-43d8-9ffc-946686d4168f", text: "你好", context: { courseVersionId: "cv-1", lessonId: "lesson-1", generation: 4 } };
 
-    const response = await api.streamChatMessage("enroll-1", "你好");
+    const response = await api.streamChatMessage("enroll-1", command);
 
     expect(fetch).toHaveBeenCalledWith(
       `${API_BASE_URL}/workspaces/enroll-1/chat/messages/stream`,
       expect.objectContaining({
         method: "POST",
-        body: JSON.stringify({ text: "你好" }),
+        body: JSON.stringify(command),
         headers: expect.objectContaining({
           "Content-Type": "application/json",
           Accept: "text/event-stream",
@@ -130,19 +131,34 @@ describe("api.streamChatMessage", () => {
       new Response(JSON.stringify({ message: "请先启动虚拟机后再提问。" }), { status: 400 }),
     );
 
-    await expect(api.streamChatMessage("enroll-1", "你好")).rejects.toBeInstanceOf(ApiError);
+    await expect(api.streamChatMessage("enroll-1", { requestId: "c9a91c1d-e1f8-43d8-9ffc-946686d4168f", text: "你好", context: { courseVersionId: "cv-1", lessonId: "lesson-1", generation: 4 } })).rejects.toBeInstanceOf(ApiError);
   });
 
   it("传入 AbortSignal 时透传给 fetch，调用方可以中止还没读完的流", async () => {
     const body = new ReadableStream();
     vi.mocked(fetch).mockResolvedValue(new Response(body, { status: 200 }));
     const controller = new AbortController();
+    const command = { requestId: "c9a91c1d-e1f8-43d8-9ffc-946686d4168f", text: "你好", context: { courseVersionId: "cv-1", lessonId: "lesson-1", generation: 4 } };
 
-    await api.streamChatMessage("enroll-1", "你好", controller.signal);
+    await api.streamChatMessage("enroll-1", command, controller.signal);
 
     expect(fetch).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({ signal: controller.signal }),
     );
+  });
+
+  it("non-stream chat posts the same typed command and forwards cancellation", async () => {
+    const command = { requestId: "c9a91c1d-e1f8-43d8-9ffc-946686d4168f", text: "你好", context: { courseVersionId: "cv-1", lessonId: "lesson-1", generation: 4 } };
+    const controller = new AbortController();
+    vi.mocked(fetch).mockResolvedValue(new Response(JSON.stringify({ studentMessage: {}, tutorMessage: {} }), { status: 200 }));
+
+    await api.sendChatMessage("enroll-1", command, controller.signal);
+
+    expect(fetch).toHaveBeenCalledWith(`${API_BASE_URL}/workspaces/enroll-1/chat/messages`, expect.objectContaining({
+      method: "POST",
+      body: JSON.stringify(command),
+      signal: controller.signal,
+    }));
   });
 });

@@ -212,6 +212,8 @@ export type ApiCourseDetail = ApiCourse & {
 };
 
 export type ApiLesson = {
+  courseVersionId: string;
+  courseVersion: number;
   courseId: string;
   module: { id: string; title: string; position: number };
   lesson: ApiCourseLessonSummary;
@@ -234,6 +236,9 @@ export type ApiCourseWelcome = {
 };
 
 export type EnrollmentStatus = "not_started" | "in_progress" | "completed";
+
+export type ApiTutorContext = { courseVersionId: string; lessonId: string; generation: number };
+export type AskTutorCommand = { requestId: string; text: string; context: ApiTutorContext };
 
 export type ApiLearningProgress = {
   enrollmentId: string;
@@ -395,8 +400,8 @@ export const api = {
     method: "PUT", body: JSON.stringify({ generation: state.generation, courseVersionId: state.courseVersionId, lessonId }),
   }),
   chatMessages: (enrollmentId: string) => request<ApiChatMessage[]>("/workspaces/" + encodeURIComponent(enrollmentId) + "/chat/messages"),
-  sendChatMessage: (enrollmentId: string, text: string) => request<{ studentMessage: ApiChatMessage; tutorMessage: ApiChatMessage }>("/workspaces/" + encodeURIComponent(enrollmentId) + "/chat/messages", { method: "POST", body: JSON.stringify({ text }) }),
-  streamChatMessage: (enrollmentId: string, text: string, signal?: AbortSignal) => streamRequest("/workspaces/" + encodeURIComponent(enrollmentId) + "/chat/messages/stream", { method: "POST", body: JSON.stringify({ text }), signal }),
+  sendChatMessage: (enrollmentId: string, command: AskTutorCommand, signal?: AbortSignal) => request<{ studentMessage: ApiChatMessage; tutorMessage: ApiChatMessage }>("/workspaces/" + encodeURIComponent(enrollmentId) + "/chat/messages", { method: "POST", body: JSON.stringify(command), signal }),
+  streamChatMessage: (enrollmentId: string, command: AskTutorCommand, signal?: AbortSignal) => streamRequest("/workspaces/" + encodeURIComponent(enrollmentId) + "/chat/messages/stream", { method: "POST", body: JSON.stringify(command), signal }),
   workspace: (enrollmentId: string) => request<ApiWorkspace>("/workspaces/" + encodeURIComponent(enrollmentId)),
   createWorkspace: (enrollmentId: string) => request<ApiWorkspace>("/workspaces", { method: "POST", body: JSON.stringify({ enrollmentId }) }),
   consoleSession: (enrollmentId: string) =>

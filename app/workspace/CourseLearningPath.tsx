@@ -1,55 +1,37 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { api, type ApiCourseDetail } from "../lib/api";
-import { useLearningProgress } from "./use-learning-progress";
+import { type ApiCourseDetail } from "../lib/api";
+import type { useCourseLearningSession } from "./use-course-learning-session";
 import { CourseLessonView } from "../components/CourseLessonView";
 import type { CopyToVm } from "../components/lesson-blocks/copy-code";
-import { createLessonLoader, initialLessonId, type LessonLoadState } from "./course-lesson-loader";
 
-export function CourseLearningPath({ course, copyToVm }: {
+export function CourseLearningPath({ course, copyToVm, session }: {
   course: ApiCourseDetail;
   copyToVm: CopyToVm;
+  session: ReturnType<typeof useCourseLearningSession>;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const progress = useLearningProgress(course.id, course.version);
-  const { snapshot, busy, error, visit } = progress;
-  const [selectedId, setSelectedId] = useState("");
-  useEffect(() => {
-    if (selectedId || !snapshot || busy || error) return;
-    const id = initialLessonId(course, snapshot);
-    if (id) void visit(id).then(saved => { if (saved) setSelectedId(id); });
-  }, [course, snapshot, busy, error, visit, selectedId]);
-  async function select(id: string) {
-    if (await progress.visit(id)) setSelectedId(id);
-  }
-  const [state, setState] = useState<LessonLoadState | null>(null);
-  const [retry, setRetry] = useState(0);
+  const { progress, selectedId, select, state, retry } = session;
   const lessons = course.modules.flatMap((module) => module.lessons);
   useEffect(() => {
-    if (!selectedId) return;
     if (scrollRef.current) scrollRef.current.scrollTop = 0;
-    const loader = createLessonLoader((id) => api.lesson(course.id, id), (next) => {
-      setState(next);
-    });
-    void loader.load(selectedId);
-    return () => loader.dispose();
-  }, [course.id, selectedId, retry]);
+  }, [selectedId]);
   const index = lessons.findIndex((lesson) => lesson.id === selectedId);
   return <div className="course-learning-path" ref={scrollRef}>
     <nav className="course-lesson-navigation" aria-label="课程课时 / Course lessons">
       <label htmlFor="lab-lesson-select">{course.title}</label>
-      <select id="lab-lesson-select" value={selectedId} onChange={(event) => void select(event.target.value)} disabled={!lessons.length || progress.busy || !progress.snapshot?.active}>
+      <select id="lab-lesson-select" value={selectedId} onChange={(event) => void select(event.target.value)} disabled={!lessons.length || !progress.snapshot?.active}>
         {!selectedId && <option value="">选择课时 / Select lesson</option>}
         {course.modules.map((module) => <optgroup key={module.id} label={module.title}>
           {module.lessons.map((lesson) => <option key={lesson.id} value={lesson.id}>{progress.snapshot?.completedLessonIds.includes(lesson.id) ? "✓ " : ""}{lesson.title}</option>)}
         </optgroup>)}
       </select>
       <div>
-        <Button variant="outline" size="sm" disabled={index <= 0 || progress.busy || !progress.snapshot?.active} onClick={() => void select(lessons[index - 1].id)}>上一节 / Previous</Button>
+        <Button variant="outline" size="sm" disabled={index <= 0 || !progress.snapshot?.active} onClick={() => void select(lessons[index - 1].id)}>上一节 / Previous</Button>
         <span>{index < 0 ? 0 : index + 1} / {lessons.length}</span>
-        <Button variant="outline" size="sm" disabled={index < 0 || index >= lessons.length - 1 || progress.busy || !progress.snapshot?.active} onClick={() => void select(lessons[index + 1].id)}>下一节 / Next</Button>
+        <Button variant="outline" size="sm" disabled={index < 0 || index >= lessons.length - 1 || !progress.snapshot?.active} onClick={() => void select(lessons[index + 1].id)}>下一节 / Next</Button>
       </div>
     </nav>
     <section className="course-load-status" aria-label="学习进度 / Learning progress">
@@ -63,7 +45,7 @@ export function CourseLearningPath({ course, copyToVm }: {
     </section>
     {!lessons.length ? <p className="course-load-status" role="status">课程暂无课时 / No lessons yet</p>
       : state?.id !== selectedId || state?.status === "loading" || !state ? <p className="course-load-status" role="status">正在加载课时… / Loading lesson…</p>
-      : state.status === "error" ? <div className="course-load-status" role="alert"><p>{state.message}</p><Button onClick={() => setRetry((value) => value + 1)}>重试 / Retry</Button></div>
+      : state.status === "error" ? <div className="course-load-status" role="alert"><p>{state.message}</p><Button onClick={retry}>重试 / Retry</Button></div>
       : <CourseLessonView key={selectedId} mode="learner" title={state.lesson.lesson.title} moduleTitle={state.lesson.module.title} blocks={state.lesson.blocks} assets={state.lesson.assets} markdown={state.lesson.markdown} copyToVm={copyToVm} />}
   </div>;
 }

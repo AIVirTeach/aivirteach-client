@@ -1,5 +1,7 @@
 "use client";
 
+import { hasTutorVersionMismatch, loadedTutorContext, tutorContextKey } from "./tutor-context";
+import { useTutorRequest } from "./use-tutor-request";
 import { initialLessonId } from "./course-lesson-loader";
 import { useLearningProgress } from "./use-learning-progress";
 
@@ -75,16 +77,26 @@ function WorkspaceV1() {
   const [course, setCourse] = useState<ApiCourseDetail | null>(null);
   const [enrollment, setEnrollment] = useState<ApiEnrollment | null>(null);
   const [workspace, setWorkspace] = useState<ApiWorkspace | null>(null);
-  const [lesson, setLesson] = useState<ApiLesson | null>(null);
-  const [selectedLessonId, setSelectedLessonId] = useState<string | null>(null);
+  const [loadedLesson, setLoadedLesson] = useState<{ key: string; lesson: ApiLesson } | null>(null);
+  const [selection, setSelection] = useState({ courseId: "", courseVersionId: "", generation: -1, lessonId: "" });
   const [courseChecked, setCourseChecked] = useState(false);
   const [contentError, setContentError] = useState("");
   const [lessonLoading, setLessonLoading] = useState(false);
   const learning = useLearningProgress(course?.id, course?.version);
+  const { snapshot: learningSnapshot, visit: visitLesson } = learning;
+  const lessonKey = course && learningSnapshot ? `${course.id}:${course.version}:${learningSnapshot.courseVersionId}:${learningSnapshot.generation}` : "";
+  const selectionMatches = !!lessonKey && selection.courseId === course?.id && selection.courseVersionId === learningSnapshot?.courseVersionId && selection.generation === learningSnapshot?.generation;
+  const selectedLessonId = selectionMatches ? selection.lessonId : course && learningSnapshot ? initialLessonId(course, learningSnapshot) : null;
+  const lesson = loadedLesson?.key === `${lessonKey}:${selectedLessonId}` ? loadedLesson.lesson : null;
+  const initialVisitKey = useRef("");
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState<Message[]>(initialMessages);
-  const [streaming, setStreaming] = useState(false);
-  const [streamingText, setStreamingText] = useState("");
+  const chatContext = loadedTutorContext(course, selectedLessonId, lessonLoading ? null : lesson, learning.snapshot);
+  const chatKey = tutorContextKey(enrollment?.id, chatContext);
+  const chat = useTutorRequest(chatKey);
+  const streaming = chat.busy;
+  const [streamingTextState, setStreamingTextState] = useState<{ key: string; text: string } | null>(null);
+  const streamingText = streamingTextState?.key === chatKey ? streamingTextState.text : "";
   const [refreshing, setRefreshing] = useState(false);
   const [courseSummaryCollapsed, setCourseSummaryCollapsed] = useState(false);
   const [tutorCollapsed, setTutorCollapsed] = useState(false);
@@ -102,11 +114,8 @@ function WorkspaceV1() {
   const consolePollCancelled = useRef(false);
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const vmEnvCloseButtonRef = useRef<HTMLButtonElement>(null);
-  const chatAbortRef = useRef<AbortController | null>(null);
 
-  // 组件卸载时中止还在飞的聊天流：sendMessage 是表单回调不是 effect，没有天然的
-  // cleanup 时机，靠这个 mount-only effect 补上，避免卸载后还在读流、还在 setState。
-  useEffect(() => () => chatAbortRef.current?.abort(), []);
+
 
   useEffect(() => {
     let active = true;
@@ -125,20 +134,21 @@ function WorkspaceV1() {
 
   useEffect(() => {
     if (!enrollment) return;
+    const enrollmentId = enrollment.id;
     let active = true;
     let unsubscribe: (() => void) | null = null;
 
     async function ensureWorkspace() {
       let current: ApiWorkspace;
       try {
-        current = await api.workspace(enrollment!.id);
+        current = await api.workspace(enrollmentId);
       } catch (caught) {
         if (!(caught instanceof ApiError) || caught.status !== 404) throw caught;
-        current = await api.createWorkspace(enrollment!.id);
+        current = await api.createWorkspace(enrollmentId);
       }
       if (!active) return;
       setWorkspace(current);
-      unsubscribe = subscribeWorkspace(enrollment!.id, (updated) => { if (active) setWorkspace(updated); });
+      unsubscribe = subscribeWorkspace(enrollmentId, (updated) => { if (active) setWorkspace(updated); });
     }
 
     ensureWorkspace().catch((caught) => {
@@ -146,15 +156,16 @@ function WorkspaceV1() {
     });
 
     return () => { active = false; unsubscribe?.(); };
-  }, [enrollment?.id]);
+  }, [enrollment]);
 
   useEffect(() => {
-    if (!course || !learning.snapshot) return;
-    if (!selectedLessonId && !learning.busy && !learning.error) {
-      const id = initialLessonId(course, learning.snapshot);
-      if (id) void learning.visit(id).then(saved => { if (saved) setSelectedLessonId(id); });
-    }
-  }, [course, learning.snapshot, learning.busy, learning.error, learning.visit, selectedLessonId]);
+    const snapshot = learningSnapshot;
+    if (!course || !snapshot) return;
+    const key = `${course.id}:${snapshot.courseVersionId}:${snapshot.generation}`;
+    if (initialVisitKey.current === key) return;
+    const id = initialLessonId(course, snapshot);
+    if (id) { initialVisitKey.current = key; void visitLesson(id); }
+  }, [course, learningSnapshot, visitLesson]);
 
   // WS 推送在服务端 waitUntil 后台任务被 Vercel 回收时不会产生任何广播（DB 也不会
   // 更新），重连 WS 接不到一条不存在的消息——这种情况下只有客户端主动重新 GET 才能
@@ -236,12 +247,12 @@ function WorkspaceV1() {
     setLessonLoading(true);
     api.lesson(course.id, selectedLessonId).then((lessonData) => {
       if (!active) return;
-      setLesson(lessonData);
+      setLoadedLesson({ key: `${lessonKey}:${selectedLessonId}`, lesson: lessonData });
     }).catch(() => {
       if (active) setContentError("Could not load this step.");
     }).finally(() => { if (active) setLessonLoading(false); });
     return () => { active = false; };
-  }, [course, selectedLessonId]);
+  }, [course, lessonKey, selectedLessonId]);
 
   useEffect(() => {
     if (!enrollment) return;
@@ -293,7 +304,10 @@ function WorkspaceV1() {
   }, []);
 
   function selectLesson(lessonId: string | null) {
-    if (lessonId) void learning.visit(lessonId).then(saved => { if (saved) setSelectedLessonId(lessonId); });
+    if (lessonId && course && learningSnapshot) {
+      setSelection({ courseId: course.id, courseVersionId: learningSnapshot.courseVersionId, generation: learningSnapshot.generation, lessonId });
+      void visitLesson(lessonId);
+    }
   }
 
   function startCourseRailResize(event: ReactPointerEvent<HTMLDivElement>) {
@@ -341,24 +355,23 @@ function WorkspaceV1() {
     for (const chunk of typewriterChunks(text)) {
       if (signal.aborted) return;
       accumulated += chunk;
-      setStreamingText(accumulated);
+      setStreamingTextState({ key: chatKey, text: accumulated });
       await new Promise((resolve) => setTimeout(resolve, typewriterDelayMs()));
     }
   }
 
   async function sendMessage(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!enrollment || streaming) return;
+    if (!enrollment || streaming || !chatContext) return;
     const text = message.trim();
     if (!text) return;
+    const request = chat.begin();
+    if (!request) return;
     setMessage("");
     setMessages((current) => [...current, { role: "student", text }]);
-    setStreaming(true);
-    setStreamingText("");
-    const controller = new AbortController();
-    chatAbortRef.current = controller;
+    setStreamingTextState({ key: chatKey, text: "" });
     try {
-      const response = await api.streamChatMessage(enrollment.id, text, controller.signal);
+      const response = await api.streamChatMessage(enrollment.id, { requestId: crypto.randomUUID(), text, context: chatContext }, request.signal);
       if (!response.body) throw new Error("The tutor is unavailable.");
 
       let tutorText: string | null = null;
@@ -369,20 +382,18 @@ function WorkspaceV1() {
       }
 
       if (tutorText === null) throw new Error("The tutor is unavailable.");
-      await revealTutorText(tutorText, controller.signal);
-      if (controller.signal.aborted) return;
+      await revealTutorText(tutorText, request.signal);
+      if (!request.isCurrent()) return;
       setMessages((current) => [...current, { role: "tutor", text: tutorText! }]);
     } catch (caught) {
       // 上面两处 throw new Error(...) 不是 ApiError，upstreamErrorMessage 会把它们归为
       // retryable（提示重试）而不是 unavailable——这是有意为之：响应体缺失/流结束却没有最终
       // 消息通常是瞬时的网络或流式问题，值得让用户重试，不该直接判定为服务不可用。
-      if (controller.signal.aborted) return;
+      if (!request.isCurrent()) return;
       setMessages((current) => [...current, { role: "tutor", text: upstreamErrorMessage(caught, AGENT_MESSAGES) }]);
     } finally {
-      if (!controller.signal.aborted) {
-        setStreaming(false);
-        setStreamingText("");
-      }
+      if (request.isCurrent()) setStreamingTextState(null);
+      request.finish();
     }
   }
 
@@ -488,9 +499,9 @@ function WorkspaceV1() {
           {!courseSummaryCollapsed && <div className="lab-course-content">
             <section className="lab-step-navigation" aria-label="Step navigation">
               {learning.error && <div role="alert">{learning.error}<Button disabled={learning.busy} onClick={() => void learning.reload()}>刷新进度 / Refresh progress</Button></div>}
-              <Button variant="outline" size="sm" type="button" onClick={() => selectLesson(lesson?.navigation.previousLessonId ?? null)} disabled={learning.busy || !learning.snapshot?.active || !lesson?.navigation.previousLessonId}>{t("Previous step", "上一步")}</Button>
+              <Button variant="outline" size="sm" type="button" onClick={() => selectLesson(lesson?.navigation.previousLessonId ?? null)} disabled={!learning.snapshot?.active || !lesson?.navigation.previousLessonId}>{t("Previous step", "上一步")}</Button>
               <span>Step {currentIndex + 1} of {allLessons.length}</span>
-              <Button variant="outline" size="sm" type="button" onClick={() => selectLesson(lesson?.navigation.nextLessonId ?? null)} disabled={learning.busy || !learning.snapshot?.active || !lesson?.navigation.nextLessonId}>{t("Next step", "下一步")}</Button>
+              <Button variant="outline" size="sm" type="button" onClick={() => selectLesson(lesson?.navigation.nextLessonId ?? null)} disabled={!learning.snapshot?.active || !lesson?.navigation.nextLessonId}>{t("Next step", "下一步")}</Button>
             </section>
             <Collapsible className="course-outline-panel"><CollapsibleTrigger render={<Button className="course-outline-trigger" variant="ghost" type="button" />}>{t("Course outline", "课程大纲")}</CollapsibleTrigger><CollapsibleContent><nav className="chapter-timeline course-step-outline" aria-label={t("Course outline", "课程大纲")}><ol>{course.modules.map((module) => {
               const moduleActive = module.lessons.some((item) => item.id === selectedLessonId);
@@ -498,11 +509,11 @@ function WorkspaceV1() {
                 <div className="chapter-row"><span>{module.position}</span><div><small>Module {module.position}</small><strong>{module.title}</strong></div></div>
                 <ol className="chapter-steps">{module.lessons.map((item) => {
                   const status = item.id === selectedLessonId ? "current" : learning.snapshot?.completedLessonIds.includes(item.id) ? "complete" : "upcoming";
-                  return <li className={status} key={item.id}><Button variant="ghost" type="button" disabled={learning.busy || !learning.snapshot?.active} onClick={() => selectLesson(item.id)}><span>{module.position}.{item.position}</span><strong>{item.title}</strong></Button></li>;
+                  return <li className={status} key={item.id}><Button variant="ghost" type="button" disabled={!learning.snapshot?.active} onClick={() => selectLesson(item.id)}><span>{module.position}.{item.position}</span><strong>{item.title}</strong></Button></li>;
                 })}</ol>
               </li>;
             })}</ol></nav></CollapsibleContent></Collapsible>
-            {lessonLoading || !lesson ? <p className="sidebar-lesson-loading" role="status">Loading course step...</p> : <section className="sidebar-lesson">
+            {lessonLoading || !lesson || lesson.lesson.id !== selectedLessonId ? <p className="sidebar-lesson-loading" role="status">Loading course step...</p> : <section className="sidebar-lesson">
               <header className="sidebar-lesson-header"><span>{lesson.module.position}.{lesson.lesson.position}</span><div><small>{lesson.module.title}</small><h2>{lesson.lesson.title}</h2><p>{lesson.lesson.estimatedMinutes} minutes</p></div></header>
               {contentError && <Alert className="auth-error" variant="destructive">{contentError}</Alert>}
               <CourseLessonContent markdown={lesson.markdown} blocks={lesson.blocks} assets={lesson.assets} />
@@ -556,7 +567,7 @@ function WorkspaceV1() {
           )}
         </main>
 
-        <Card as="aside" className={`lab-tutor-rail ${tutorCollapsed ? "collapsed" : ""}`} aria-label={t("AI teacher", "AI 教师")}>{tutorCollapsed ? <Button className="lab-tutor-expand" variant="ghost" size="icon" type="button" onClick={() => setTutorCollapsed(false)} aria-label={t("Expand AI teacher", "展开 AI 教师")}><span className="bot-mark">AI</span><i className="collapse-glyph points-left" aria-hidden="true" /></Button> : <><header><div className="tutor-heading"><span className="bot-mark">AI</span><div><strong>AIVir Teacher</strong><small><i /> {t("Online", "在线")}</small></div></div><div className="tutor-header-actions"><Button className={`tutor-refresh ${refreshing ? "refreshing" : ""}`} variant="ghost" size="icon" type="button" onClick={refreshTutor} aria-label={t("Refresh tutor conversation", "刷新教师对话")}><img src="/refresh-icon.png" alt="" aria-hidden="true" /></Button><Button className="lab-rail-toggle points-right" variant="ghost" size="icon" type="button" onClick={() => setTutorCollapsed(true)} aria-label={t("Collapse AI teacher", "收起 AI 教师")}><span aria-hidden="true" /></Button></div></header><div className={`messages ${refreshing ? "refreshing" : ""}`}>{messages.map((item, index) => <article className={`message ${item.role}`} key={`${item.role}-${index}`}><div>{item.role === "tutor" ? <TutorMessage text={item.text} /> : <p>{item.text}</p>}<small>{index === messages.length - 1 && !streaming ? t("Just now", "刚刚") : t("Earlier", "较早")}</small></div></article>)}{streaming && <article className="message tutor pending"><div>{streamingText ? <TutorMessage text={streamingText} /> : <TypingIndicator />}<small>{t("Just now", "刚刚")}</small></div></article>}</div><form className="message-form" onSubmit={sendMessage}><Input value={message} onChange={(event) => setMessage(event.target.value)} aria-label={t("Ask the tutor for help", "向教师寻求帮助")} placeholder={t("Ask about this step...", "询问此步骤……")} disabled={streaming} /><Button size="icon" type="submit" aria-label={t("Send message", "发送消息")} disabled={streaming}>{t("Send", "发送")}</Button></form></> }</Card>
+        <Card as="aside" className={`lab-tutor-rail ${tutorCollapsed ? "collapsed" : ""}`} aria-label={t("AI teacher", "AI 教师")}>{tutorCollapsed ? <Button className="lab-tutor-expand" variant="ghost" size="icon" type="button" onClick={() => setTutorCollapsed(false)} aria-label={t("Expand AI teacher", "展开 AI 教师")}><span className="bot-mark">AI</span><i className="collapse-glyph points-left" aria-hidden="true" /></Button> : <><header><div className="tutor-heading"><span className="bot-mark">AI</span><div><strong>AIVir Teacher</strong><small><i /> {t("Online", "在线")}</small></div></div><div className="tutor-header-actions"><Button className={`tutor-refresh ${refreshing ? "refreshing" : ""}`} variant="ghost" size="icon" type="button" onClick={refreshTutor} aria-label={t("Refresh tutor conversation", "刷新教师对话")}><img src="/refresh-icon.png" alt="" aria-hidden="true" /></Button><Button className="lab-rail-toggle points-right" variant="ghost" size="icon" type="button" onClick={() => setTutorCollapsed(true)} aria-label={t("Collapse AI teacher", "收起 AI 教师")}><span aria-hidden="true" /></Button></div></header><div className={`messages ${refreshing ? "refreshing" : ""}`}>{messages.map((item, index) => <article className={`message ${item.role}`} key={`${item.role}-${index}`}><div>{item.role === "tutor" ? <TutorMessage text={item.text} /> : <p>{item.text}</p>}<small>{index === messages.length - 1 && !streaming ? t("Just now", "刚刚") : t("Earlier", "较早")}</small></div></article>)}{streaming && <article className="message tutor pending"><div>{streamingText ? <TutorMessage text={streamingText} /> : <TypingIndicator />}<small>{t("Just now", "刚刚")}</small></div></article>}</div>{hasTutorVersionMismatch(course, selectedLessonId, lesson, learning.snapshot) && <div role="alert"><p>{t("This lesson does not match the active course version. Reload the course before asking the tutor.", "当前课时与课程版本不匹配，请刷新课程后再向教师提问。")}</p><Button variant="outline" type="button" onClick={() => window.location.reload()}>{t("Reload course", "刷新课程")}</Button></div>}<form className="message-form" onSubmit={sendMessage}><Input value={message} onChange={(event) => setMessage(event.target.value)} aria-label={t("Ask the tutor for help", "向教师寻求帮助")} placeholder={t("Ask about this step...", "询问此步骤……")} disabled={streaming || !chatContext} /><Button size="icon" type="submit" aria-label={t("Send message", "发送消息")} disabled={streaming || !chatContext}>{t("Send", "发送")}</Button></form></> }</Card>
       </div>
       <Dialog open={vmEnvOpen} onOpenChange={setVmEnvOpen}>
         {vmEnvOpen && <DialogContent className="vm-env-dialog" showCloseButton={false}>

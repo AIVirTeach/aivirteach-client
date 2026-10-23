@@ -31,6 +31,78 @@ describe('shared V1/V2 learning progress owner', () => {
     resolve({ ...initial, revision: 1 });
     await pending;
   });
+  it('keeps navigation responsive and writes only the latest queued reading position', async () => {
+    const { controller, transport, publish } = setup();
+    await controller.reload();
+    let resolve!: (state: ApiLearningProgress) => void;
+    transport.setReadingPosition.mockReturnValueOnce(new Promise<ApiLearningProgress>(r => { resolve = r; }));
+
+    const firstVisit = controller.visit('a');
+    expect(await controller.visit('b')).toBe(false);
+    expect(await controller.visit('c')).toBe(false);
+    expect(transport.setReadingPosition).toHaveBeenCalledTimes(1);
+    resolve({ ...initial, revision: 1, currentLessonId: 'a' });
+    await firstVisit;
+
+    expect(transport.setReadingPosition).toHaveBeenCalledTimes(2);
+    expect(transport.setReadingPosition.mock.calls[1][1]).toBe('c');
+    expect(publish.mock.lastCall?.[0].snapshot?.currentLessonId).toBe('b');
+    expect(publish.mock.lastCall?.[0].busy).toBe(false);
+  });
+  it('drains queued navigation after a requested refresh when the generation remains current', async () => {
+    const { controller, transport } = setup();
+    await controller.reload();
+    let resolve!: (state: ApiLearningProgress) => void;
+    transport.setReadingPosition.mockReturnValueOnce(new Promise<ApiLearningProgress>(r => { resolve = r; }));
+
+    const pending = controller.visit('a');
+    await controller.visit('b');
+    await controller.reload();
+    resolve({ ...initial, revision: 1, currentLessonId: 'a' });
+    await pending;
+
+    expect(transport.learningProgress).toHaveBeenCalledTimes(2);
+    expect(transport.setReadingPosition.mock.calls.map(call => call[1])).toEqual(['a', 'b']);
+  });
+  it('drains a visit queued while a direct progress reload is pending', async () => {
+    const { controller, transport } = setup();
+    await controller.reload();
+    let resolve!: (state: ApiLearningProgress) => void;
+    transport.learningProgress.mockReturnValueOnce(new Promise<ApiLearningProgress>(r => { resolve = r; }));
+
+    const refresh = controller.reload();
+    expect(await controller.visit('b')).toBe(false);
+    resolve(initial);
+    await refresh;
+
+    expect(transport.setReadingPosition).toHaveBeenCalledTimes(1);
+    expect(transport.setReadingPosition.mock.calls[0][1]).toBe('b');
+  });
+  it('drops queued navigation when the write returns a new generation', async () => {
+    const { controller, transport } = setup();
+    await controller.reload();
+    let resolve!: (state: ApiLearningProgress) => void;
+    transport.setReadingPosition.mockReturnValueOnce(new Promise<ApiLearningProgress>(r => { resolve = r; }));
+
+    const pending = controller.visit('a');
+    await controller.visit('b');
+    resolve({ ...initial, generation: 1, revision: 0, currentLessonId: 'a' });
+    await pending;
+
+    expect(transport.setReadingPosition).toHaveBeenCalledTimes(1);
+  });
+  it('preserves the last confirmed snapshot when reading save and refresh both fail', async () => {
+    const { controller, transport, publish } = setup();
+    await controller.reload();
+    transport.setReadingPosition.mockRejectedValue(new Error('offline'));
+    transport.learningProgress.mockRejectedValue(new Error('offline'));
+
+    expect(await controller.visit('b')).toBe(false);
+
+    expect(publish.mock.lastCall?.[0].snapshot).toBe(initial);
+    expect(publish.mock.lastCall?.[0].error).toBeTruthy();
+    expect(publish.mock.lastCall?.[0].busy).toBe(false);
+  });
   it('reloads a conflict without automatically replaying stale intent', async () => {
     const { controller, transport, publish } = setup();
     await controller.reload();
