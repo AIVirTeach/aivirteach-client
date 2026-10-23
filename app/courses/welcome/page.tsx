@@ -13,12 +13,9 @@ const welcomeVideoUrl = process.env.NEXT_PUBLIC_COURSE_WELCOME_VIDEO_URL;
 // Courses ingested without a dedicated welcome.json have no CourseWelcome row, so
 // GET /courses/:slug/welcome 404s. Build an equivalent welcome view from the course
 // detail that's already loaded, instead of blocking the learner from reaching /workspace.
-function synthesizeWelcome(course: ApiCourseDetail): ApiCourseWelcome {
+function synthesizeWelcome(course: ApiCourseDetail) {
   return {
-    schemaVersion: 0,
-    courseId: course.id,
-    title: course.title,
-    overviewAsset: null,
+    overviewAssetId: null as string | null,
     overview: { heading: course.title, paragraphs: [course.description] },
     howItWorks: {
       heading: "Before you start",
@@ -35,10 +32,33 @@ function synthesizeWelcome(course: ApiCourseDetail): ApiCourseWelcome {
   };
 }
 
+// Keep the wire contract separate from the display model. New admin courses have
+// an empty welcome row; use their course metadata until welcome content is authored.
+function welcomeView(course: ApiCourseDetail, data: ApiCourseWelcome) {
+  const fallback = synthesizeWelcome(course);
+  const steps = data.howItWorksSteps;
+  if (steps !== null && (!Array.isArray(steps) || !steps.every((step) =>
+    typeof step === "object" && step !== null &&
+    typeof step.number === "string" && typeof step.title === "string" &&
+    typeof step.description === "string"
+  ))) {
+    throw new Error("Invalid course welcome steps.");
+  }
+  return {
+    overviewAssetId: data.overviewAssetId,
+    overview: {
+      heading: data.overviewHeading ?? fallback.overview.heading,
+      paragraphs: data.overviewParagraphs.length ? data.overviewParagraphs : fallback.overview.paragraphs,
+    },
+    howItWorks: { ...fallback.howItWorks, steps: steps?.length ? steps : fallback.howItWorks.steps },
+    finalOutcome: { ...fallback.finalOutcome, description: data.finalOutcome ?? fallback.finalOutcome.description },
+  };
+}
+
 export default function CourseWelcomePage() {
   const router = useRouter();
   const [course, setCourse] = useState<ApiCourseDetail | null>(null);
-  const [welcome, setWelcome] = useState<ApiCourseWelcome | null>(null);
+  const [welcome, setWelcome] = useState<ReturnType<typeof synthesizeWelcome> | null>(null);
   const [step, setStep] = useState<1 | 2>(1);
   const [checked, setChecked] = useState(false);
   const [error, setError] = useState("");
@@ -54,10 +74,11 @@ export default function CourseWelcomePage() {
       activateCourse(activeCourseId);
       setCourse(courseData);
       try {
-        setWelcome(await api.courseWelcome(activeCourseId));
+        const data = await api.courseWelcome(activeCourseId);
+        if (active) setWelcome(welcomeView(courseData, data));
       } catch (caught) {
         if (!(caught instanceof ApiError) || caught.status !== 404) throw caught;
-        setWelcome(synthesizeWelcome(courseData));
+        if (active) setWelcome(synthesizeWelcome(courseData));
       }
     }).catch((caught) => {
       if (active) setError(caught instanceof Error ? caught.message : "Could not prepare this course.");
@@ -78,8 +99,8 @@ export default function CourseWelcomePage() {
 
           {step === 1 ? (
             <div className="course-welcome-grid course-overview-step">
-              {welcome.overviewAsset && <figure className="course-welcome-image">
-                <img src={courseAssetUrl(course.id, welcome.overviewAsset.id)} alt={welcome.overviewAsset.alt} />
+              {welcome.overviewAssetId && <figure className="course-welcome-image">
+                <img src={courseAssetUrl(course.id, welcome.overviewAssetId)} alt="" />
               </figure>}
               <section className="course-overview-copy" aria-labelledby="course-overview-title">
                 <p>{course.category}</p>

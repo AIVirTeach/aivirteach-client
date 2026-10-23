@@ -224,15 +224,13 @@ export type ApiLesson = {
   navigation: { previousLessonId: string | null; nextLessonId: string | null; index: number; total: number };
 };
 
+// Matches CoursesService.getWelcome. The steps field is JSON at the API boundary.
 export type ApiCourseWelcome = {
-  schemaVersion: number;
-  courseId: string;
-  title: string;
-  overviewAssetId?: string;
-  overviewAsset: { id: string; alt: string } | null;
-  overview: { heading: string; paragraphs: string[] };
-  howItWorks: { heading: string; steps: Array<{ number: string; title: string; description: string }> };
-  finalOutcome: { heading: string; description: string };
+  overviewAssetId: string | null;
+  overviewHeading: string | null;
+  overviewParagraphs: string[];
+  howItWorksSteps: unknown;
+  finalOutcome: string | null;
 };
 
 export type EnrollmentStatus = "not_started" | "in_progress" | "completed";
