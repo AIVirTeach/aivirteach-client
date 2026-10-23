@@ -20,5 +20,6 @@ export function useLearningProgress(courseId: string | undefined, courseVersion:
   const reload = useCallback(() => controller.current?.reload(), []);
   const visit = useCallback((id: string) => controller.current?.visit(id) ?? Promise.resolve(false), []);
   const setCompleted = useCallback((id: string, completed: boolean) => controller.current?.setCompleted(id, completed) ?? Promise.resolve(false), []);
-  return { ...(stored.key === key ? stored.state : emptyProgress), reload, visit, setCompleted };
+  const saveSnapshot = useCallback(() => controller.current?.saveSnapshot() ?? Promise.resolve(null), []);
+  return { ...(stored.key === key ? stored.state : emptyProgress), reload, visit, setCompleted, saveSnapshot };
 }

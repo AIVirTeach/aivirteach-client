@@ -9,14 +9,22 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { BrandLogo } from "../components/BrandLogo";
-import { api, ApiError, beaconStopWorkspace, getAccessToken, type ApiConsoleSession, type ApiCourseDetail, type ApiEnrollment, type ApiWorkspace } from "../lib/api";
+import { api, ApiError, beaconStopWorkspace, getAccessToken, type ApiCourseDetail, type ApiEnrollment, type ApiWorkspace } from "../lib/api";
 import { applyLearningLanguage, localize, useLearningLanguage } from "../lib/language";
 import { ConsoleViewer, type ConsoleViewerHandle } from "./console-viewer";
 import { heartbeatIntervalMs, isHeartbeatDue } from "./heartbeat";
 import { upstreamErrorMessage } from "./upstream-error";
 import { CourseLearningPath } from "./CourseLearningPath";
+import { useBrowserNumber } from "../hooks/use-browser-number";
+import { useBrowserJson } from "../hooks/use-browser-json";
+import { useConsoleSession } from "./use-console-session";
+import { parseFloatingPosition, type FloatingPosition } from "./floating-position";
 import { TutorMessage } from "./tutor-message";
 import { vmPanelState } from "./vm-panel-state";
+import { hasTutorVersionMismatch, loadedTutorContext, tutorContextKey } from "./tutor-context";
+import { useCourseLearningSession } from "./use-course-learning-session";
+import { useChatMessages } from "./use-chat-messages";
+import { useTutorRequest } from "./use-tutor-request";
 
 type Message = { role: "tutor" | "student"; text: string };
 type WorkspaceTab = "teacher" | "path";
@@ -27,11 +35,22 @@ const initialMessages: Message[] = [
 const widthStorageKey = "aivirteach.lab.v2.leftWidth";
 const floatingPositionStorageKey = "aivirteach.lab.v2.floatingAiPosition";
 const minLeftWidth = 380;
+const maxLeftWidth = Number.MAX_SAFE_INTEGER;
 const minVmWidth = 420;
 const floatingButtonSize = 64;
 const floatingViewportMargin = 14;
 const floatingPromptGap = 12;
 const floatingPromptMaxWidth = 340;
+const floatingPositionServerFallback: FloatingPosition = { x: -100, y: -100 };
+function defaultFloatingPosition(): FloatingPosition {
+  return { x: window.innerWidth - floatingButtonSize - 28, y: window.innerHeight - floatingButtonSize - 28 };
+}
+function clampFloatingPosition(position: FloatingPosition): FloatingPosition {
+  return {
+    x: Math.min(window.innerWidth - floatingButtonSize - floatingViewportMargin, Math.max(floatingViewportMargin, position.x)),
+    y: Math.min(window.innerHeight - floatingButtonSize - floatingViewportMargin, Math.max(floatingViewportMargin, position.y)),
+  };
+}
 function floatingPromptWidth() {
   return Math.min(floatingPromptMaxWidth, window.innerWidth - (floatingViewportMargin * 2) - floatingButtonSize - floatingPromptGap);
 }
@@ -49,22 +68,32 @@ export function WorkspaceV2() {
   const messagesRef = useRef<HTMLDivElement>(null);
   const consoleViewerRef = useRef<ConsoleViewerHandle>(null);
   const floatingWasDraggedRef = useRef(false);
-  const consolePollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const consolePollCancelled = useRef(false);
   const [course, setCourse] = useState<ApiCourseDetail | null>(null);
   const [enrollment, setEnrollment] = useState<ApiEnrollment | null>(null);
   const enrollmentId = enrollment?.id;
   const [workspace, setWorkspace] = useState<ApiWorkspace | null>(null);
+  const refreshWorkspace = useCallback(() => {
+    if (!enrollmentId) return;
+    api.workspace(enrollmentId).then(setWorkspace).catch(() => undefined);
+  }, [enrollmentId]);
+  const formatConsolePollError = useCallback((caught: unknown) => caught instanceof Error ? caught.message : "Could not start the remote desktop.", []);
   const [activeTab, setActiveTab] = useState<WorkspaceTab>("path");
-  const [leftWidth, setLeftWidth] = useState(680);
+  const [leftWidth, setLeftWidth] = useBrowserNumber(widthStorageKey, 680, { min: minLeftWidth, max: maxLeftWidth });
   const [maximized, setMaximized] = useState(false);
   const [checked, setChecked] = useState(false);
   const [error, setError] = useState("");
-  const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [message, setMessage] = useState("");
-  const [consoleSession, setConsoleSession] = useState<ApiConsoleSession | null>(null);
-  const [consoleError, setConsoleError] = useState("");
-  const [consoleLoading, setConsoleLoading] = useState(false);
+  const consoleState = useConsoleSession({
+    enrollmentId,
+    workspace,
+    timeoutMessage: "The remote desktop took too long to start. Please retry.",
+    formatPollError: formatConsolePollError,
+    onViewerError: refreshWorkspace,
+    onPollError: refreshWorkspace,
+  });
+  const consoleSession = consoleState.session;
+  const consoleError = consoleState.error;
+  const consoleLoading = consoleState.loading;
   const [retrying, setRetrying] = useState(false);
   const [resuming, setResuming] = useState(false);
   const [stopping, setStopping] = useState(false);
@@ -73,9 +102,20 @@ export function WorkspaceV2() {
   const [envVariablesOpen, setEnvVariablesOpen] = useState(false);
   const [floatingPromptOpen, setFloatingPromptOpen] = useState(false);
   const [floatingPrompt, setFloatingPrompt] = useState("");
-  const [floatingThinking, setFloatingThinking] = useState(false);
-  const [floatingUnread, setFloatingUnread] = useState(false);
-  const [floatingPosition, setFloatingPosition] = useState({ x: -100, y: -100 });
+  const [floatingOwner, setFloatingOwner] = useState<{ id: string; contextKey: string } | null>(null);
+  const [floatingUnreadKey, setFloatingUnreadKey] = useState<string | null>(null);
+  const [savedFloatingPosition, setSavedFloatingPosition] = useBrowserJson(floatingPositionStorageKey, floatingPositionServerFallback, defaultFloatingPosition, parseFloatingPosition, clampFloatingPosition);
+  const [draggedFloatingPosition, setDraggedFloatingPosition] = useState<FloatingPosition | null>(null);
+  const floatingPosition = draggedFloatingPosition ?? savedFloatingPosition;
+  const learningSession = useCourseLearningSession(course);
+  const { messages, appendMessage } = useChatMessages(enrollment?.id, learningSession.progress.snapshot?.generation, initialMessages);
+  const displayedLesson = learningSession.state?.status === "ready" && learningSession.state.id === learningSession.selectedId ? learningSession.state.lesson : null;
+  const chatContext = loadedTutorContext(course, learningSession.selectedId, displayedLesson, learningSession.progress.snapshot);
+  const tutorVersionMismatch = hasTutorVersionMismatch(course, learningSession.selectedId, displayedLesson, learningSession.progress.snapshot);
+  const chatKey = tutorContextKey(enrollment?.id, chatContext);
+  const chat = useTutorRequest(chatKey);
+  const floatingThinking = floatingOwner?.contextKey === chatKey;
+  const floatingUnread = floatingUnreadKey === chatKey;
 
   useEffect(() => {
     let active = true;
@@ -148,34 +188,10 @@ export function WorkspaceV2() {
   }, [enrollmentId, workspace?.status]);
 
   useEffect(() => {
-    if (!enrollment) return;
-    api.chatMessages(enrollment.id).then((items) => {
-      if (items.length) setMessages(items.map((item) => ({ role: item.role, text: item.text })));
-    }).catch(() => undefined);
-  }, [enrollment]);
-
-  useEffect(() => {
-    const saved = Number(window.localStorage.getItem(widthStorageKey));
-    if (Number.isFinite(saved)) setLeftWidth(Math.max(minLeftWidth, saved));
-
-    const clampPosition = (position: { x: number; y: number }) => ({
-      x: Math.min(window.innerWidth - floatingButtonSize - floatingViewportMargin, Math.max(floatingViewportMargin, position.x)),
-      y: Math.min(window.innerHeight - floatingButtonSize - floatingViewportMargin, Math.max(floatingViewportMargin, position.y)),
-    });
-    let initialPosition = { x: window.innerWidth - floatingButtonSize - 28, y: window.innerHeight - floatingButtonSize - 28 };
-    try {
-      const savedPosition = JSON.parse(window.localStorage.getItem(floatingPositionStorageKey) ?? "null") as { x?: unknown; y?: unknown } | null;
-      if (typeof savedPosition?.x === "number" && typeof savedPosition.y === "number") initialPosition = { x: savedPosition.x, y: savedPosition.y };
-    } catch {
-      // Ignore a malformed saved position and use the default.
-    }
-    setFloatingPosition(clampPosition(initialPosition));
-    const keepFloatingButtonInView = () => setFloatingPosition((current) => clampPosition(current));
+    const keepFloatingButtonInView = () => window.dispatchEvent(new Event("aivirteach-storage-change"));
     window.addEventListener("resize", keepFloatingButtonInView);
     return () => {
       window.removeEventListener("resize", keepFloatingButtonInView);
-      consolePollCancelled.current = true;
-      if (consolePollTimer.current) clearTimeout(consolePollTimer.current);
     };
   }, []);
 
@@ -187,13 +203,6 @@ export function WorkspaceV2() {
     if (activeTab !== "teacher") return;
     messagesRef.current?.scrollTo({ top: messagesRef.current.scrollHeight, behavior: "smooth" });
   }, [activeTab, messages]);
-
-  useEffect(() => {
-    if (workspace?.status === "RUNNING") return;
-    consolePollCancelled.current = true;
-    setConsoleSession(null);
-    setConsoleLoading(false);
-  }, [workspace?.status]);
 
   useEffect(() => {
     let active = true;
@@ -276,25 +285,30 @@ export function WorkspaceV2() {
   }
 
   async function requestTutorResponse(text: string, notifyWhenReady: boolean) {
-    if (!enrollment) return;
-    setMessages((current) => [...current, { role: "student", text }]);
-    if (notifyWhenReady) setFloatingThinking(true);
+    if (!enrollment || !chatContext) return;
+    const request = chat.begin();
+    if (!request) return;
+    const floatingOwnerId = notifyWhenReady ? crypto.randomUUID() : null;
+    if (floatingOwnerId) setFloatingOwner({ id: floatingOwnerId, contextKey: chatKey });
+    appendMessage({ role: "student", text });
     try {
-      const response = await api.sendChatMessage(enrollment.id, text);
-      setMessages((current) => [...current, { role: "tutor", text: response.tutorMessage.text }]);
+      const response = await api.sendChatMessage(enrollment.id, { requestId: crypto.randomUUID(), text, context: chatContext }, request.signal);
+      if (request.isCurrent()) appendMessage({ role: "tutor", text: response.tutorMessage.text });
     } catch (caught) {
-      setMessages((current) => [...current, { role: "tutor", text: caught instanceof Error ? caught.message : "The tutor is unavailable." }]);
+      if (request.isCurrent()) appendMessage({ role: "tutor", text: caught instanceof Error ? caught.message : "The tutor is unavailable." });
     } finally {
-      if (notifyWhenReady) {
-        setFloatingThinking(false);
-        setFloatingUnread(true);
+      const isCurrent = request.isCurrent();
+      request.finish();
+      if (floatingOwnerId) {
+        setFloatingOwner((current) => current?.id === floatingOwnerId ? null : current);
+        if (isCurrent) setFloatingUnreadKey(chatKey);
       }
     }
   }
 
   async function sendMessage(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!enrollment || !message.trim()) return;
+    if (!enrollment || !chatContext || chat.busy || !message.trim()) return;
     const text = message.trim();
     setMessage("");
     await requestTutorResponse(text, false);
@@ -302,11 +316,11 @@ export function WorkspaceV2() {
 
   function sendFloatingPrompt(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!enrollment || floatingThinking || !floatingPrompt.trim()) return;
+    if (!enrollment || !chatContext || chat.busy || floatingThinking || !floatingPrompt.trim()) return;
     const text = floatingPrompt.trim();
     setFloatingPrompt("");
     setFloatingPromptOpen(false);
-    setFloatingUnread(false);
+    setFloatingUnreadKey(null);
     void requestTutorResponse(text, true);
   }
 
@@ -317,13 +331,13 @@ export function WorkspaceV2() {
     }
     if (floatingUnread) {
       setActiveTab("teacher");
-      setFloatingUnread(false);
+      setFloatingUnreadKey(null);
       setFloatingPromptOpen(false);
       return;
     }
     if (!floatingThinking) {
       setFloatingPromptOpen((current) => {
-        if (!current) setFloatingPosition((position) => ({ ...position, x: Math.max(floatingPromptMinX(), position.x) }));
+        if (!current) setSavedFloatingPosition((position) => ({ ...position, x: Math.max(floatingPromptMinX(), position.x) }));
         return !current;
       });
     }
@@ -346,51 +360,22 @@ export function WorkspaceV2() {
         x: Math.min(window.innerWidth - floatingButtonSize - floatingViewportMargin, Math.max(floatingPromptOpen ? floatingPromptMinX() : floatingViewportMargin, startPosition.x + deltaX)),
         y: Math.min(window.innerHeight - floatingButtonSize - floatingViewportMargin, Math.max(floatingViewportMargin, startPosition.y + deltaY)),
       };
-      setFloatingPosition(latestPosition);
+      setDraggedFloatingPosition(latestPosition);
     }
 
     function stop() {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", stop);
       window.removeEventListener("pointercancel", stop);
-      window.localStorage.setItem(floatingPositionStorageKey, JSON.stringify(latestPosition));
+      setSavedFloatingPosition(latestPosition);
+      setDraggedFloatingPosition(null);
     }
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", stop);
     window.addEventListener("pointercancel", stop);
   }
 
-  async function startConsoleSession() {
-    if (!enrollment) return;
-    if (consolePollTimer.current) clearTimeout(consolePollTimer.current);
-    consolePollCancelled.current = false;
-    setConsoleLoading(true);
-    setConsoleError("");
-    const deadline = Date.now() + 120000;
-    async function poll() {
-      try {
-        const session = await api.consoleSession(enrollment!.id);
-        if (consolePollCancelled.current) return;
-        if (session.state === "ready") {
-          setConsoleSession(session);
-          setConsoleLoading(false);
-          return;
-        }
-        if (Date.now() >= deadline) {
-          setConsoleError("The remote desktop took too long to start. Please retry.");
-          setConsoleLoading(false);
-          return;
-        }
-        consolePollTimer.current = setTimeout(() => void poll(), 2500);
-      } catch (caught) {
-        if (consolePollCancelled.current) return;
-        setConsoleError(caught instanceof Error ? caught.message : "Could not start the remote desktop.");
-        setConsoleLoading(false);
-        refreshWorkspace();
-      }
-    }
-    void poll();
-  }
+  const startConsoleSession = consoleState.start;
 
   function retryWorkspace() {
     if (!enrollment || retrying) return;
@@ -417,10 +402,8 @@ export function WorkspaceV2() {
     if (!window.confirm(t("Close the learning environment? You can resume it anytime.", "要关闭学习环境吗？你可以随时恢复。"))) return;
     setStopping(true);
     setError("");
+    consoleState.stop();
     api.stopWorkspace(enrollment.id).then((stoppedWorkspace) => {
-      consolePollCancelled.current = true;
-      if (consolePollTimer.current) clearTimeout(consolePollTimer.current);
-      setConsoleSession(null);
       setWorkspace(stoppedWorkspace);
     }).catch((caught) => {
       setError(upstreamErrorMessage(caught, {
@@ -432,16 +415,7 @@ export function WorkspaceV2() {
 
   // V2 没有心跳，空闲 15 分钟后服务端会停掉 VM，但页面不会被通知；控制台出错时重新拉一次状态，
   // 让面板能切到"已关闭"。拉取失败就保持原样，不覆盖已有的控制台错误提示。
-  const refreshWorkspace = useCallback(() => {
-    if (!enrollmentId) return;
-    api.workspace(enrollmentId).then(setWorkspace).catch(() => undefined);
-  }, [enrollmentId]);
-
-  const handleConsoleError = useCallback((nextError: string) => {
-    setConsoleError(nextError);
-    setConsoleSession(null);
-    refreshWorkspace();
-  }, [refreshWorkspace]);
+  const handleConsoleError = consoleState.reportViewerError;
 
   const copyLessonCodeToVm = useCallback((text: string) => {
     return consoleViewerRef.current?.writeClipboard(text) ?? false;
@@ -485,12 +459,13 @@ export function WorkspaceV2() {
           <div className="lab-v2-teacher" role="tabpanel">
             <header><div className="tutor-heading"><span className="bot-mark">AI</span><div><strong>AIVir Teacher</strong><small><i /> {t("Online", "在线")}</small></div></div><p>{course.title}</p></header>
             <div ref={messagesRef} className="messages">{messages.map((item, index) => <article className={`message ${item.role}`} key={`${item.role}-${index}`}><div>{item.role === "tutor" ? <TutorMessage text={item.text} /> : <p>{item.text}</p>}<small>{index === messages.length - 1 ? t("Just now", "刚刚") : t("Earlier", "较早")}</small></div></article>)}</div>
-            <form className="message-form" onSubmit={sendMessage}><Input value={message} onChange={(event) => setMessage(event.target.value)} aria-label={t("Ask AIVir Teacher", "向 AIVir Teacher 提问")} placeholder={t("Ask about this course...", "询问这门课程……")} /><Button type="submit">{t("Send", "发送")}</Button></form>
+            {tutorVersionMismatch && <Alert variant="destructive">{t("This lesson does not match the active course version. Reload the course before asking the tutor.", "当前课时与课程版本不匹配，请刷新课程后再向教师提问。")}<Button variant="outline" type="button" onClick={() => window.location.reload()}>{t("Reload course", "刷新课程")}</Button></Alert>}
+            <form className="message-form" onSubmit={sendMessage}><Input value={message} onChange={(event) => setMessage(event.target.value)} aria-label={t("Ask AIVir Teacher", "向 AIVir Teacher 提问")} placeholder={t("Ask about this course step...", "询问此课程步骤……")} disabled={!chatContext || chat.busy} /><Button type="submit" disabled={!chatContext || chat.busy}>{chat.busy ? t("Sending...", "发送中……") : t("Send", "发送")}</Button></form>
           </div>
         ) : (
           <div className="lab-v2-path" role="tabpanel">
             {error && <Alert variant="destructive">{error}</Alert>}
-            <CourseLearningPath key={course.id} course={course} progressPercent={enrollment.progressPercent} copyToVm={copyLessonCodeToVm} />
+            <CourseLearningPath key={course.id} course={course} copyToVm={copyLessonCodeToVm} session={learningSession} />
           </div>
         )}
       </section>
@@ -499,7 +474,7 @@ export function WorkspaceV2() {
 
       <main className="lab-v2-vm vm-workspace">
         <header className="vm-toolbar"><div><span className="vm-status-dot" aria-hidden="true" /><strong>{t("Learning VM", "学习虚拟机")}</strong></div><div className="lab-v2-vm-status"><small>{workspace?.status === "RUNNING" && consoleSession ? t("Connected workspace", "工作区已连接") : t("Awaiting connection", "等待连接")}</small><span className={`lab-v2-latency ${latency === null ? "is-offline" : ""}`} role="img" aria-label={latency === null ? t("Server connection unavailable", "服务器连接不可用") : t(`Server latency ${latency} milliseconds`, `服务器延迟 ${latency} 毫秒`)} title={latency === null ? t("Server connection unavailable", "服务器连接不可用") : `${latency} ms`}>{latency === null ? <WifiOff aria-hidden="true" /> : <Wifi aria-hidden="true" />}</span>{workspace?.status === "RUNNING" && <Button type="button" variant="destructive" size="xs" className="vm-close-button" onClick={closeEnvironment} disabled={stopping}>{stopping ? t("Closing...", "正在关闭……") : t("Close environment", "关闭环境")}</Button>}</div></header>
-        {panel === "console" && consoleSession?.data ? <ConsoleViewer ref={consoleViewerRef} data={consoleSession.data} labId={consoleSession.labId} enrollmentId={enrollment.id} onError={handleConsoleError} /> : panel === "start-console" ? <section className="vm-empty-state" role="status"><span className="vm-display-icon" aria-hidden="true" /><h2>Learning VM</h2>{consoleError && <Alert className="auth-error" variant="destructive">{consoleError}</Alert>}<Button size="lg" type="button" onClick={() => void startConsoleSession()} disabled={consoleLoading}>{consoleLoading ? "Starting..." : "Start remote desktop"}</Button></section> : panel === "stopped" ? <section className="vm-empty-state" role="status"><span className="vm-display-icon" aria-hidden="true" /><h2>Learning VM</h2><p>Your Learning VM is closed. Resume it to keep working.</p>{resumeError && <Alert className="auth-error" variant="destructive">{resumeError}</Alert>}<Button size="lg" type="button" onClick={resumeWorkspace} disabled={resuming}>{resuming ? "Resuming..." : "Resume learning environment"}</Button></section> : panel === "error" ? <section className="vm-empty-state" role="status"><span className="vm-display-icon" aria-hidden="true" /><h2>Learning VM</h2><p>{workspace?.errorMessage || "Could not start your Learning VM."}</p><Button size="lg" type="button" onClick={retryWorkspace} disabled={retrying}>{retrying ? "Retrying..." : "Retry"}</Button></section> : <section className="vm-empty-state" role="status"><span className="vm-display-icon" aria-hidden="true" /><h2>Learning VM</h2><p>{workspace?.status === "RESETTING" ? t("Clearing the previous Learning VM. This can take a few minutes.", "正在清理之前的学习虚拟机，可能需要几分钟。") : t("Preparing your Learning VM. This can take a few minutes.", "正在准备学习虚拟机，可能需要几分钟。")}</p></section>}
+        {panel === "console" && consoleSession?.data ? <ConsoleViewer ref={consoleViewerRef} data={consoleSession.data} labId={consoleSession.labId} enrollmentId={enrollment.id} onError={handleConsoleError} /> : panel === "start-console" ? <section className="vm-empty-state" role="status"><span className="vm-display-icon" aria-hidden="true" /><h2>Learning VM</h2>{consoleError && <Alert className="auth-error" variant="destructive">{consoleError}</Alert>}<Button size="lg" type="button" onClick={() => void startConsoleSession()} disabled={consoleLoading || stopping}>{consoleLoading ? "Starting..." : "Start remote desktop"}</Button></section> : panel === "stopped" ? <section className="vm-empty-state" role="status"><span className="vm-display-icon" aria-hidden="true" /><h2>Learning VM</h2><p>Your Learning VM is closed. Resume it to keep working.</p>{resumeError && <Alert className="auth-error" variant="destructive">{resumeError}</Alert>}<Button size="lg" type="button" onClick={resumeWorkspace} disabled={resuming}>{resuming ? "Resuming..." : "Resume learning environment"}</Button></section> : panel === "error" ? <section className="vm-empty-state" role="status"><span className="vm-display-icon" aria-hidden="true" /><h2>Learning VM</h2><p>{workspace?.errorMessage || "Could not start your Learning VM."}</p><Button size="lg" type="button" onClick={retryWorkspace} disabled={retrying}>{retrying ? "Retrying..." : "Retry"}</Button></section> : <section className="vm-empty-state" role="status"><span className="vm-display-icon" aria-hidden="true" /><h2>Learning VM</h2><p>{workspace?.status === "RESETTING" ? t("Clearing the previous Learning VM. This can take a few minutes.", "正在清理之前的学习虚拟机，可能需要几分钟。") : t("Preparing your Learning VM. This can take a few minutes.", "正在准备学习虚拟机，可能需要几分钟。")}</p></section>}
       </main>
 
       <Dialog open={envVariablesOpen} onOpenChange={setEnvVariablesOpen}>
@@ -518,8 +493,8 @@ export function WorkspaceV2() {
       <div className="floating-ai" style={{ left: floatingPosition.x, top: floatingPosition.y }}>
         {floatingPromptOpen && (
           <form className="floating-ai-prompt" onSubmit={sendFloatingPrompt}>
-            <input ref={floatingPromptRef} value={floatingPrompt} onChange={(event) => setFloatingPrompt(event.target.value)} placeholder={t("\u00A0\u00A0Ask AIVirTeach...", "\u00A0\u00A0向 AIVirTeach 提问……")} aria-label={t("Ask AIVirTeach", "向 AIVirTeach 提问")} />
-            <Button variant="ghost" size="icon" type="submit" disabled={!floatingPrompt.trim()} aria-label={t("Send prompt", "发送问题")}><Send aria-hidden="true" /></Button>
+            <input ref={floatingPromptRef} value={floatingPrompt} onChange={(event) => setFloatingPrompt(event.target.value)} placeholder={t("\u00A0\u00A0Ask AIVirTeach...", "\u00A0\u00A0向 AIVirTeach 提问……")} aria-label={t("Ask AIVirTeach", "向 AIVirTeach 提问")} disabled={!chatContext || chat.busy} />
+            <Button variant="ghost" size="icon" type="submit" disabled={!floatingPrompt.trim() || !chatContext || chat.busy} aria-label={t("Send prompt", "发送问题")}><Send aria-hidden="true" /></Button>
           </form>
         )}
         <button className={`floating-ai-button ${floatingThinking ? "thinking" : ""}`} type="button" onPointerDown={startFloatingDrag} onClick={handleFloatingButtonClick} aria-label={floatingUnread ? t("Open new AIVirTeach response", "打开 AIVirTeach 的新回复") : floatingThinking ? t("AIVirTeach is replying", "AIVirTeach 正在回复") : t("Ask AIVirTeach", "向 AIVirTeach 提问")} aria-expanded={floatingPromptOpen}>

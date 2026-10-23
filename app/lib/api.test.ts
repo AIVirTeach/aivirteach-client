@@ -5,11 +5,56 @@ import { API_BASE_URL } from "./config";
 describe("api.lesson", () => {
   afterEach(() => vi.unstubAllGlobals());
   it("loads published lesson content from the course API", async () => {
-    const lesson = { blocks: [], assets: {}, markdown: "legacy" };
+    const lesson = { courseId: "a/b", courseVersionId: "cv-1", courseVersion: 3, lesson: { id: "step one" }, blocks: [], assets: {}, markdown: "legacy" };
     const fetchMock = vi.fn<typeof fetch>(async () => new Response(JSON.stringify(lesson), { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
     expect(await api.lesson("a/b", "step one")).toEqual(lesson);
     expect(fetchMock.mock.calls[0][0]).toBe(`${API_BASE_URL}/courses/a%2Fb/lessons/step%20one`);
+  });
+});
+
+describe("api.chatMessages", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("loads chat history for the requested enrollment generation", async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () => new Response(JSON.stringify([]), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await api.chatMessages("enrollment/1", 7);
+
+    expect(fetchMock.mock.calls[0][0]).toBe(`${API_BASE_URL}/workspaces/enrollment%2F1/chat/messages?generation=7`);
+  });
+});
+
+describe("learning snapshot API", () => {
+  afterEach(() => vi.unstubAllGlobals());
+  it("posts manual snapshots with the exact command and reads paginated pinned history", async () => {
+    const command = { requestId: "c9a91c1d-e1f8-43d8-9ffc-946686d4168f", generation: 3, revision: 12, courseVersionId: "version-4" };
+    const snapshot = { id: "snap-1", schemaVersion: 1, state: { schemaVersion: 1, readingLessonId: "lesson-1", lessons: {}, completedAt: null } };
+    const page = { items: [{ id: "snap-1", schemaVersion: 1, completeStateAvailable: true, completedLessonCount: 2, totalLessons: 4, progressPercent: 50, courseVersion: { version: 4, modules: [] } }], nextCursor: null };
+    const fetchMock = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(JSON.stringify(snapshot), { status: 201 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(page), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(snapshot), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    expect(await api.createLearningSnapshot("course/one", command)).toEqual(snapshot);
+    expect(await api.learningSnapshots("course/one", "cursor/next")).toEqual(page);
+    expect(await api.learningSnapshot("course/one", "snap/one")).toEqual(snapshot);
+    expect(fetchMock.mock.calls.map(([url, init]) => [String(url), init?.method, init?.body])).toEqual([
+      [`${API_BASE_URL}/courses/course%2Fone/snapshots`, "POST", JSON.stringify(command)],
+      [`${API_BASE_URL}/courses/course%2Fone/snapshots?cursor=cursor%2Fnext`, undefined, undefined],
+      [`${API_BASE_URL}/courses/course%2Fone/snapshots/snap%2Fone`, undefined, undefined],
+    ]);
+  });
+
+  it("posts a retry-safe restart command", async () => {
+    const command = { requestId: "c9a91c1d-e1f8-43d8-9ffc-946686d4168f", generation: 3, revision: 12, courseVersionId: "version-4" };
+    const enrollment = { id: "e", courseId: "course/one", active: true };
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify(enrollment), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await api.restartCourse("course/one", command);
+    expect(fetchMock.mock.calls[0][0]).toBe(`${API_BASE_URL}/courses/course%2Fone/restart`);
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({ method: "POST", body: JSON.stringify(command) });
   });
 });
 
@@ -108,14 +153,15 @@ describe("api.streamChatMessage", () => {
   it("POST 到 /workspaces/:enrollmentId/chat/messages/stream，带上 text 和 SSE Accept 头", async () => {
     const body = new ReadableStream();
     vi.mocked(fetch).mockResolvedValue(new Response(body, { status: 200 }));
+    const command = { requestId: "c9a91c1d-e1f8-43d8-9ffc-946686d4168f", text: "你好", context: { courseVersionId: "cv-1", lessonId: "lesson-1", generation: 4 } };
 
-    const response = await api.streamChatMessage("enroll-1", "你好");
+    const response = await api.streamChatMessage("enroll-1", command);
 
     expect(fetch).toHaveBeenCalledWith(
       `${API_BASE_URL}/workspaces/enroll-1/chat/messages/stream`,
       expect.objectContaining({
         method: "POST",
-        body: JSON.stringify({ text: "你好" }),
+        body: JSON.stringify(command),
         headers: expect.objectContaining({
           "Content-Type": "application/json",
           Accept: "text/event-stream",
@@ -130,19 +176,34 @@ describe("api.streamChatMessage", () => {
       new Response(JSON.stringify({ message: "请先启动虚拟机后再提问。" }), { status: 400 }),
     );
 
-    await expect(api.streamChatMessage("enroll-1", "你好")).rejects.toBeInstanceOf(ApiError);
+    await expect(api.streamChatMessage("enroll-1", { requestId: "c9a91c1d-e1f8-43d8-9ffc-946686d4168f", text: "你好", context: { courseVersionId: "cv-1", lessonId: "lesson-1", generation: 4 } })).rejects.toBeInstanceOf(ApiError);
   });
 
   it("传入 AbortSignal 时透传给 fetch，调用方可以中止还没读完的流", async () => {
     const body = new ReadableStream();
     vi.mocked(fetch).mockResolvedValue(new Response(body, { status: 200 }));
     const controller = new AbortController();
+    const command = { requestId: "c9a91c1d-e1f8-43d8-9ffc-946686d4168f", text: "你好", context: { courseVersionId: "cv-1", lessonId: "lesson-1", generation: 4 } };
 
-    await api.streamChatMessage("enroll-1", "你好", controller.signal);
+    await api.streamChatMessage("enroll-1", command, controller.signal);
 
     expect(fetch).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({ signal: controller.signal }),
     );
+  });
+
+  it("non-stream chat posts the same typed command and forwards cancellation", async () => {
+    const command = { requestId: "c9a91c1d-e1f8-43d8-9ffc-946686d4168f", text: "你好", context: { courseVersionId: "cv-1", lessonId: "lesson-1", generation: 4 } };
+    const controller = new AbortController();
+    vi.mocked(fetch).mockResolvedValue(new Response(JSON.stringify({ studentMessage: {}, tutorMessage: {} }), { status: 200 }));
+
+    await api.sendChatMessage("enroll-1", command, controller.signal);
+
+    expect(fetch).toHaveBeenCalledWith(`${API_BASE_URL}/workspaces/enroll-1/chat/messages`, expect.objectContaining({
+      method: "POST",
+      body: JSON.stringify(command),
+      signal: controller.signal,
+    }));
   });
 });

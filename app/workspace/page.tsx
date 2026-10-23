@@ -1,5 +1,15 @@
 "use client";
 
+import { hasTutorVersionMismatch, loadedTutorContext, tutorContextKey } from "./tutor-context";
+import { useTutorRequest } from "./use-tutor-request";
+import { initialLessonId } from "./course-lesson-loader";
+import { useChatMessages } from "./use-chat-messages";
+import { useLessonSelection } from "./use-lesson-selection";
+import { useLearningProgress } from "./use-learning-progress";
+import { LearningSnapshots } from "./LearningSnapshots";
+import { useBrowserNumber } from "../hooks/use-browser-number";
+import { useConsoleSession } from "./use-console-session";
+
 import { useRouter } from "next/navigation";
 import { type CSSProperties, type FormEvent, type KeyboardEvent, type PointerEvent as ReactPointerEvent, useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
@@ -12,7 +22,7 @@ import { AccountMenu } from "../components/AccountMenu";
 import { BrandLogo } from "../components/BrandLogo";
 import { CourseLessonContent } from "../components/CourseLessonContent";
 import { Sidebar } from "../components/Sidebar";
-import { api, ApiError, beaconStopWorkspace, getAccessToken, type ApiConsoleSession, type ApiCourseDetail, type ApiEnrollment, type ApiLesson, type ApiWorkspace } from "../lib/api";
+import { api, ApiError, beaconStopWorkspace, getAccessToken, type ApiCourseDetail, type ApiEnrollment, type ApiLesson, type ApiWorkspace } from "../lib/api";
 import { parseSseStream } from "../lib/sse";
 import { subscribeWorkspace } from "../lib/ws";
 import { ConsoleViewer } from "./console-viewer";
@@ -72,38 +82,49 @@ function WorkspaceV1() {
   const [course, setCourse] = useState<ApiCourseDetail | null>(null);
   const [enrollment, setEnrollment] = useState<ApiEnrollment | null>(null);
   const [workspace, setWorkspace] = useState<ApiWorkspace | null>(null);
-  const [lesson, setLesson] = useState<ApiLesson | null>(null);
-  const [selectedLessonId, setSelectedLessonId] = useState<string | null>(null);
+  const [loadedLesson, setLoadedLesson] = useState<{ key: string; status: "ready"; lesson: ApiLesson } | { key: string; status: "error"; message: string } | null>(null);
+  const [lessonAttempt, setLessonAttempt] = useState(0);
   const [courseChecked, setCourseChecked] = useState(false);
   const [contentError, setContentError] = useState("");
-  const [lessonLoading, setLessonLoading] = useState(false);
-  const [completionStatus, setCompletionStatus] = useState("");
+  const learning = useLearningProgress(course?.id, course?.version);
+  const { snapshot: learningSnapshot, visit: visitLesson } = learning;
+  const lessonKey = course && learningSnapshot ? `${course.id}:${course.version}:${learningSnapshot.courseVersionId}:${learningSnapshot.generation}` : "";
+  const initialSelectionId = course && learningSnapshot ? initialLessonId(course, learningSnapshot) : "";
+  const { selectedId: selectedLessonId, select: setSessionLesson } = useLessonSelection(lessonKey, initialSelectionId);
+  const loadedLessonForSelection = loadedLesson?.key === `${lessonKey}:${selectedLessonId}` ? loadedLesson : null;
+  const lesson = loadedLessonForSelection?.status === "ready" ? loadedLessonForSelection.lesson : null;
+  const lessonLoading = Boolean(course && selectedLessonId && !loadedLessonForSelection);
+  const initialVisitKey = useRef("");
   const [message, setMessage] = useState("");
-  const [messages, setMessages] = useState<Message[]>(initialMessages);
-  const [streaming, setStreaming] = useState(false);
-  const [streamingText, setStreamingText] = useState("");
+  const { messages, appendMessage, loadMessages } = useChatMessages(enrollment?.id, learningSnapshot?.generation, initialMessages);
+  const chatContext = loadedTutorContext(course, selectedLessonId, lessonLoading ? null : lesson, learning.snapshot);
+  const chatKey = tutorContextKey(enrollment?.id, chatContext);
+  const chat = useTutorRequest(chatKey);
+  const streaming = chat.busy;
+  const [streamingTextState, setStreamingTextState] = useState<{ key: string; text: string } | null>(null);
+  const streamingText = streamingTextState?.key === chatKey ? streamingTextState.text : "";
   const [refreshing, setRefreshing] = useState(false);
   const [courseSummaryCollapsed, setCourseSummaryCollapsed] = useState(false);
   const [tutorCollapsed, setTutorCollapsed] = useState(false);
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [elapsedSeconds, setElapsedSeconds] = useBrowserNumber(course ? `aivirteach.lab.activeSeconds.${course.id}` : "aivirteach.lab.activeSeconds.none", 0);
   const [latency, setLatency] = useState<number | null>(null);
-  const [courseRailWidth, setCourseRailWidth] = useState(420);
+  const [courseRailWidth, setCourseRailWidth] = useBrowserNumber(courseRailWidthStorageKey, 420, { min: minCourseRailWidth, max: maxCourseRailWidth });
   const [vmEnvOpen, setVmEnvOpen] = useState(false);
-  const [consoleSession, setConsoleSession] = useState<ApiConsoleSession | null>(null);
-  const [consoleError, setConsoleError] = useState("");
-  const [consoleLoading, setConsoleLoading] = useState(false);
+  const formatConsolePollError = useCallback((caught: unknown) => upstreamErrorMessage(caught, REMOTE_DESKTOP_MESSAGES), []);
+  const consoleState = useConsoleSession({
+    enrollmentId: enrollment?.id,
+    workspace,
+    timeoutMessage: t("Remote desktop startup timed out. Please retry.", "启动超时，请重试"),
+    formatPollError: formatConsolePollError,
+  });
+  const visibleConsoleSession = consoleState.session;
   const [retrying, setRetrying] = useState(false);
   const [stopping, setStopping] = useState(false);
   const [resuming, setResuming] = useState(false);
-  const consolePollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const consolePollCancelled = useRef(false);
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const vmEnvCloseButtonRef = useRef<HTMLButtonElement>(null);
-  const chatAbortRef = useRef<AbortController | null>(null);
 
-  // 组件卸载时中止还在飞的聊天流：sendMessage 是表单回调不是 effect，没有天然的
-  // cleanup 时机，靠这个 mount-only effect 补上，避免卸载后还在读流、还在 setState。
-  useEffect(() => () => chatAbortRef.current?.abort(), []);
+
 
   useEffect(() => {
     let active = true;
@@ -112,14 +133,8 @@ function WorkspaceV1() {
       if (!activeEnrollment) return;
       const courseData = await api.course(activeEnrollment.courseId);
       if (!active) return;
-      const lessons = courseData.modules.flatMap((module) => module.lessons);
-      const storedLessonId = window.localStorage.getItem(`aivirteach.course.lesson.${courseData.id}`);
-      const completedSteps = Math.floor((activeEnrollment.progressPercent / 100) * lessons.length);
-      const fallbackLesson = lessons[Math.min(completedSteps, lessons.length - 1)] ?? lessons[0];
-      const initialLesson = lessons.find((item) => item.id === storedLessonId) ?? fallbackLesson;
       setEnrollment(activeEnrollment);
       setCourse(courseData);
-      setSelectedLessonId(initialLesson?.id ?? null);
     }).catch(() => {
       if (active) setContentError("Could not load the course.");
     }).finally(() => { if (active) setCourseChecked(true); });
@@ -128,20 +143,21 @@ function WorkspaceV1() {
 
   useEffect(() => {
     if (!enrollment) return;
+    const enrollmentId = enrollment.id;
     let active = true;
     let unsubscribe: (() => void) | null = null;
 
     async function ensureWorkspace() {
       let current: ApiWorkspace;
       try {
-        current = await api.workspace(enrollment!.id);
+        current = await api.workspace(enrollmentId);
       } catch (caught) {
         if (!(caught instanceof ApiError) || caught.status !== 404) throw caught;
-        current = await api.createWorkspace(enrollment!.id);
+        current = await api.createWorkspace(enrollmentId);
       }
       if (!active) return;
       setWorkspace(current);
-      unsubscribe = subscribeWorkspace(enrollment!.id, (updated) => { if (active) setWorkspace(updated); });
+      unsubscribe = subscribeWorkspace(enrollmentId, (updated) => { if (active) setWorkspace(updated); });
     }
 
     ensureWorkspace().catch((caught) => {
@@ -150,6 +166,15 @@ function WorkspaceV1() {
 
     return () => { active = false; unsubscribe?.(); };
   }, [enrollment]);
+
+  useEffect(() => {
+    const snapshot = learningSnapshot;
+    if (!course || !snapshot) return;
+    const key = `${course.id}:${snapshot.courseVersionId}:${snapshot.generation}`;
+    if (initialVisitKey.current === key) return;
+    const id = initialLessonId(course, snapshot);
+    if (id) { initialVisitKey.current = key; void visitLesson(id); }
+  }, [course, learningSnapshot, visitLesson]);
 
   // WS 推送在服务端 waitUntil 后台任务被 Vercel 回收时不会产生任何广播（DB 也不会
   // 更新），重连 WS 接不到一条不存在的消息——这种情况下只有客户端主动重新 GET 才能
@@ -198,19 +223,6 @@ function WorkspaceV1() {
   }, [enrollment, workspace?.status]);
 
   useEffect(() => {
-    if (workspace?.status !== "RUNNING") {
-      consolePollCancelled.current = true;
-      setConsoleSession(null);
-      setConsoleError("");
-      setConsoleLoading(false);
-      if (consolePollTimer.current) {
-        clearTimeout(consolePollTimer.current);
-        consolePollTimer.current = null;
-      }
-    }
-  }, [workspace?.status]);
-
-  useEffect(() => {
     if (!vmEnvOpen) return;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -228,40 +240,23 @@ function WorkspaceV1() {
   useEffect(() => {
     if (!course || !selectedLessonId) return;
     let active = true;
-    setLessonLoading(true);
-    setCompletionStatus("");
     api.lesson(course.id, selectedLessonId).then((lessonData) => {
       if (!active) return;
-      setLesson(lessonData);
-      window.localStorage.setItem(`aivirteach.course.lesson.${course.id}`, selectedLessonId);
+      setLoadedLesson({ key: `${lessonKey}:${selectedLessonId}`, status: "ready", lesson: lessonData });
     }).catch(() => {
-      if (active) setContentError("Could not load this step.");
-    }).finally(() => { if (active) setLessonLoading(false); });
+      if (active) setLoadedLesson({ key: `${lessonKey}:${selectedLessonId}`, status: "error", message: "Could not load this step. / 无法加载此课时。" });
+    });
     return () => { active = false; };
-  }, [course, selectedLessonId]);
-
-  useEffect(() => {
-    if (!enrollment) return;
-    api.chatMessages(enrollment.id).then((items) => {
-      if (items.length) setMessages(items.map((item) => ({ role: item.role, text: item.text })));
-    }).catch(() => undefined);
-  }, [enrollment]);
+  }, [course, lessonKey, selectedLessonId, lessonAttempt]);
 
   useEffect(() => {
     if (!course) return;
-    const storageKey = `aivirteach.lab.activeSeconds.${course.id}`;
-    const savedSeconds = Number(window.localStorage.getItem(storageKey));
-    if (Number.isFinite(savedSeconds) && savedSeconds > 0) setElapsedSeconds(savedSeconds);
     const timer = window.setInterval(() => {
       if (document.visibilityState !== "visible" || !document.hasFocus()) return;
-      setElapsedSeconds((current) => {
-        const next = current + 1;
-        window.localStorage.setItem(storageKey, String(next));
-        return next;
-      });
+      setElapsedSeconds((current) => current + 1);
     }, 1000);
     return () => window.clearInterval(timer);
-  }, [course]);
+  }, [course, setElapsedSeconds]);
 
   useEffect(() => {
     let active = true;
@@ -279,18 +274,11 @@ function WorkspaceV1() {
 
   useEffect(() => () => { if (refreshTimer.current) clearTimeout(refreshTimer.current); }, []);
 
-  useEffect(() => () => {
-    consolePollCancelled.current = true;
-    if (consolePollTimer.current) clearTimeout(consolePollTimer.current);
-  }, []);
-
-  useEffect(() => {
-    const savedWidth = Number(window.localStorage.getItem(courseRailWidthStorageKey));
-    if (Number.isFinite(savedWidth)) setCourseRailWidth(Math.min(maxCourseRailWidth, Math.max(minCourseRailWidth, savedWidth)));
-  }, []);
-
   function selectLesson(lessonId: string | null) {
-    if (lessonId) setSelectedLessonId(lessonId);
+    if (lessonId && course && learningSnapshot) {
+      setSessionLesson(lessonId);
+      void visitLesson(lessonId);
+    }
   }
 
   function startCourseRailResize(event: ReactPointerEvent<HTMLDivElement>) {
@@ -329,16 +317,8 @@ function WorkspaceV1() {
   }
 
   async function completeStep() {
-    if (!lesson) return;
-    setCompletionStatus("Saving...");
-    try {
-      const result = await api.completeLesson(lesson.lesson.id) as { enrollment: ApiEnrollment };
-      setEnrollment((current) => current ? { ...current, ...result.enrollment } : current);
-      setCompletionStatus("Step completed");
-      if (lesson.navigation.nextLessonId) selectLesson(lesson.navigation.nextLessonId);
-    } catch {
-      setCompletionStatus("Could not complete this step.");
-    }
+    if (!lesson || !learning.snapshot) return;
+    await learning.setCompleted(lesson.lesson.id, !learning.snapshot.completedLessonIds.includes(lesson.lesson.id));
   }
 
   async function revealTutorText(text: string, signal: AbortSignal) {
@@ -346,24 +326,23 @@ function WorkspaceV1() {
     for (const chunk of typewriterChunks(text)) {
       if (signal.aborted) return;
       accumulated += chunk;
-      setStreamingText(accumulated);
+      setStreamingTextState({ key: chatKey, text: accumulated });
       await new Promise((resolve) => setTimeout(resolve, typewriterDelayMs()));
     }
   }
 
   async function sendMessage(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!enrollment || streaming) return;
+    if (!enrollment || streaming || !chatContext) return;
     const text = message.trim();
     if (!text) return;
+    const request = chat.begin();
+    if (!request) return;
     setMessage("");
-    setMessages((current) => [...current, { role: "student", text }]);
-    setStreaming(true);
-    setStreamingText("");
-    const controller = new AbortController();
-    chatAbortRef.current = controller;
+    appendMessage({ role: "student", text });
+    setStreamingTextState({ key: chatKey, text: "" });
     try {
-      const response = await api.streamChatMessage(enrollment.id, text, controller.signal);
+      const response = await api.streamChatMessage(enrollment.id, { requestId: crypto.randomUUID(), text, context: chatContext }, request.signal);
       if (!response.body) throw new Error("The tutor is unavailable.");
 
       let tutorText: string | null = null;
@@ -374,20 +353,18 @@ function WorkspaceV1() {
       }
 
       if (tutorText === null) throw new Error("The tutor is unavailable.");
-      await revealTutorText(tutorText, controller.signal);
-      if (controller.signal.aborted) return;
-      setMessages((current) => [...current, { role: "tutor", text: tutorText! }]);
+      await revealTutorText(tutorText, request.signal);
+      if (!request.isCurrent()) return;
+      appendMessage({ role: "tutor", text: tutorText! });
     } catch (caught) {
       // 上面两处 throw new Error(...) 不是 ApiError，upstreamErrorMessage 会把它们归为
       // retryable（提示重试）而不是 unavailable——这是有意为之：响应体缺失/流结束却没有最终
       // 消息通常是瞬时的网络或流式问题，值得让用户重试，不该直接判定为服务不可用。
-      if (controller.signal.aborted) return;
-      setMessages((current) => [...current, { role: "tutor", text: upstreamErrorMessage(caught, AGENT_MESSAGES) }]);
+      if (!request.isCurrent()) return;
+      appendMessage({ role: "tutor", text: upstreamErrorMessage(caught, AGENT_MESSAGES) });
     } finally {
-      if (!controller.signal.aborted) {
-        setStreaming(false);
-        setStreamingText("");
-      }
+      if (request.isCurrent()) setStreamingTextState(null);
+      request.finish();
     }
   }
 
@@ -403,6 +380,7 @@ function WorkspaceV1() {
     if (!enrollment || stopping) return;
     if (!window.confirm("Close the learning environment? You can resume it anytime.")) return;
     setStopping(true);
+    consoleState.stop();
     void api.stopWorkspace(enrollment.id).then(setWorkspace).catch((caught) => {
       setContentError(upstreamErrorMessage(caught, VM_MESSAGES));
     }).finally(() => setStopping(false));
@@ -416,60 +394,14 @@ function WorkspaceV1() {
     }).finally(() => setResuming(false));
   }
 
-  const consolePollDeadlineMs = 2 * 60 * 1000;
-  const consolePollIntervalMs = 2500;
-
-  async function startConsoleSession() {
-    if (!enrollment) return;
-    // 上一轮轮询可能因为超时/报错而结束但定时器已经清空、也可能是用户重新点击重试——
-    // 无论哪种情况，开始新一轮之前先把旧状态清干净，保证同一时刻只有一条轮询链在跑。
-    if (consolePollTimer.current) {
-      clearTimeout(consolePollTimer.current);
-      consolePollTimer.current = null;
-    }
-    consolePollCancelled.current = false;
-    setConsoleLoading(true);
-    setConsoleError("");
-    const deadline = Date.now() + consolePollDeadlineMs;
-
-    async function poll() {
-      if (!enrollment) return;
-      try {
-        const session = await api.consoleSession(enrollment.id);
-        if (consolePollCancelled.current) return; // 请求在飞行中时这一轮轮询已经作废，结果直接丢弃
-        if (session.state === "ready") {
-          setConsoleSession(session);
-          setConsoleLoading(false);
-          return;
-        }
-        if (Date.now() >= deadline) {
-          setConsoleError("启动超时，请重试");
-          setConsoleLoading(false);
-          return;
-        }
-        consolePollTimer.current = setTimeout(() => void poll(), consolePollIntervalMs);
-      } catch (caught) {
-        if (consolePollCancelled.current) return;
-        setConsoleError(upstreamErrorMessage(caught, REMOTE_DESKTOP_MESSAGES));
-        setConsoleLoading(false);
-      }
-    }
-
-    void poll();
-  }
-
-  const handleConsoleError = useCallback((message: string) => {
-    setConsoleError(message);
-    setConsoleSession(null);
-  }, []);
+  const startConsoleSession = consoleState.start;
+  const handleConsoleError = consoleState.reportViewerError;
 
   function refreshTutor() {
     if (refreshTimer.current || !enrollment) return;
     setRefreshing(true);
     refreshTimer.current = setTimeout(() => {
-      api.chatMessages(enrollment.id).then((items) => {
-        setMessages(items.length ? items.map((item) => ({ role: item.role, text: item.text })) : initialMessages);
-      }).finally(() => { setRefreshing(false); refreshTimer.current = null; });
+      void loadMessages(initialMessages).finally(() => { setRefreshing(false); refreshTimer.current = null; });
     }, 500);
   }
 
@@ -479,7 +411,7 @@ function WorkspaceV1() {
 
   const allLessons = course.modules.flatMap((module) => module.lessons.map((item) => ({ ...item, module })));
   const currentIndex = allLessons.findIndex((item) => item.id === selectedLessonId);
-  const completedSteps = Math.round((enrollment.progressPercent / 100) * allLessons.length);
+
   const latencyBars = latency === null ? 0 : latency < 80 ? 4 : latency < 160 ? 3 : latency < 300 ? 2 : 1;
 
   const frameStyle = { "--course-rail-width": `${courseRailWidth}px` } as CSSProperties;
@@ -492,27 +424,27 @@ function WorkspaceV1() {
           {courseSummaryCollapsed && <Button className="lab-course-rail-expand" variant="ghost" size="icon" type="button" onClick={() => setCourseSummaryCollapsed(false)} aria-label="Expand course steps" />}
           {!courseSummaryCollapsed && <div className="lab-course-content">
             <section className="lab-step-navigation" aria-label="Step navigation">
-              <Button variant="outline" size="sm" type="button" onClick={() => selectLesson(lesson?.navigation.previousLessonId ?? null)} disabled={!lesson?.navigation.previousLessonId}>{t("Previous step", "上一步")}</Button>
+              {learning.error && <div role="alert">{learning.error}<Button disabled={learning.busy} onClick={() => void learning.reload()}>刷新进度 / Refresh progress</Button></div>}
+              <Button variant="outline" size="sm" type="button" onClick={() => selectLesson(lesson?.navigation.previousLessonId ?? null)} disabled={!learning.snapshot?.active || !lesson?.navigation.previousLessonId}>{t("Previous step", "上一步")}</Button>
               <span>Step {currentIndex + 1} of {allLessons.length}</span>
-              <Button variant="outline" size="sm" type="button" onClick={() => selectLesson(lesson?.navigation.nextLessonId ?? null)} disabled={!lesson?.navigation.nextLessonId}>{t("Next step", "下一步")}</Button>
+              <Button variant="outline" size="sm" type="button" onClick={() => selectLesson(lesson?.navigation.nextLessonId ?? null)} disabled={!learning.snapshot?.active || !lesson?.navigation.nextLessonId}>{t("Next step", "下一步")}</Button>
             </section>
             <Collapsible className="course-outline-panel"><CollapsibleTrigger render={<Button className="course-outline-trigger" variant="ghost" type="button" />}>{t("Course outline", "课程大纲")}</CollapsibleTrigger><CollapsibleContent><nav className="chapter-timeline course-step-outline" aria-label={t("Course outline", "课程大纲")}><ol>{course.modules.map((module) => {
               const moduleActive = module.lessons.some((item) => item.id === selectedLessonId);
               return <li className={moduleActive ? "active" : ""} key={module.id}>
                 <div className="chapter-row"><span>{module.position}</span><div><small>Module {module.position}</small><strong>{module.title}</strong></div></div>
                 <ol className="chapter-steps">{module.lessons.map((item) => {
-                  const stepIndex = allLessons.findIndex((lessonItem) => lessonItem.id === item.id);
-                  const status = item.id === selectedLessonId ? "current" : stepIndex < completedSteps ? "complete" : "upcoming";
-                  return <li className={status} key={item.id}><Button variant="ghost" type="button" onClick={() => selectLesson(item.id)}><span>{module.position}.{item.position}</span><strong>{item.title}</strong></Button></li>;
+                  const status = item.id === selectedLessonId ? "current" : learning.snapshot?.completedLessonIds.includes(item.id) ? "complete" : "upcoming";
+                  return <li className={status} key={item.id}><Button variant="ghost" type="button" disabled={!learning.snapshot?.active} onClick={() => selectLesson(item.id)}><span>{module.position}.{item.position}</span><strong>{item.title}</strong></Button></li>;
                 })}</ol>
               </li>;
             })}</ol></nav></CollapsibleContent></Collapsible>
-            {lessonLoading || !lesson ? <p className="sidebar-lesson-loading" role="status">Loading course step...</p> : <section className="sidebar-lesson">
+            {lessonLoading ? <p className="sidebar-lesson-loading" role="status">Loading course step...</p> : loadedLessonForSelection?.status === "error" ? <div role="alert"><Alert className="auth-error" variant="destructive">{loadedLessonForSelection.message}</Alert><Button variant="outline" type="button" onClick={() => setLessonAttempt((value) => value + 1)}>重试 / Retry</Button></div> : !lesson || lesson.lesson.id !== selectedLessonId ? <p className="sidebar-lesson-loading" role="status">Loading course step...</p> : <section className="sidebar-lesson">
               <header className="sidebar-lesson-header"><span>{lesson.module.position}.{lesson.lesson.position}</span><div><small>{lesson.module.title}</small><h2>{lesson.lesson.title}</h2><p>{lesson.lesson.estimatedMinutes} minutes</p></div></header>
-              {contentError && <Alert className="auth-error" variant="destructive">{contentError}</Alert>}
               <CourseLessonContent markdown={lesson.markdown} blocks={lesson.blocks} assets={lesson.assets} />
-              <Card as="section" className="lesson-activity sidebar-lesson-activity"><small>{t("STEP CHECK", "步骤检查")}</small><h3>{lesson.lesson.activity.prompt}</h3><Button className="primary-button" size="lg" type="button" onClick={() => void completeStep()} disabled={completionStatus === "Saving..."}>{lesson.navigation.nextLessonId ? t("Complete and continue", "完成并继续") : t("Complete course", "完成课程")}</Button>{completionStatus && <p role="status">{completionStatus}</p>}</Card>
+              <Card as="section" className="lesson-activity sidebar-lesson-activity"><small>{t("LEARNING PROGRESS", "学习进度")}</small>{learning.snapshot && <p>{learning.snapshot.completedLessonIds.length} / {learning.snapshot.totalLessons} · {learning.snapshot.progressPercent}%</p>}<h3>{lesson.lesson.activity.prompt}</h3>{learning.snapshot?.achievements.length ? <p>{t("Previous course completion retained", "历史结课记录已保留")}</p> : null}<Button className="primary-button" size="lg" type="button" onClick={() => void completeStep()} disabled={learning.busy || !learning.snapshot?.active}>{learning.snapshot?.completedLessonIds.includes(lesson.lesson.id) ? t("Mark incomplete", "取消完成") : t("Mark complete", "标记完成")}</Button><p>{t("Self-reported progress; assessment results are separate.", "这是学习记录；评测通过由系统单独判定。")}</p></Card>
             </section>}
+            <LearningSnapshots key={`${course.id}:${learning.snapshot?.generation ?? "pending"}`} courseId={course.id} progress={learning} />
           </div>}
           <AccountMenu placement="lab" collapsed={courseSummaryCollapsed} onVmEnv={() => setVmEnvOpen(true)} />
           {!courseSummaryCollapsed && <div className="lab-course-resizer" role="separator" aria-label="Resize course sidebar" aria-orientation="vertical" aria-valuemin={minCourseRailWidth} aria-valuemax={maxCourseRailWidth} aria-valuenow={courseRailWidth} tabIndex={0} onPointerDown={startCourseRailResize} onKeyDown={resizeCourseRailWithKeyboard} />}
@@ -521,11 +453,11 @@ function WorkspaceV1() {
         <header className="lab-project-header"><div className="lab-project-title"><small>{t("COURSE", "课程")}</small><h1>{course.title}</h1></div><div className="lab-project-status"><div className="latency-status"><span className="latency-bars" aria-hidden="true">{[1,2,3,4].map((bar) => <i className={bar <= latencyBars ? "active" : ""} key={bar} />)}</span><span><small>{t("SERVER", "服务器")}</small><strong>{latency === null ? t("Offline", "离线") : `${latency} ms`}</strong></span></div><div className="lab-active-timer"><span className="timer-glyph" aria-hidden="true" /><span><small>{t("ACTIVE TIME", "有效时间")}</small><strong>{formatElapsed(elapsedSeconds)}</strong></span></div></div></header>
 
         <main className="lab-workspace vm-workspace">
-          <header className="vm-toolbar"><div><span className="vm-status-dot" aria-hidden="true" /><strong>{t("Learning VM", "学习虚拟机")}</strong></div><div className="vm-toolbar-actions"><small>{workspace?.status === "RUNNING" && consoleSession ? t("Connected workspace", "工作区已连接") : t("Awaiting connection", "等待连接")}</small>{workspace?.status === "RUNNING" && <Button type="button" variant="destructive" size="xs" className="vm-close-button" onClick={closeEnvironment} disabled={stopping}>{stopping ? t("Closing...", "正在关闭……") : t("Close environment", "关闭环境")}</Button>}</div></header>
-          {workspace?.status === "RUNNING" && consoleSession?.state === "ready" && consoleSession.data ? (
+          <header className="vm-toolbar"><div><span className="vm-status-dot" aria-hidden="true" /><strong>{t("Learning VM", "学习虚拟机")}</strong></div><div className="vm-toolbar-actions"><small>{visibleConsoleSession ? t("Connected workspace", "工作区已连接") : t("Awaiting connection", "等待连接")}</small>{workspace?.status === "RUNNING" && <Button type="button" variant="destructive" size="xs" className="vm-close-button" onClick={closeEnvironment} disabled={stopping}>{stopping ? t("Closing...", "正在关闭……") : t("Close environment", "关闭环境")}</Button>}</div></header>
+          {workspace?.status === "RUNNING" && visibleConsoleSession?.state === "ready" && visibleConsoleSession.data ? (
             <ConsoleViewer
-              data={consoleSession.data}
-              labId={consoleSession.labId}
+              data={visibleConsoleSession.data}
+              labId={visibleConsoleSession.labId}
               enrollmentId={enrollment.id}
               onError={handleConsoleError}
             />
@@ -533,9 +465,9 @@ function WorkspaceV1() {
             <section className="vm-empty-state" role="status">
               <span className="vm-display-icon" aria-hidden="true" />
               <h2>Learning VM</h2>
-              {consoleError && <Alert className="auth-error" variant="destructive">{consoleError}</Alert>}
-              <Button className="primary-button" size="lg" type="button" onClick={() => void startConsoleSession()} disabled={consoleLoading}>
-                {consoleLoading ? "Starting..." : "Start remote desktop"}
+              {consoleState.error && <Alert className="auth-error" variant="destructive">{consoleState.error}</Alert>}
+              <Button className="primary-button" size="lg" type="button" onClick={() => void startConsoleSession()} disabled={consoleState.loading || stopping}>
+                {consoleState.loading ? "Starting..." : "Start remote desktop"}
               </Button>
             </section>
           ) : workspace?.status === "STOPPED" ? (
@@ -561,7 +493,7 @@ function WorkspaceV1() {
           )}
         </main>
 
-        <Card as="aside" className={`lab-tutor-rail ${tutorCollapsed ? "collapsed" : ""}`} aria-label={t("AI teacher", "AI 教师")}>{tutorCollapsed ? <Button className="lab-tutor-expand" variant="ghost" size="icon" type="button" onClick={() => setTutorCollapsed(false)} aria-label={t("Expand AI teacher", "展开 AI 教师")}><span className="bot-mark">AI</span><i className="collapse-glyph points-left" aria-hidden="true" /></Button> : <><header><div className="tutor-heading"><span className="bot-mark">AI</span><div><strong>AIVir Teacher</strong><small><i /> {t("Online", "在线")}</small></div></div><div className="tutor-header-actions"><Button className={`tutor-refresh ${refreshing ? "refreshing" : ""}`} variant="ghost" size="icon" type="button" onClick={refreshTutor} aria-label={t("Refresh tutor conversation", "刷新教师对话")}><img src="/refresh-icon.png" alt="" aria-hidden="true" /></Button><Button className="lab-rail-toggle points-right" variant="ghost" size="icon" type="button" onClick={() => setTutorCollapsed(true)} aria-label={t("Collapse AI teacher", "收起 AI 教师")}><span aria-hidden="true" /></Button></div></header><div className={`messages ${refreshing ? "refreshing" : ""}`}>{messages.map((item, index) => <article className={`message ${item.role}`} key={`${item.role}-${index}`}><div>{item.role === "tutor" ? <TutorMessage text={item.text} /> : <p>{item.text}</p>}<small>{index === messages.length - 1 && !streaming ? t("Just now", "刚刚") : t("Earlier", "较早")}</small></div></article>)}{streaming && <article className="message tutor pending"><div>{streamingText ? <TutorMessage text={streamingText} /> : <TypingIndicator />}<small>{t("Just now", "刚刚")}</small></div></article>}</div><form className="message-form" onSubmit={sendMessage}><Input value={message} onChange={(event) => setMessage(event.target.value)} aria-label={t("Ask the tutor for help", "向教师寻求帮助")} placeholder={t("Ask about this step...", "询问此步骤……")} disabled={streaming} /><Button size="icon" type="submit" aria-label={t("Send message", "发送消息")} disabled={streaming}>{t("Send", "发送")}</Button></form></> }</Card>
+        <Card as="aside" className={`lab-tutor-rail ${tutorCollapsed ? "collapsed" : ""}`} aria-label={t("AI teacher", "AI 教师")}>{tutorCollapsed ? <Button className="lab-tutor-expand" variant="ghost" size="icon" type="button" onClick={() => setTutorCollapsed(false)} aria-label={t("Expand AI teacher", "展开 AI 教师")}><span className="bot-mark">AI</span><i className="collapse-glyph points-left" aria-hidden="true" /></Button> : <><header><div className="tutor-heading"><span className="bot-mark">AI</span><div><strong>AIVir Teacher</strong><small><i /> {t("Online", "在线")}</small></div></div><div className="tutor-header-actions"><Button className={`tutor-refresh ${refreshing ? "refreshing" : ""}`} variant="ghost" size="icon" type="button" onClick={refreshTutor} aria-label={t("Refresh tutor conversation", "刷新教师对话")}><img src="/refresh-icon.png" alt="" aria-hidden="true" /></Button><Button className="lab-rail-toggle points-right" variant="ghost" size="icon" type="button" onClick={() => setTutorCollapsed(true)} aria-label={t("Collapse AI teacher", "收起 AI 教师")}><span aria-hidden="true" /></Button></div></header><div className={`messages ${refreshing ? "refreshing" : ""}`}>{messages.map((item, index) => <article className={`message ${item.role}`} key={`${item.role}-${index}`}><div>{item.role === "tutor" ? <TutorMessage text={item.text} /> : <p>{item.text}</p>}<small>{index === messages.length - 1 && !streaming ? t("Just now", "刚刚") : t("Earlier", "较早")}</small></div></article>)}{streaming && <article className="message tutor pending"><div>{streamingText ? <TutorMessage text={streamingText} /> : <TypingIndicator />}<small>{t("Just now", "刚刚")}</small></div></article>}</div>{hasTutorVersionMismatch(course, selectedLessonId, lesson, learning.snapshot) && <div role="alert"><p>{t("This lesson does not match the active course version. Reload the course before asking the tutor.", "当前课时与课程版本不匹配，请刷新课程后再向教师提问。")}</p><Button variant="outline" type="button" onClick={() => window.location.reload()}>{t("Reload course", "刷新课程")}</Button></div>}<form className="message-form" onSubmit={sendMessage}><Input value={message} onChange={(event) => setMessage(event.target.value)} aria-label={t("Ask the tutor for help", "向教师寻求帮助")} placeholder={t("Ask about this step...", "询问此步骤……")} disabled={streaming || !chatContext} /><Button size="icon" type="submit" aria-label={t("Send message", "发送消息")} disabled={streaming || !chatContext}>{t("Send", "发送")}</Button></form></> }</Card>
       </div>
       <Dialog open={vmEnvOpen} onOpenChange={setVmEnvOpen}>
         {vmEnvOpen && <DialogContent className="vm-env-dialog" showCloseButton={false}>

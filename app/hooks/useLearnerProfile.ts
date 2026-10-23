@@ -159,11 +159,6 @@ export function useLearnerProfile() {
     await refresh();
   }, [refresh]);
 
-  const completeWorkspaceTask = useCallback(async () => {
-    await api.completeLesson("dataframe-filtering");
-    await refresh();
-  }, [refresh]);
-
   const resetProfile = useCallback(async () => {
     await api.resetProfile();
     await refresh();
@@ -174,5 +169,5 @@ export function useLearnerProfile() {
     await refresh();
   }, [refresh]);
 
-  return { profile, loading, error, refresh, updateIdentity, createAccount, selectDemoProfile, recordPractice, completeWorkspaceTask, resetProfile, markNotificationsRead };
+  return { profile, loading, error, refresh, updateIdentity, createAccount, selectDemoProfile, recordPractice, resetProfile, markNotificationsRead };
 }

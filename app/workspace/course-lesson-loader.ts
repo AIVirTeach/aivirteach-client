@@ -1,10 +1,8 @@
-import type { ApiCourseDetail, ApiLesson } from "../lib/api";
+import type { ApiCourseDetail, ApiLesson, ApiLearningProgress } from "../lib/api";
 
-export function initialLessonId(course: ApiCourseDetail, storedId: string | null, progressPercent: number) {
-  const lessons = course.modules.flatMap((module) => module.lessons);
-  if (lessons.some((lesson) => lesson.id === storedId)) return storedId!;
-  const index = Math.max(0, Math.min(Math.floor(progressPercent / 100 * lessons.length), lessons.length - 1));
-  return lessons[index]?.id ?? "";
+export function initialLessonId(course: ApiCourseDetail, progress: Pick<ApiLearningProgress, "currentLessonId" | "nextLessonId">) {
+  const lessons = course.modules.flatMap(module => module.lessons);
+  return [progress.currentLessonId, progress.nextLessonId].find(id => lessons.some(lesson => lesson.id === id)) ?? lessons[0]?.id ?? "";
 }
 
 export type LessonLoadState =
