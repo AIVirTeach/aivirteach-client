@@ -8,17 +8,29 @@ Initial lesson selection is latched once per course/version/generation. A shared
 
 History GET includes the confirmed generation. Messages are keyed by enrollment/generation; superseded requests and reads started before local sends cannot overwrite the current conversation. Empty authoritative history clears old real messages. The server checks the same generation transactionally.
 
-The root fix is in client PR #24 paired with server PR #37. Client #23 and server #36 are foundation PRs. No separate chat implementation PR is needed. Original client #22 is retained as a draft source record, not a merge target.
+Client PR #24 consumes the contracts merged in server PRs #37 and #38. Client #23 and server #36 provide the foundations. Original client #22 remains a draft source record, not a merge target.
+
+## Saved progress and restart
+
+Both workspace layouts expose the same shadcn Save snapshot and History controls. Manual saves run through the learning-progress controller, which also serializes reading and completion writes. An uncertain response retains the exact request ID and command for an explicit retry. A revision refresh in the same learning round does not replace that command. A new round clears the old pending intent and saved-result display. Disposed controllers ignore late results.
+
+History uses cursor pagination and the course version stored with each snapshot. Detail counts include only completed lessons in that version's syllabus. Legacy achievements show their known completion time without inventing a syllabus or progress percentage. History refreshes after a confirmed save. There is no restore action.
+
+Catalog restart captures the confirmed generation, revision and version. An uncertain response retains the command across dialog close and reopen in the same mounted page. A conflict discards it so the next attempt reads fresh progress. The backend archives progress before reset; chat and lab state reset, and consumed quota remains consumed. Pending commands do not survive a full page reload.
+
+The lint fixes replace effect-driven storage initialization with subscriptions and derive lesson loading from the selected request. Console state clears when workspace status changes. Request ownership rejects replies from an earlier console start, including stop and resume on the same workspace.
 
 ## Verification on 2026-10-23
 
-Implementation commits: `84ca87e`, `566aa6b`; regression test follow-up: `506a490`.
+Implementation head: `11aa11e`. Backend contract baseline: server merge `d573fab`.
 
-- Full client unit suite: 25 files, 194 tests passed.
-- TypeScript check passed.
-- Cloudflare production build and artifact verification passed.
-- Eight built-page HTTP rendering tests passed.
-- Independent review found and then verified fixes for shared-pointer-driven initial selection and generation-unscoped history. Final focused review ran 5 files, 39 tests and found no new confirmed blocking defect in that scope.
-- New lifecycle/API modules pass scoped ESLint. The broader workspace-page command reports seven errors in unchanged VM/local-storage statements and one existing image warning. The same command on commit `84ca87e` reported zero errors and one warning, so these are newly surfaced diagnostics, not a baseline lint pass. The broader command remains failing and is not reported as green.
+- `npm run test:unit`: 31 files, 219 tests passed.
+- `npm run lint`: zero errors and eight existing warnings. The seven previous workspace errors are resolved without lint suppressions.
+- `WRANGLER_LOG_PATH=/private/tmp/aivirteach-wrangler-logs npm run typecheck`: passed.
+- `WRANGLER_LOG_PATH=/private/tmp/aivirteach-wrangler-logs npm run build:cloudflare`: production build and artifact checks passed.
+- `node --test tests/rendered-html.test.mjs`: eight built-page HTTP checks passed.
+- `git diff --check`: passed.
 
-Browser interactions, mounted React lifecycle integration, real Labs/VM and production deployment have not been verified. The rendered-page tests are HTTP checks, not browser acceptance. No merge or deployment was performed. Keep this PR draft while completing its remaining review/release gates. Apply server migrations before runtime deployment and coordinate the breaking history/chat contract with the client.
+Independent source reviews checked the backend contracts, generation ownership, snapshot projection, and late console responses. Review findings led to fixes for incomplete lesson counting, old-generation save display, stale console callbacks and V1 retry controls hidden during progress reload failure. Regression tests cover request reuse, disposal, generation changes, history pagination, stale detail responses and console stop/resume ownership. The comment audit found one added narrative comment; it was removed. No correctness suppressions were added.
+
+Browser interactions, mounted React lifecycle integration, real Labs/VM, database migration and production deployment have not been verified in this client pass. Built-page HTTP checks do not establish browser acceptance. No merge or deployment was performed. Runtime rollout requires the server migrations and coordinated client/server deployment because the chat, history and restart contracts changed.

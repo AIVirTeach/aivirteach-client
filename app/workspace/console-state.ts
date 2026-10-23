@@ -20,4 +20,3 @@ export function updateConsoleState(key: string, previous: KeyedConsoleState, cha
 export function updateConsoleStateIfCurrent(currentKey: string, key: string, previous: KeyedConsoleState, change: (current: ConsoleState) => ConsoleState): KeyedConsoleState {
   return currentKey === key ? updateConsoleState(key, previous, change) : previous;
 }
-
