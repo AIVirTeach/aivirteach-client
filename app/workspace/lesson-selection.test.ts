@@ -20,4 +20,18 @@ describe("lesson selection belongs to a course generation", () => {
       lessonId: "lesson-1",
     });
   });
+
+  it("preserves the tab selection through an unknown session key and resets for a new session", () => {
+    const session1 = "course-1:3:version-3:7";
+    const selection = latchLessonSelection(null, session1, "lesson-a");
+    const unknownSelection = latchLessonSelection(selection, "", "");
+
+    expect(selectedLessonIdForSession(unknownSelection, "", "")).toBe("");
+
+    const refreshedSelection = latchLessonSelection(unknownSelection, session1, "lesson-b");
+    expect(selectedLessonIdForSession(refreshedSelection, session1, "lesson-b")).toBe("lesson-a");
+
+    const session2Selection = latchLessonSelection(refreshedSelection, "course-1:3:version-3:8", "lesson-b");
+    expect(selectedLessonIdForSession(session2Selection, "course-1:3:version-3:8", "lesson-b")).toBe("lesson-b");
+  });
 });
