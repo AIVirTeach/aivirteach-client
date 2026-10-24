@@ -43,7 +43,7 @@ describe("parsePreviewMessage", () => {
   it("normalizes non-object lesson content from the canonical invalid fixture", () => {
     const invalidContent = "not a lesson object";
     expect(parsePreviewMessage({ origin, data: { type: "lesson-preview", lesson: invalidContent } }, origin)).toEqual({
-      lesson: { title: "", moduleTitle: "", blocks: undefined },
+      lesson: { title: "", moduleTitle: "", blocks: null },
       assets: {},
       problems: [],
     });

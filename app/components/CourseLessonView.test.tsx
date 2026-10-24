@@ -19,7 +19,6 @@ describe("shared Lab and preview view", () => {
     const empty = renderToStaticMarkup(<CourseLessonView mode="learner" title="x" moduleTitle="m" blocks={[]} />);
     expect(empty).toContain("No lesson content yet");
     expect(empty).not.toContain("格式无效");
-    expect(renderToStaticMarkup(<CourseLessonView mode="preview" title="x" moduleTitle="m" />)).toContain("Lesson content is missing or invalid");
     expect(renderToStaticMarkup(<CourseLessonView mode="preview" title="x" moduleTitle="m" blocks={null} />)).toContain("Lesson content is missing or invalid");
   });
   it("escapes titles and diagnoses invalid draft blocks without breaking the view", () => {

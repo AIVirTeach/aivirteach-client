@@ -40,7 +40,7 @@ describe("LessonBlocks", () => {
     expect(html).toContain("lb-invalid");
   });
 
-  it("skips malformed annotated code terms before SSR can throw", () => {
+  it("renders a placeholder for malformed annotated code terms and still renders later blocks", () => {
     const html = renderToStaticMarkup(<LessonBlocks blocks={[
       { id: "bad", type: "annotatedCode", props: { steps: [{ label: "Bad term", code: "run", terms: [null] }] } },
       { id: "after", type: "paragraph", props: { text: "after" } },

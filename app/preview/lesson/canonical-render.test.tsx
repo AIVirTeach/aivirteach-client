@@ -51,7 +51,7 @@ describe("preview renderer canonical fixture", () => {
       origin: "https://admin.example.com",
       data: { type: "lesson-preview", lesson: invalid.content },
     }, "https://admin.example.com");
-    expect(parsed?.lesson.blocks).toBeUndefined();
+    expect(parsed?.lesson.blocks).toBeNull();
     const html = renderToStaticMarkup(<CourseLessonView mode="preview" {...parsed!.lesson} assets={parsed!.assets} problems={parsed!.problems} />);
     expect(html).toContain("Lesson content is missing or invalid");
   });
@@ -66,7 +66,7 @@ describe("preview renderer canonical fixture", () => {
         problems: [null, { blockId: 9, level: "error", message: "bad id" }, { blockId: "one", level: "warning", message: "valid warning" }],
       },
     }, "https://admin.example.com");
-    expect(() => renderToStaticMarkup(<LessonBlocks blocks={parsed!.lesson.blocks} assets={parsed!.assets} problems={parsed!.problems} mode="preview" />)).not.toThrow();
-    expect(renderToStaticMarkup(<LessonBlocks blocks={parsed!.lesson.blocks} assets={parsed!.assets} problems={parsed!.problems} mode="preview" />)).toContain("valid warning");
+    expect(() => renderToStaticMarkup(<LessonBlocks blocks={parsed!.lesson.blocks!} assets={parsed!.assets} problems={parsed!.problems} mode="preview" />)).not.toThrow();
+    expect(renderToStaticMarkup(<LessonBlocks blocks={parsed!.lesson.blocks!} assets={parsed!.assets} problems={parsed!.problems} mode="preview" />)).toContain("valid warning");
   });
 });

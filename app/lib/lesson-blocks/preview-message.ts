@@ -1,11 +1,11 @@
 import type { LessonBlockProblem } from "../../components/LessonBlocks";
-import type { LessonAssets } from "./types";
+import type { LessonAssets, RawLessonBlock } from "./types";
 
 export type PreviewPayload = {
   lesson: {
     title: string;
     moduleTitle: string;
-    blocks: unknown;
+    blocks: RawLessonBlock[] | null;
   };
   assets: LessonAssets;
   problems: LessonBlockProblem[];
@@ -34,7 +34,7 @@ export function parsePreviewMessage(
     lesson: {
       title: typeof lesson.title === "string" ? lesson.title : "",
       moduleTitle: typeof lesson.moduleTitle === "string" ? lesson.moduleTitle : "",
-      blocks: lesson.blocks,
+      blocks: Array.isArray(lesson.blocks) ? lesson.blocks as RawLessonBlock[] : null,
     },
     assets: data.assets && typeof data.assets === "object" && !Array.isArray(data.assets) ? data.assets as LessonAssets : {},
     problems: Array.isArray(data.problems) ? data.problems.filter(isLessonBlockProblem) : [],

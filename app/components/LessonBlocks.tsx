@@ -22,7 +22,7 @@ import type { LessonAssets, RawLessonBlock } from "../lib/lesson-blocks/types";
 
 export type LessonBlockProblem = { blockId?: string; level: "error" | "warning"; message: string };
 export type LessonBlocksProps = {
-  blocks: unknown;
+  blocks: RawLessonBlock[];
   assets: LessonAssets;
   mode: "learner" | "preview";
   problems?: LessonBlockProblem[];
@@ -94,9 +94,8 @@ function InvalidBlock({ messages }: { messages: string[] }) {
 }
 
 export function LessonBlocks({ blocks, assets, mode, problems = [] }: LessonBlocksProps) {
-  if (!Array.isArray(blocks)) return <div className="lesson-blocks lesson-markdown"><InvalidBlock messages={["课时内容格式无效 · Lesson content is missing or invalid"]} /></div>;
-  return <div className="lesson-blocks lesson-markdown">{blocks.map((candidate, index) => {
-    const block = candidate as RawLessonBlock;
+  return <div className="lesson-blocks lesson-markdown">{blocks.map((block, index) => {
+    const candidate = block as unknown;
     const blockRecord = candidate !== null && typeof candidate === "object" && !Array.isArray(candidate)
       ? candidate as Record<string, unknown>
       : null;
