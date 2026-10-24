@@ -31,7 +31,7 @@ it("renders the server welcome response and lets the learner enter the workspace
   expect(host.textContent).toContain("Published introduction");
   expect(host.textContent).toContain("First step");
   expect(host.textContent).toContain("Published outcome");
-  await act(async () => host.querySelector<HTMLButtonElement>("button")!.click());
+  await act(async () => [...host.querySelectorAll("button")].find(b => b.textContent === "Next")!.click());
   await act(async () => [...host.querySelectorAll("button")].find(b => b.textContent === "Let's go")!.click());
   expect(mocks.push).toHaveBeenCalledWith("/workspace");
 });
