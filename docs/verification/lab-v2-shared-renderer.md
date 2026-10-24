@@ -1,5 +1,9 @@
 # Lab V2 shared course rendering
 
+2026-10-24 update: the content-only change removes the course Markdown fallback.
+See [current contract and verification](2026-10-24-content-only.md). The implementation
+and test counts below describe the earlier shared-renderer delivery.
+
 Implemented on `feat/lab-v2-shared-renderer`, based on client main `723f44d`. Includes the production preview configuration from PR #20, which was already deployed but not merged when work began. Server UI PR #32 is merged as `aacaf55`.
 
 ## Runtime contract

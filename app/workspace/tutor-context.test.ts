@@ -18,7 +18,7 @@ const lesson: ApiLesson = {
   courseId: "course-1", courseVersionId: "version-3", courseVersion: 3,
   module: { id: "module-1", title: "Module", position: 1 },
   lesson: { id: "lesson-1", position: 1, title: "Lesson", estimatedMinutes: 30, objectives: [], activity: { type: "practice", prompt: "Do this", completionType: "self_reported" } },
-  markdown: "Lesson content", assessment: null,
+  blocks: [], assessment: null,
   navigation: { previousLessonId: null, nextLessonId: null, index: 0, total: 1 },
 };
 

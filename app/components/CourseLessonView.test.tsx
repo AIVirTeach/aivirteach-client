@@ -15,9 +15,11 @@ describe("shared Lab and preview view", () => {
     expect(preview).toBe(published);
     expect(new Set(lesson.blocks.map((block) => block.type)).size).toBe(13);
   });
-  it("uses Markdown only when blocks are absent, not when the array is empty", () => {
-    expect(renderToStaticMarkup(<CourseLessonView mode="learner" title="x" moduleTitle="m" markdown="old content" />)).toContain("old content");
-    expect(renderToStaticMarkup(<CourseLessonView mode="learner" title="x" moduleTitle="m" blocks={[]} markdown="old content" />)).not.toContain("old content");
+  it("renders a legitimate empty block list and reports missing or invalid blocks", () => {
+    const empty = renderToStaticMarkup(<CourseLessonView mode="learner" title="x" moduleTitle="m" blocks={[]} />);
+    expect(empty).toContain("No lesson content yet");
+    expect(empty).not.toContain("格式无效");
+    expect(renderToStaticMarkup(<CourseLessonView mode="preview" title="x" moduleTitle="m" blocks={null} />)).toContain("Lesson content is missing or invalid");
   });
   it("escapes titles and diagnoses invalid draft blocks without breaking the view", () => {
     const html = renderToStaticMarkup(<CourseLessonView mode="preview" title="<script>alert(1)</script>" moduleTitle="m" blocks={[{ id: "bad", type: "unknown", props: {} }]} />);

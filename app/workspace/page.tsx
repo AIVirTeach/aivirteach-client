@@ -20,7 +20,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/compone
 import { Input } from "@/components/ui/input";
 import { AccountMenu } from "../components/AccountMenu";
 import { BrandLogo } from "../components/BrandLogo";
-import { CourseLessonContent } from "../components/CourseLessonContent";
+import { LessonBlocks } from "../components/LessonBlocks";
 import { Sidebar } from "../components/Sidebar";
 import { api, ApiError, beaconStopWorkspace, getAccessToken, type ApiCourseDetail, type ApiEnrollment, type ApiLesson, type ApiWorkspace } from "../lib/api";
 import { parseSseStream } from "../lib/sse";
@@ -441,7 +441,9 @@ function WorkspaceV1() {
             })}</ol></nav></CollapsibleContent></Collapsible>
             {lessonLoading ? <p className="sidebar-lesson-loading" role="status">Loading course step...</p> : loadedLessonForSelection?.status === "error" ? <div role="alert"><Alert className="auth-error" variant="destructive">{loadedLessonForSelection.message}</Alert><Button variant="outline" type="button" onClick={() => setLessonAttempt((value) => value + 1)}>重试 / Retry</Button></div> : !lesson || lesson.lesson.id !== selectedLessonId ? <p className="sidebar-lesson-loading" role="status">Loading course step...</p> : <section className="sidebar-lesson">
               <header className="sidebar-lesson-header"><span>{lesson.module.position}.{lesson.lesson.position}</span><div><small>{lesson.module.title}</small><h2>{lesson.lesson.title}</h2><p>{lesson.lesson.estimatedMinutes} minutes</p></div></header>
-              <CourseLessonContent markdown={lesson.markdown} blocks={lesson.blocks} assets={lesson.assets} />
+              {lesson.blocks.length === 0
+                ? <p role="status">暂无课时内容 · No lesson content yet</p>
+                : <LessonBlocks blocks={lesson.blocks} assets={lesson.assets ?? {}} mode="learner" />}
               <Card as="section" className="lesson-activity sidebar-lesson-activity"><small>{t("LEARNING PROGRESS", "学习进度")}</small>{learning.snapshot && <p>{learning.snapshot.completedLessonIds.length} / {learning.snapshot.totalLessons} · {learning.snapshot.progressPercent}%</p>}<h3>{lesson.lesson.activity.prompt}</h3>{learning.snapshot?.achievements.length ? <p>{t("Previous course completion retained", "历史结课记录已保留")}</p> : null}<Button className="primary-button" size="lg" type="button" onClick={() => void completeStep()} disabled={learning.busy || !learning.snapshot?.active}>{learning.snapshot?.completedLessonIds.includes(lesson.lesson.id) ? t("Mark incomplete", "取消完成") : t("Mark complete", "标记完成")}</Button><p>{t("Self-reported progress; assessment results are separate.", "这是学习记录；评测通过由系统单独判定。")}</p></Card>
             </section>}
             <LearningSnapshots key={`${course.id}:${learning.snapshot?.generation ?? "pending"}`} courseId={course.id} progress={learning} />

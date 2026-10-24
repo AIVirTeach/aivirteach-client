@@ -5,7 +5,7 @@ export type PreviewPayload = {
   lesson: {
     title: string;
     moduleTitle: string;
-    blocks: RawLessonBlock[];
+    blocks: RawLessonBlock[] | null;
   };
   assets: LessonAssets;
   problems: LessonBlockProblem[];
@@ -34,7 +34,7 @@ export function parsePreviewMessage(
     lesson: {
       title: typeof lesson.title === "string" ? lesson.title : "",
       moduleTitle: typeof lesson.moduleTitle === "string" ? lesson.moduleTitle : "",
-      blocks: Array.isArray(lesson.blocks) ? lesson.blocks as RawLessonBlock[] : [],
+      blocks: Array.isArray(lesson.blocks) ? lesson.blocks as RawLessonBlock[] : null,
     },
     assets: data.assets && typeof data.assets === "object" && !Array.isArray(data.assets) ? data.assets as LessonAssets : {},
     problems: Array.isArray(data.problems) ? data.problems.filter(isLessonBlockProblem) : [],

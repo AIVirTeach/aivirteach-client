@@ -5,11 +5,17 @@ import { API_BASE_URL } from "./config";
 describe("api.lesson", () => {
   afterEach(() => vi.unstubAllGlobals());
   it("loads published lesson content from the course API", async () => {
-    const lesson = { courseId: "a/b", courseVersionId: "cv-1", courseVersion: 3, lesson: { id: "step one" }, blocks: [], assets: {}, markdown: "legacy" };
+    const lesson = { courseId: "a/b", courseVersionId: "cv-1", courseVersion: 3, lesson: { id: "step one" }, blocks: [], assets: {} };
     const fetchMock = vi.fn<typeof fetch>(async () => new Response(JSON.stringify(lesson), { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
     expect(await api.lesson("a/b", "step one")).toEqual(lesson);
     expect(fetchMock.mock.calls[0][0]).toBe(`${API_BASE_URL}/courses/a%2Fb/lessons/step%20one`);
+  });
+
+  it.each([undefined, null, "legacy markdown"]) ("rejects a missing or invalid blocks field (%j)", async (blocks) => {
+    const fetchMock = vi.fn<typeof fetch>(async () => new Response(JSON.stringify({ blocks }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(api.lesson("course", "lesson")).rejects.toMatchObject({ status: 502, message: "Lesson content is missing or invalid." });
   });
 });
 

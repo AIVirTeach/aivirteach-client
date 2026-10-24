@@ -217,8 +217,7 @@ export type ApiLesson = {
   courseId: string;
   module: { id: string; title: string; position: number };
   lesson: ApiCourseLessonSummary;
-  markdown: string;
-  blocks?: RawLessonBlock[] | null;
+  blocks: RawLessonBlock[];
   assets?: LessonAssets;
   assessment: null | { id: string; type: string; question: string; options?: string[]; criteria?: string[] };
   navigation: { previousLessonId: string | null; nextLessonId: string | null; index: number; total: number };
@@ -413,7 +412,13 @@ export const api = {
   courses: () => request<ApiCourse[]>("/courses"),
   course: (courseId: string) => request<ApiCourseDetail>("/courses/" + encodeURIComponent(courseId)),
   courseWelcome: (courseId: string) => request<ApiCourseWelcome>("/courses/" + encodeURIComponent(courseId) + "/welcome"),
-  lesson: (courseId: string, lessonId: string) => request<ApiLesson>("/courses/" + encodeURIComponent(courseId) + "/lessons/" + encodeURIComponent(lessonId)),
+  lesson: async (courseId: string, lessonId: string) => {
+    const lesson = await request<ApiLesson>("/courses/" + encodeURIComponent(courseId) + "/lessons/" + encodeURIComponent(lessonId));
+    if (!lesson || typeof lesson !== "object" || !Array.isArray(lesson.blocks)) {
+      throw new ApiError(502, "Lesson content is missing or invalid.");
+    }
+    return lesson;
+  },
   enrollments: () => request<ApiEnrollment[]>("/me/enrollments"),
   enroll: (courseId: string) => request<ApiEnrollment>("/courses/" + encodeURIComponent(courseId) + "/enroll", { method: "POST" }),
   restartCourse: (courseId: string, command: LearningSnapshotCommand) => request<ApiRestartResult>("/courses/" + encodeURIComponent(courseId) + "/restart", { method: "POST", body: JSON.stringify(command) }),

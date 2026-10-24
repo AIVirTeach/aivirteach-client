@@ -105,7 +105,6 @@ export function LessonBlocks({ blocks, assets, mode, problems = [] }: LessonBloc
     const errors = blockProblems.filter((problem) => problem.level === "error");
     const warningLabels = mode === "preview" ? blockProblems.filter((problem) => problem.level === "warning") : [];
     if (!rendered || (mode === "preview" && errors.length > 0)) {
-      if (mode === "learner") return null;
       const messages = errors.map((problem) => problem.message);
       return <div className="lb-block" key={`${blockId ?? "invalid"}-${index}`}><InvalidBlock messages={messages.length ? messages : ["该块无法渲染"]} />{warningLabels.map((warning, warningIndex) => <small className="lb-warning" key={`${warningIndex}-${warning.message}`}>{warning.message}</small>)}</div>;
     }

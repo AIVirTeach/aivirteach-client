@@ -32,7 +32,7 @@ describe("parsePreviewMessage", () => {
     expect(parsePreviewMessage({ origin, data }, origin)).toBeNull();
   });
 
-  it("normalizes missing or malformed nested lesson fields while retaining malformed block entries", () => {
+  it("keeps missing blocks invalid and retains malformed block entries for visible diagnostics", () => {
     expect(parsePreviewMessage({ origin, data: { type: "lesson-preview", lesson: { blocks: [null, 1] } } }, origin)).toEqual({
       lesson: { title: "", moduleTitle: "", blocks: [null, 1] },
       assets: {},
@@ -43,7 +43,7 @@ describe("parsePreviewMessage", () => {
   it("normalizes non-object lesson content from the canonical invalid fixture", () => {
     const invalidContent = "not a lesson object";
     expect(parsePreviewMessage({ origin, data: { type: "lesson-preview", lesson: invalidContent } }, origin)).toEqual({
-      lesson: { title: "", moduleTitle: "", blocks: [] },
+      lesson: { title: "", moduleTitle: "", blocks: null },
       assets: {},
       problems: [],
     });
