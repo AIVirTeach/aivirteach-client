@@ -6,7 +6,7 @@ import { initialLessonId } from "./course-lesson-loader";
 import { useChatMessages } from "./use-chat-messages";
 import { useLessonSelection } from "./use-lesson-selection";
 import { useLearningProgress } from "./use-learning-progress";
-import { LearningSnapshots } from "./LearningSnapshots";
+import { LessonCompletionButton } from "./LessonCompletionButton";
 import { useBrowserNumber } from "../hooks/use-browser-number";
 import { useConsoleSession } from "./use-console-session";
 
@@ -316,11 +316,6 @@ function WorkspaceV1() {
     });
   }
 
-  async function completeStep() {
-    if (!lesson || !learning.snapshot) return;
-    await learning.setCompleted(lesson.lesson.id, !learning.snapshot.completedLessonIds.includes(lesson.lesson.id));
-  }
-
   async function revealTutorText(text: string, signal: AbortSignal) {
     let accumulated = "";
     for (const chunk of typewriterChunks(text)) {
@@ -424,7 +419,6 @@ function WorkspaceV1() {
           {courseSummaryCollapsed && <Button className="lab-course-rail-expand" variant="ghost" size="icon" type="button" onClick={() => setCourseSummaryCollapsed(false)} aria-label="Expand course steps" />}
           {!courseSummaryCollapsed && <div className="lab-course-content">
             <section className="lab-step-navigation" aria-label="Step navigation">
-              {learning.error && <div role="alert">{learning.error}<Button disabled={learning.busy} onClick={() => void learning.reload()}>刷新进度 / Refresh progress</Button></div>}
               <Button variant="outline" size="sm" type="button" onClick={() => selectLesson(lesson?.navigation.previousLessonId ?? null)} disabled={!learning.snapshot?.active || !lesson?.navigation.previousLessonId}>{t("Previous step", "上一步")}</Button>
               <span>Step {currentIndex + 1} of {allLessons.length}</span>
               <Button variant="outline" size="sm" type="button" onClick={() => selectLesson(lesson?.navigation.nextLessonId ?? null)} disabled={!learning.snapshot?.active || !lesson?.navigation.nextLessonId}>{t("Next step", "下一步")}</Button>
@@ -444,9 +438,8 @@ function WorkspaceV1() {
               {lesson.blocks.length === 0
                 ? <p role="status">暂无课时内容 · No lesson content yet</p>
                 : <LessonBlocks blocks={lesson.blocks} assets={lesson.assets ?? {}} mode="learner" />}
-              <Card as="section" className="lesson-activity sidebar-lesson-activity"><small>{t("LEARNING PROGRESS", "学习进度")}</small>{learning.snapshot && <p>{learning.snapshot.completedLessonIds.length} / {learning.snapshot.totalLessons} · {learning.snapshot.progressPercent}%</p>}<h3>{lesson.lesson.activity.prompt}</h3>{learning.snapshot?.achievements.length ? <p>{t("Previous course completion retained", "历史结课记录已保留")}</p> : null}<Button className="primary-button" size="lg" type="button" onClick={() => void completeStep()} disabled={learning.busy || !learning.snapshot?.active}>{learning.snapshot?.completedLessonIds.includes(lesson.lesson.id) ? t("Mark incomplete", "取消完成") : t("Mark complete", "标记完成")}</Button><p>{t("Self-reported progress; assessment results are separate.", "这是学习记录；评测通过由系统单独判定。")}</p></Card>
             </section>}
-            <LearningSnapshots key={`${course.id}:${learning.snapshot?.generation ?? "pending"}`} courseId={course.id} progress={learning} />
+            <LessonCompletionButton lessonId={selectedLessonId} progress={learning} disabled={lessonLoading || !lesson || lesson.lesson.id !== selectedLessonId} />
           </div>}
           <AccountMenu placement="lab" collapsed={courseSummaryCollapsed} onVmEnv={() => setVmEnvOpen(true)} />
           {!courseSummaryCollapsed && <div className="lab-course-resizer" role="separator" aria-label="Resize course sidebar" aria-orientation="vertical" aria-valuemin={minCourseRailWidth} aria-valuemax={maxCourseRailWidth} aria-valuenow={courseRailWidth} tabIndex={0} onPointerDown={startCourseRailResize} onKeyDown={resizeCourseRailWithKeyboard} />}

@@ -32,26 +32,8 @@ describe("api.chatMessages", () => {
   });
 });
 
-describe("learning snapshot API", () => {
+describe("api.restartCourse", () => {
   afterEach(() => vi.unstubAllGlobals());
-  it("posts manual snapshots with the exact command and reads paginated pinned history", async () => {
-    const command = { requestId: "c9a91c1d-e1f8-43d8-9ffc-946686d4168f", generation: 3, revision: 12, courseVersionId: "version-4" };
-    const snapshot = { id: "snap-1", schemaVersion: 1, state: { schemaVersion: 1, readingLessonId: "lesson-1", lessons: {}, completedAt: null } };
-    const page = { items: [{ id: "snap-1", schemaVersion: 1, completeStateAvailable: true, completedLessonCount: 2, totalLessons: 4, progressPercent: 50, courseVersion: { version: 4, modules: [] } }], nextCursor: null };
-    const fetchMock = vi.fn<typeof fetch>()
-      .mockResolvedValueOnce(new Response(JSON.stringify(snapshot), { status: 201 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify(page), { status: 200 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify(snapshot), { status: 200 }));
-    vi.stubGlobal("fetch", fetchMock);
-    expect(await api.createLearningSnapshot("course/one", command)).toEqual(snapshot);
-    expect(await api.learningSnapshots("course/one", "cursor/next")).toEqual(page);
-    expect(await api.learningSnapshot("course/one", "snap/one")).toEqual(snapshot);
-    expect(fetchMock.mock.calls.map(([url, init]) => [String(url), init?.method, init?.body])).toEqual([
-      [`${API_BASE_URL}/courses/course%2Fone/snapshots`, "POST", JSON.stringify(command)],
-      [`${API_BASE_URL}/courses/course%2Fone/snapshots?cursor=cursor%2Fnext`, undefined, undefined],
-      [`${API_BASE_URL}/courses/course%2Fone/snapshots/snap%2Fone`, undefined, undefined],
-    ]);
-  });
 
   it("posts a retry-safe restart command", async () => {
     const command = { requestId: "c9a91c1d-e1f8-43d8-9ffc-946686d4168f", generation: 3, revision: 12, courseVersionId: "version-4" };
