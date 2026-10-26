@@ -10,7 +10,7 @@ export function useLearningProgress(courseId: string | undefined, courseVersion:
   const controller = useRef<ReturnType<typeof createLearningProgressController> | null>(null);
   useEffect(() => {
     if (!courseId || courseVersion === undefined) return;
-    const current = createLearningProgressController(courseId, courseVersion, api, state => setStored({ key, state }));
+    const current = createLearningProgressController(courseId, courseVersion, api, state => setStored({ key, state }), { reloadCourse: () => window.location.reload() });
     controller.current = current;
     void current.reload();
     const refresh = () => { void current.reload(); };
@@ -20,6 +20,6 @@ export function useLearningProgress(courseId: string | undefined, courseVersion:
   const reload = useCallback(() => controller.current?.reload(), []);
   const visit = useCallback((id: string) => controller.current?.visit(id) ?? Promise.resolve(false), []);
   const setCompleted = useCallback((id: string, completed: boolean) => controller.current?.setCompleted(id, completed) ?? Promise.resolve(false), []);
-  const retryCompletion = useCallback(() => controller.current?.retryCompletion() ?? Promise.resolve(false), []);
-  return { ...(stored.key === key ? stored.state : emptyProgress), reload, visit, setCompleted, retryCompletion };
+  const recover = useCallback((id: string) => controller.current?.recover(id) ?? Promise.resolve(false), []);
+  return { ...(stored.key === key ? stored.state : emptyProgress), reload, visit, setCompleted, recover };
 }

@@ -12,23 +12,33 @@ V1 和 V2 工作区共用 `LessonCompletionButton`。学习进度、进度条和
 
 ## 已运行检查
 
-- 最终客户端单测 34 个文件、239 项通过。包含控制器 17 项、共享按钮 5 项和真实进度 hook、课时选择及共享控件集成 3 项。覆盖完成、取消、保存期间防重复、响应丢失后确认、保留目标重试、409、课程轮次变化、阅读位置排队、卸载和语言切换。
+- 恢复策略修正后客户端单测 34 个文件、246 项通过。包含控制器 22 项、共享按钮 7 项和真实进度 hook、课时选择及共享控件集成 3 项。覆盖完成、取消、保存期间防重复、响应丢失后确认、保留目标重试、409、课程轮次变化、阅读位置排队、卸载和语言切换。
 - 本地 Wrangler runtime types 生成和完整 TypeScript 检查通过。生成文件位于忽略的 `work/`，不进入提交。
 - 改动的 TypeScript 文件 ESLint 零错误；V1 页面已有一条 `<img>` 性能提示，未扩大修改范围。`git diff --check` 通过。
 
-日志位于工作区 `../.audit/single-progress-button/`。最终结果见 `unit-tests-final.log`、`typecheck-final.log`、`lint-final.log`。生产构建通过，日志 `build-final.log`；构建产物的 HTTP 渲染测试 8 项通过，日志 `rendered-html-final.log`。
+日志位于工作区 `../.audit/single-progress-button/`。本次恢复策略修正的最终结果见 `recovery-unit-final.log`、`recovery-types-final.log`、`recovery-lint-final.log`。修正后的生产构建通过，日志 `recovery-build.log`；产物 HTTP 渲染测试 8 项通过，日志 `recovery-rendered-html.log`。
 
 ## 浏览器验收
 
 实际运行 Vinext 工作区页面，Chrome 验收旧版中文、新版 neubrutal 中文和英文三组场景。使用受控 HTTP API 响应，不连接生产服务。每组均通过首次进度读取失败后恢复、保存中禁用按钮、服务器确认后显示已保存、取消完成请求与确认读取均失败后重试原目标、响应丢失后读取确认、焦点刷新失败后恢复。新版额外确认切换课时后不显示上一课时保存状态。
 
-每组只有一个完成按钮，没有手动快照或历史入口；记录的完成目标依次为 true、false、false、true，没有快照请求或页面 JavaScript 错误。桌面保存中、成功、失败和窄屏截图位于工作区 `../.audit/single-progress-button/browser-artifacts/`。最终日志为 `browser-final.log`，可重跑脚本为 `browser-check.mjs`，使用本机 Chrome 和相邻 server 工作区已有的 Playwright。
+每组只有一个完成按钮，没有手动快照或历史入口；记录的完成目标依次为 true、false、false、true，没有快照请求或页面 JavaScript 错误。桌面保存中、成功、失败和窄屏截图位于工作区 `../.audit/single-progress-button/browser-artifacts/`。恢复策略修正后重新运行通过，最终日志为 `recovery-browser-existing.log`，可重跑脚本为 `browser-check.mjs`，使用本机 Chrome 和相邻 server 工作区已有的 Playwright。
 
 ## 一轮独立评审后的修复
 
 独立评审使用 gpt-6-astra，发现两处失败恢复入口问题。失败写入清空进度会连带清空课时选择，使重试按钮失去归属；初始或焦点读取失败时，课时尚未就绪会禁用或卸载同步重试。
 
 现保留旧进度用于展示，将 V1 按钮移至课时就绪分支之外，并让同步恢复不依赖课时加载状态。正常完成操作仍要求课时就绪。新增集成测试使用真实 `useCourseLearningSession` 与 `CourseLearningPath`，三种恢复场景在修复前均失败，修复后通过。恢复重启 API 的幂等命令载荷测试，删除一条实现旁白注释。没有新增独立评审轮次。
+
+## 课程更新的恢复策略
+
+2026-10-26 在同一 PR 内修正课程版本变化后的恢复。进度状态以 `none`、`retry-sync`、`reload-course` 替换原始错误字符串。控制器选择恢复动作，按钮只显示本地化状态并调用 `recover(lessonId)`。浏览器整页刷新由 hook 注入，控制器不访问 `window`。
+
+课程已更新时优先要求重新加载课程，清除旧进度、完成命令和排队请求。在该控制器生命周期中，不再发出焦点刷新、阅读或完成请求，也不会被后续网络失败降级为普通同步重试。当前课时的完成失败保留原目标；B 课的同步恢复不能重放 A 课的失败命令。按钮在恢复模式下不声明完成切换的 `aria-pressed` 状态。
+
+新增测试覆盖课程更新调用宿主刷新、后续刷新不降级、取消排队阅读、课程更新优先于完成重试、按课时归属恢复、普通网络恢复和中英文更新提示。定向 32 项通过，完整 246 项通过，完整 TypeScript 和改动文件 ESLint 均通过，没有新增独立评审轮次。后端与数据库未改。
+
+实际页面版本恢复在旧版中文、新版 neubrutal 中文和英文三组浏览器场景通过。将 API 课程从 v1 切到 v2，页面显示“课程已更新，点击更新”；旧控制器收到后续 focus 事件也没有额外进度请求。点击后实际页面导航并重新获取 v2 课程，没有自动重放旧完成命令；用户再点击完成时，请求使用 v2 的 courseVersionId。无快照请求和页面 JavaScript 错误。日志 `recovery-browser-version.log`，可重跑脚本 `browser-version-check.mjs`，截图位于同一 browser-artifacts 目录。普通断网等原三组场景也重新通过。
 
 ## 验证边界
 

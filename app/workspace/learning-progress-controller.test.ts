@@ -11,7 +11,8 @@ function setup() {
     setLessonProgress: vi.fn(async (_courseId: string, id: string, current: ApiLearningProgress, completed: boolean) => complete(current, id, completed)),
   };
   const publish = vi.fn();
-  return { transport, publish, controller: createLearningProgressController("c", 1, transport, publish) };
+  const host = { reloadCourse: vi.fn() };
+  return { transport, publish, host, controller: createLearningProgressController("c", 1, transport, publish, host) };
 }
 function deferred<T>() {
   let resolve!: (state: T) => void;
@@ -103,7 +104,7 @@ describe("shared V1/V2 learning progress owner", () => {
     transport.learningProgress.mockRejectedValue(new Error("offline"));
     expect(await controller.visit("b")).toBe(false);
     expect(publish.mock.lastCall?.[0].snapshot).toBe(initial);
-    expect(publish.mock.lastCall?.[0].error).toBeTruthy();
+    expect(publish.mock.lastCall?.[0].recovery).toBe("retry-sync");
   });
   it("confirms a lost response from a same-round read without another completion write", async () => {
     const { controller, transport, publish } = setup();
@@ -123,7 +124,7 @@ describe("shared V1/V2 learning progress owner", () => {
     expect(publish.mock.lastCall?.[0].snapshot).toBe(initial);
     expect(publish.mock.lastCall?.[0].completion).toMatchObject({ status: "failed", command: { lessonId: "a", completed: true } });
     transport.learningProgress.mockResolvedValueOnce({ ...initial, revision: 8 });
-    expect(await controller.retryCompletion()).toBe(true);
+    expect(await controller.recover("a")).toBe(true);
     expect(transport.setLessonProgress.mock.calls.map(call => call[3])).toEqual([true, true]);
     expect(transport.setLessonProgress.mock.calls[1][2].revision).toBe(8);
   });
@@ -133,7 +134,7 @@ describe("shared V1/V2 learning progress owner", () => {
     transport.setLessonProgress.mockRejectedValueOnce(new Error("offline"));
     await controller.setCompleted("a", true);
     transport.learningProgress.mockResolvedValueOnce(complete(initial, "a", true));
-    expect(await controller.retryCompletion()).toBe(true);
+    expect(await controller.recover("a")).toBe(true);
     expect(transport.setLessonProgress).toHaveBeenCalledTimes(1);
     expect(publish.mock.lastCall?.[0].completion.status).toBe("saved");
   });
@@ -143,7 +144,7 @@ describe("shared V1/V2 learning progress owner", () => {
     await controller.reload();
     transport.setLessonProgress.mockRejectedValueOnce(new Error("offline"));
     await controller.setCompleted("a", false);
-    expect(await controller.retryCompletion()).toBe(true);
+    expect(await controller.recover("a")).toBe(true);
     expect(transport.setLessonProgress.mock.calls.map(call => call[3])).toEqual([false, false]);
   });
   it("refreshes a 409 without automatically replaying the command", async () => {
@@ -161,7 +162,7 @@ describe("shared V1/V2 learning progress owner", () => {
     transport.setLessonProgress.mockRejectedValueOnce(new Error("offline"));
     await controller.setCompleted("a", true);
     transport.learningProgress.mockResolvedValueOnce({ ...initial, ...changed });
-    expect(await controller.retryCompletion()).toBe(false);
+    expect(await controller.recover("a")).toBe(false);
     expect(transport.setLessonProgress).toHaveBeenCalledTimes(1);
     expect(publish.mock.lastCall?.[0].completion.status).toBe("idle");
   });
@@ -194,4 +195,74 @@ describe("shared V1/V2 learning progress owner", () => {
     expect(await abandoned).toBe(false);
     expect(publish).toHaveBeenCalledTimes(calls);
   });
+  it("reloads the course after a version mismatch and keeps that recovery despite later refresh attempts", async () => {
+    const { controller, transport, publish, host } = setup();
+    transport.learningProgress.mockResolvedValueOnce({ ...initial, courseVersion: 2, courseVersionId: "v2" });
+    await controller.reload();
+    expect(publish.mock.lastCall?.[0]).toMatchObject({ snapshot: null, busy: false, recovery: "reload-course", completion: { status: "idle" } });
+    transport.learningProgress.mockRejectedValue(new Error("offline after update"));
+    await controller.reload();
+    expect(await controller.visit("a")).toBe(false);
+    expect(await controller.setCompleted("a", true)).toBe(false);
+    await controller.recover("");
+    expect(host.reloadCourse).toHaveBeenCalledTimes(1);
+    expect(transport.learningProgress).toHaveBeenCalledTimes(1);
+    expect(transport.setReadingPosition).not.toHaveBeenCalled();
+    expect(transport.setLessonProgress).not.toHaveBeenCalled();
+    expect(publish.mock.lastCall?.[0].recovery).toBe("reload-course");
+    controller.dispose();
+    await controller.recover("a");
+    expect(host.reloadCourse).toHaveBeenCalledTimes(1);
+  });
+  it("discards queued reading and focus refresh when an in-flight response reveals a new course version", async () => {
+    const { controller, transport, publish } = setup();
+    await controller.reload();
+    const response = deferred<ApiLearningProgress>();
+    transport.setReadingPosition.mockReturnValueOnce(response.promise);
+    const pending = controller.visit("a");
+    await controller.visit("b");
+    await controller.reload();
+    response.resolve({ ...initial, courseVersion: 2, courseVersionId: "v2" });
+    expect(await pending).toBe(false);
+    expect(transport.setReadingPosition).toHaveBeenCalledTimes(1);
+    expect(transport.learningProgress).toHaveBeenCalledTimes(1);
+    expect(publish.mock.lastCall?.[0].recovery).toBe("reload-course");
+  });
+  it("prioritizes course reload over a completion retry when confirmation reveals a new version", async () => {
+    const { controller, transport, publish, host } = setup();
+    await controller.reload();
+    transport.setLessonProgress.mockRejectedValueOnce(new ApiError(409, "course changed"));
+    transport.learningProgress.mockResolvedValueOnce({ ...initial, courseVersion: 2, courseVersionId: "v2" });
+    await controller.setCompleted("a", true);
+    expect(publish.mock.lastCall?.[0].completion.status).toBe("idle");
+    await controller.recover("a");
+    expect(host.reloadCourse).toHaveBeenCalledTimes(1);
+    expect(transport.learningProgress).toHaveBeenCalledTimes(2);
+    expect(transport.setLessonProgress).toHaveBeenCalledTimes(1);
+  });
+  it("does not replay A's failed command when recovering a sync failure from B", async () => {
+    const { controller, transport, publish } = setup();
+    await controller.reload();
+    transport.setLessonProgress.mockRejectedValueOnce(new Error("write failed"));
+    await controller.setCompleted("a", true);
+    transport.learningProgress.mockRejectedValueOnce(new Error("sync failed"));
+    await controller.reload();
+    expect(publish.mock.lastCall?.[0].recovery).toBe("retry-sync");
+    await controller.recover("b");
+    expect(transport.setLessonProgress).toHaveBeenCalledTimes(1);
+    expect(publish.mock.lastCall?.[0].recovery).toBe("none");
+    expect(publish.mock.lastCall?.[0].completion).toMatchObject({ status: "failed", command: { lessonId: "a", completed: true } });
+  });
+  it("recovers an ordinary initial read failure without a course reload", async () => {
+    const { controller, transport, publish, host } = setup();
+    transport.learningProgress.mockRejectedValueOnce(new Error("offline"));
+    await controller.reload();
+    expect(publish.mock.lastCall?.[0].recovery).toBe("retry-sync");
+    await controller.recover("");
+    expect(publish.mock.lastCall?.[0].recovery).toBe("none");
+    expect(publish.mock.lastCall?.[0].snapshot).toEqual(initial);
+    expect(transport.learningProgress).toHaveBeenCalledTimes(2);
+    expect(host.reloadCourse).not.toHaveBeenCalled();
+  });
+
 });

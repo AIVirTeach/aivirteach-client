@@ -10,7 +10,7 @@ import { emptyProgress, type LearningProgressState } from "./learning-progress-c
 const initial: ApiLearningProgress = { enrollmentId: "e", courseId: "c", generation: 0, revision: 0, courseVersionId: "v1", courseVersion: 1, active: true, completedLessonIds: [], totalLessons: 9, currentLessonId: "a", nextLessonId: "a", progressPercent: 0, status: "in_progress", achievements: [] };
 const command = { lessonId: "a", completed: true, courseVersionId: "v1", generation: 0 };
 function progress(state: Partial<LearningProgressState> = {}) {
-  return { ...emptyProgress, snapshot: initial, ...state, reload: vi.fn(), visit: vi.fn().mockResolvedValue(true), setCompleted: vi.fn().mockResolvedValue(true), retryCompletion: vi.fn().mockResolvedValue(true) };
+  return { ...emptyProgress, snapshot: initial, ...state, reload: vi.fn(), visit: vi.fn().mockResolvedValue(true), setCompleted: vi.fn().mockResolvedValue(true), recover: vi.fn().mockResolvedValue(true) };
 }
 
 describe("one lesson completion control", () => {
@@ -70,7 +70,7 @@ describe("one lesson completion control", () => {
     expect(host.querySelector("button")?.disabled).toBe(false);
     expect(host.querySelector("button")?.dataset.completionState).toBe("failed");
     await act(async () => host.querySelector("button")?.click());
-    expect(current.retryCompletion).toHaveBeenCalledTimes(1);
+    expect(current.recover).toHaveBeenCalledWith("a");
     expect(current.setCompleted).not.toHaveBeenCalled();
     expect(current.reload).not.toHaveBeenCalled();
   });
@@ -81,6 +81,29 @@ describe("one lesson completion control", () => {
     expect(host.querySelector("button")?.dataset.completionState).toBe("idle");
     await act(async () => host.querySelector("button")?.click());
     expect(current.setCompleted).toHaveBeenCalledWith("b", true);
-    expect(current.retryCompletion).not.toHaveBeenCalled();
+    expect(current.recover).not.toHaveBeenCalled();
   });
+  it("presents a course update action and delegates recovery even without a loaded lesson", async () => {
+    const current = progress({ snapshot: null, recovery: "reload-course" });
+    await act(async () => root.render(<LessonCompletionButton lessonId="" progress={current} disabled />));
+    expect(host.querySelector("button")?.dataset.completionState).toBe("reload-course");
+    expect(host.querySelector("button")?.hasAttribute("aria-pressed")).toBe(false);
+    expect(host.querySelector("button")?.disabled).toBe(false);
+    expect(host.textContent).toContain("Course updated · Reload");
+    await act(async () => host.querySelector("button")?.click());
+    expect(current.recover).toHaveBeenCalledWith("");
+    expect(current.reload).not.toHaveBeenCalled();
+    expect(current.setCompleted).not.toHaveBeenCalled();
+    await act(async () => applyLearningLanguage("zh-CN"));
+    expect(host.textContent).toContain("课程已更新，点击更新");
+  });
+  it("uses the same recovery invocation for an ordinary synchronization failure", async () => {
+    const current = progress({ recovery: "retry-sync" });
+    await act(async () => root.render(<LessonCompletionButton lessonId="b" progress={current} disabled />));
+    expect(host.textContent).toContain("Sync failed · Retry");
+    await act(async () => host.querySelector("button")?.click());
+    expect(current.recover).toHaveBeenCalledWith("b");
+    expect(current.reload).not.toHaveBeenCalled();
+  });
+
 });
