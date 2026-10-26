@@ -33,7 +33,7 @@ export function LessonCompletionButton({ lessonId, progress, disabled = false }:
     <div className="lesson-progress-heading"><span>{t("Learning progress", "学习进度")}</span><span>{progress.snapshot?.completedLessonIds.length ?? 0} / {progress.snapshot?.totalLessons ?? 0} {t("completed", "已完成")}</span></div>
     <div className="lesson-progress-meter"><progress max={100} value={percent} aria-label={t("Course completion", "课程完成进度")} /><span>{percent}%</span></div>
     <div className="learning-completion-control" data-tooltip={completionDescription}>
-      <Button className="lesson-completion-button" variant="outline" type="button" data-completion-state={status} aria-busy={completion.status === "saving"} aria-pressed={canRecover ? undefined : completed} aria-description={completionDescription} disabled={progress.busy || (!canRecover && (disabled || !lessonId || !progress.snapshot?.active))} onClick={() => {
+      <Button className="lesson-completion-button learning-path-button" variant="outline" type="button" data-completion-state={status} aria-busy={completion.status === "saving"} aria-pressed={canRecover ? undefined : completed} aria-description={completionDescription} disabled={progress.busy || (!canRecover && (disabled || !lessonId || !progress.snapshot?.active))} onClick={() => {
         if (canRecover) void progress.recover(lessonId);
         else void progress.setCompleted(lessonId, !completed);
       }}>

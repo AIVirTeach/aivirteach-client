@@ -33,9 +33,9 @@ export function CourseLearningPath({ course, copyToVm, session }: {
         </optgroup>)}
       </select>
       <div>
-        <Button variant="outline" size="sm" disabled={index <= 0 || !progress.snapshot?.active} onClick={() => void select(lessons[index - 1].id)}>{t("Previous", "上一节")}</Button>
+        <Button className="learning-path-button" variant="outline" size="sm" disabled={index <= 0 || !progress.snapshot?.active} onClick={() => void select(lessons[index - 1].id)}>{t("Previous", "上一节")}</Button>
         <span>{index < 0 ? 0 : index + 1} / {lessons.length}</span>
-        <Button variant="outline" size="sm" disabled={index < 0 || index >= lessons.length - 1 || !progress.snapshot?.active} onClick={() => void select(lessons[index + 1].id)}>{t("Next", "下一节")}</Button>
+        <Button className="learning-path-button" variant="outline" size="sm" disabled={index < 0 || index >= lessons.length - 1 || !progress.snapshot?.active} onClick={() => void select(lessons[index + 1].id)}>{t("Next", "下一节")}</Button>
       </div>
     </nav>
     <LessonCompletionButton lessonId={selectedId} progress={progress} disabled={state?.status !== "ready" || state.id !== selectedId} />

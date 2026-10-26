@@ -2,7 +2,8 @@ import { spawnSync } from "node:child_process";
 
 // Public production addresses must be present during compilation: setting Worker
 // variables after the build cannot update NEXT_PUBLIC values in browser bundles.
-const result = spawnSync("npm", ["run", "build"], {
+const onWindows = process.platform === "win32";
+const result = spawnSync(onWindows ? process.env.ComSpec || "cmd.exe" : "npm", onWindows ? ["/d", "/s", "/c", "npm run build"] : ["run", "build"], {
   stdio: "inherit",
   env: {
     ...process.env,

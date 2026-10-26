@@ -8,6 +8,7 @@ import { AppLanguage } from "./components/AppLanguage";
 import { InterfaceVersionPreference } from "./components/InterfaceVersionPreference";
 import { UiCustomizationPreference } from "./components/UiCustomizationPreference";
 import { ThemePreference } from "./components/ThemePreference";
+import { getCommittedInterfaceVersion, getCommittedTheme } from "./lib/site-ui-customization";
 
 const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
@@ -28,8 +29,9 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  const theme = getCommittedTheme();
   return (
-    <html lang="en" data-interface-version="neubrutal" data-theme="light" className={cn("font-sans", geist.variable)}>
+    <html lang="en" data-interface-version={getCommittedInterfaceVersion()} data-theme={theme} className={cn("font-sans", geist.variable, theme === "dark" && "dark")}>
       <body><AppLanguage /><InterfaceVersionPreference /><ThemePreference /><UiCustomizationPreference /><ScrollbarPreference />{children}</body>
     </html>
   );
