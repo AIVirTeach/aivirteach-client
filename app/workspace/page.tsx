@@ -438,6 +438,7 @@ function WorkspaceV1() {
               {lesson.blocks.length === 0
                 ? <p role="status">暂无课时内容 · No lesson content yet</p>
                 : <LessonBlocks blocks={lesson.blocks} assets={lesson.assets ?? {}} mode="learner" />}
+              {lesson.lesson.activity.prompt.trim() && <Card as="section" className="lesson-activity sidebar-lesson-activity"><h3>{t("Lesson activity", "课时活动")}</h3><p>{lesson.lesson.activity.prompt}</p></Card>}
             </section>}
             <LessonCompletionButton lessonId={selectedLessonId} progress={learning} disabled={lessonLoading || !lesson || lesson.lesson.id !== selectedLessonId} />
           </div>}

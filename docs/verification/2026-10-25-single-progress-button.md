@@ -12,7 +12,7 @@ V1 和 V2 工作区共用 `LessonCompletionButton`。学习进度、进度条和
 
 ## 已运行检查
 
-- 恢复策略修正后客户端单测 34 个文件、246 项通过。包含控制器 22 项、共享按钮 7 项和真实进度 hook、课时选择及共享控件集成 3 项。覆盖完成、取消、保存期间防重复、响应丢失后确认、保留目标重试、409、课程轮次变化、阅读位置排队、卸载和语言切换。
+- 恢复课时活动后客户端单测 35 个文件、248 项通过。包含控制器 22 项、共享按钮 7 项和真实进度 hook、课时选择及共享控件集成 3 项。覆盖完成、取消、保存期间防重复、响应丢失后确认、保留目标重试、409、课程轮次变化、阅读位置排队、卸载和语言切换。
 - 本地 Wrangler runtime types 生成和完整 TypeScript 检查通过。生成文件位于忽略的 `work/`，不进入提交。
 - 改动的 TypeScript 文件 ESLint 零错误；V1 页面已有一条 `<img>` 性能提示，未扩大修改范围。`git diff --check` 通过。
 
@@ -39,6 +39,12 @@ V1 和 V2 工作区共用 `LessonCompletionButton`。学习进度、进度条和
 新增测试覆盖课程更新调用宿主刷新、后续刷新不降级、取消排队阅读、课程更新优先于完成重试、按课时归属恢复、普通网络恢复和中英文更新提示。定向 32 项通过，完整 246 项通过，完整 TypeScript 和改动文件 ESLint 均通过，没有新增独立评审轮次。后端与数据库未改。
 
 实际页面版本恢复在旧版中文、新版 neubrutal 中文和英文三组浏览器场景通过。将 API 课程从 v1 切到 v2，页面显示“课程已更新，点击更新”；旧控制器收到后续 focus 事件也没有额外进度请求。点击后实际页面导航并重新获取 v2 课程，没有自动重放旧完成命令；用户再点击完成时，请求使用 v2 的 courseVersionId。无快照请求和页面 JavaScript 错误。日志 `recovery-browser-version.log`，可重跑脚本 `browser-version-check.mjs`，截图位于同一 browser-artifacts 目录。普通断网等原三组场景也重新通过。
+
+## 恢复 V1 课时活动
+
+2026-10-26 恢复此前精简进度区域时误删的 V1 课时活动。正文块之后以原有活动 Card 样式展示真实 `lesson.activity.prompt`，标题按学习语言显示“课时活动”或“Lesson activity”。空白活动指令不显示卡片，不添加示例教学内容、额外按钮或 V2 行为。
+
+永久回归测试挂载实际 `WorkspacePage` 的 V1 布局，使用受控 HTTP 课时响应，确认独立于 blocks 的活动指令可见，并保留一个完成按钮。修复前因真实活动文字缺失失败，修复后两项通过，另覆盖空活动不生成指令。完整单测 35 个文件、248 项通过，TypeScript 和改动文件 ESLint 均通过；静态检查仍只有原有 V1 `<img>` 提示。日志为 `activity-red.log`、`activity-focused.log`、`activity-unit-final.log`、`activity-types-final.log`、`activity-lint-final.log`。本次恢复后的构建和产物 HTTP 渲染 8 项通过，日志 `activity-build.log`、`activity-rendered-html.log`。实际 V1 浏览器页面确认正文与独立活动指引同时可见、完成按钮仅一个，并通过保存、取消、原目标失败重试和响应丢失确认。没有快照请求或页面 JavaScript 错误；API 为受控响应。日志 `activity-browser.log`，脚本 `browser-activity-check.mjs`。
 
 ## 验证边界
 
