@@ -347,7 +347,7 @@ html[data-interface-version="v1"] .dashboard-shell {
 }
 .dashboard > * { width: min(100%, 1080px); margin-inline: auto; }
 .dashboard-toolbar { position: relative; min-height: 54px; display: flex; align-items: center; justify-content: center; }
-.search-box { position: relative; width: min(280px, 60vw); height: 48px; }
+.search-box { position: relative; width: min(280px, 60vw); min-height: 48px; }
 .search-box input { width: 100%; height: 42px; display: block; border: 1px solid transparent; border-radius: 24px; padding: 0 49px 0 17px; background: var(--surface-container); outline: none; }
 .search-box input:focus { border-color: var(--primary); background: #fff; }
 .search-button { position: absolute; top: 50%; right: 4px; width: 34px; height: 34px; display: grid; place-items: center; border: 0; border-radius: 50%; padding: 0; background: var(--primary-pale); color: var(--primary); transform: translateY(-50%); transition: background 160ms ease, color 160ms ease, transform 160ms ease; }
@@ -1199,8 +1199,6 @@ html[data-theme="dark"] .account-menu-exit { color: #ff9c94 !important; }
 
 /* Learning Analytics V2 */
 .analysis-head-actions { display: flex; align-items: center; gap: 12px; }
-.analysis-v2-link { min-height: 46px; display: inline-flex; align-items: center; border: 2px solid var(--ink); border-radius: 4px; padding: 0 16px; background: var(--surface-lowest); color: var(--ink); font-size: 12px; font-weight: 900; }
-.analysis-v2-link:hover { background: var(--ink); color: var(--surface-lowest); }
 .analysis-v2-shell { --analysis-blue: #0568fe; --analysis-blue-dark: #094da9; --analysis-blue-soft: #eaf2ff; --analysis-violet: #6548d8; --analysis-cyan: #0797a6; --analysis-amber: #d58418; }
 .analysis-v2 { min-width: 0; background: radial-gradient(circle at 82% -10%, rgba(5, 104, 254, .12), transparent 30%), var(--surface); }
 .analysis-v2 > * { width: min(100%, 1260px); margin-inline: auto; }
@@ -1300,7 +1298,6 @@ html[data-theme="dark"] .analysis-v2-bar-column.best i { background: #428dff; }
 
 @media (max-width: 820px) {
   .analysis-head-actions { width: 100%; align-items: stretch; flex-direction: column; }
-  .analysis-v2-link { justify-content: center; }
   .analysis-v2-head { align-items: flex-start; flex-direction: column; }
   .analysis-v2-head-actions { width: 100%; justify-content: space-between; }
   .analysis-v2-achievements > div { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -1715,7 +1712,7 @@ html[data-theme="dark"] .topbar-notification-popover {
 
 .topbar-search-popover-form {
   width: 100%;
-  height: 40px;
+  min-height: 40px;
 }
 
 .topbar-search-popover .topbar-search-popover-form [data-slot="input"],
@@ -1966,12 +1963,12 @@ html[data-interface-version="v2"] :is(.catalog-image-wrap, .catalog-art) {
   aspect-ratio: 4 / 3;
 }
 
-html[data-interface-version="v2"] :is(.analysis-v2-link, .range-toggle, .analysis-v2-range) {
+html[data-interface-version="v2"] :is(.range-toggle, .analysis-v2-range) {
   border: 1px solid color-mix(in srgb, var(--ink) 14%, transparent);
   box-shadow: 0 6px 18px rgba(15, 23, 42, .06);
 }
 
-html[data-interface-version="v2"][data-theme="dark"] :is(.analysis-v2-link, .range-toggle, .analysis-v2-range) {
+html[data-interface-version="v2"][data-theme="dark"] :is(.range-toggle, .analysis-v2-range) {
   border-color: color-mix(in srgb, var(--ink) 18%, transparent);
   box-shadow: 0 6px 18px rgba(0, 0, 0, .2);
 }

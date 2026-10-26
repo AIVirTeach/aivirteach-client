@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -34,7 +33,6 @@ export default function AnalysisPage() {
         <header className="analysis-head">
           <div><h1>{t("Learning Analytics", "学习分析")}</h1><p>{t("Track your mastery and learning progression.", "追踪你的掌握程度和学习进展。")}</p></div>
           <div className="analysis-head-actions">
-            <Button render={<Link href="/analysis/v2" />} className="analysis-v2-link" variant="outline">{t("View v2", "查看 V2")}</Button>
             <div className="range-toggle" aria-label="Analytics date range">
               <Button variant="ghost" type="button" className={range === "30" ? "active" : ""} onClick={() => setRange("30")}>{t("Last 30 Days", "最近 30 天")}</Button>
               <Button variant="ghost" type="button" className={range === "all" ? "active" : ""} onClick={() => setRange("all")}>{t("All Time", "全部时间")}</Button>
