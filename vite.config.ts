@@ -47,6 +47,14 @@ export default defineConfig(async () => {
     server: {
       port: 3001,
       strictPort: true,
+      // Keep local API requests same-origin when the frontend runs on a port
+      // that is not in the hosted API's CORS allowlist.
+      proxy: {
+        "/api/v1": {
+          target: "https://aivirteach-server.vercel.app",
+          changeOrigin: true,
+        },
+      },
       ...(isCodexSeatbeltSandbox
         ? { watch: { useFsEvents: false, usePolling: true } }
         : {}),

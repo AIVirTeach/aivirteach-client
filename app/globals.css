@@ -1297,6 +1297,10 @@ html[data-theme="dark"] .account-menu-exit { color: #ff9c94 !important; }
 .lesson-activity h3 { margin: 8px 0 18px; font-size: 16px; line-height: 1.5; }
 .lesson-activity .primary-button { min-height: 43px; padding: 0 17px; }
 .lesson-activity > p { margin: 10px 0 0; color: var(--ink-soft); font-size: 12px; font-weight: 700; }
+.learning-completion-control { position: relative; }
+.learning-completion-control::after { position: absolute; z-index: 30; bottom: calc(100% + 8px); left: 0; width: max-content; max-width: min(240px, calc(100vw - 48px)); border: 1px solid var(--ink); border-radius: 6px; padding: 8px 10px; background: var(--ink); color: var(--surface-lowest); box-shadow: 0 4px 12px rgba(0, 0, 0, .2); content: attr(data-tooltip); font-size: 12px; line-height: 1.4; opacity: 0; pointer-events: none; visibility: hidden; white-space: normal; }
+.learning-completion-control:hover::after,
+.learning-completion-control:focus-within::after { opacity: 1; visibility: visible; }
 .vm-workspace { position: relative; background: #11151a; }
 .vm-toolbar { min-height: 42px; display: flex; flex: 0 0 42px; align-items: center; justify-content: space-between; gap: 16px; padding: 0 14px; border-bottom: 1px solid #303840; background: #1d2329; color: #f4f6f8; }
 .vm-toolbar > div { display: flex; align-items: center; gap: 8px; }

@@ -35,11 +35,14 @@ describe("one lesson completion control", () => {
     expect(host.textContent).toContain("Mark lesson complete");
     expect(host.textContent).not.toMatch(/snapshot|history|评测/i);
     expect(host.querySelector("progress")?.max).toBe(100);
+    expect(host.querySelector("button")?.getAttribute("aria-description")).toBe("Self-reported progress; assessment results are separate.");
+    expect(host.querySelector(".learning-completion-control")?.getAttribute("data-tooltip")).toBe("Self-reported progress; assessment results are separate.");
     await act(async () => { host.querySelector("button")?.click(); });
     expect(current.setCompleted).toHaveBeenCalledWith("a", true);
     await act(async () => applyLearningLanguage("zh-CN"));
     expect(host.textContent).toContain("标记本节已学完");
     expect(host.textContent).not.toContain("Mark lesson");
+    expect(host.querySelector("button")?.getAttribute("aria-description")).toBe("这是学习记录；评测通过由系统单独判定。");
   });
   it("disables repeated clicks while saving and announces the state", async () => {
     const current = progress({ busy: true, completion: { status: "saving", command } });
