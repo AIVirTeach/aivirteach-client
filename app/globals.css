@@ -3300,3 +3300,22 @@ html[data-interface-version="neubrutal"] .floating-ai-prompt > [data-slot="butto
 .tutor-markdown blockquote { margin: .8em 0; padding-left: 12px; border-left: 3px solid var(--outline); color: var(--ink-soft); }
 .tutor-markdown table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; margin: .8em 0; }
 .tutor-markdown :is(th, td) { padding: 6px 10px; border: 1px solid var(--outline); text-align: left; }
+
+.lesson-progress { display: grid; gap: 12px; margin: 20px 28px; padding: 18px; border: 1px solid var(--outline); border-radius: 12px; background: var(--surface-lowest); color: var(--ink); }
+.lesson-progress-heading, .lesson-progress-meter { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 13px; }
+.lesson-progress-heading > :first-child { font-weight: 700; }
+.lesson-progress-heading > :last-child { color: var(--ink-soft); }
+.lesson-progress-meter progress { display: block; flex: 1; min-width: 0; height: 6px; overflow: hidden; appearance: none; border: 0; border-radius: 99px; background: var(--surface-high); color: var(--primary); }
+.lesson-progress-meter progress::-webkit-progress-bar { background: var(--surface-high); border-radius: 99px; }
+.lesson-progress-meter progress::-webkit-progress-value { background: var(--primary); border-radius: 99px; }
+.lesson-progress-meter progress::-moz-progress-bar { background: var(--primary); border-radius: 99px; }
+.lesson-progress-meter > span { min-width: 3ch; color: var(--ink-soft); font-variant-numeric: tabular-nums; text-align: right; }
+.lesson-progress [data-slot="button"].lesson-completion-button,
+html[data-interface-version="neubrutal"] .lesson-progress [data-slot="button"].lesson-completion-button { display: flex; min-height: 44px; width: 100%; height: auto; gap: 8px; padding: 10px 14px; border: 1px solid var(--primary); border-radius: 8px; background: var(--primary); color: var(--primary-foreground); box-shadow: none; transform: none; font-weight: 600; white-space: normal; }
+.lesson-progress [data-slot="button"].lesson-completion-button:hover:not(:disabled) { filter: brightness(.95); transform: none; }
+.lesson-progress [data-slot="button"].lesson-completion-button[aria-pressed="true"],
+html[data-interface-version="neubrutal"] .lesson-progress [data-slot="button"].lesson-completion-button[aria-pressed="true"] { border-color: var(--outline); background: var(--surface-high); color: var(--ink); }
+.lesson-progress [data-slot="button"].lesson-completion-button[data-completion-state="failed"],
+html[data-interface-version="neubrutal"] .lesson-progress [data-slot="button"].lesson-completion-button[data-completion-state="failed"] { border-color: #a33c30; background: #fff1ee; color: #8c3027; }
+.lesson-progress [data-slot="button"].lesson-completion-button:disabled { cursor: wait; opacity: .65; }
+@media (max-width: 480px) { .lesson-progress { margin: 16px; padding: 16px; } }

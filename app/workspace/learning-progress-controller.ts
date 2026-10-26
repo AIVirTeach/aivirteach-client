@@ -1,50 +1,72 @@
-import { ApiError, type ApiCreatedLearningSnapshot, type ApiLearningProgress, type LearningSnapshotCommand } from "../lib/api";
+import type { ApiLearningProgress } from "../lib/api";
 
 type Transport = {
   learningProgress(courseId: string): Promise<ApiLearningProgress>;
   setReadingPosition(courseId: string, lessonId: string, state: ApiLearningProgress): Promise<ApiLearningProgress>;
   setLessonProgress(courseId: string, lessonId: string, state: ApiLearningProgress, completed: boolean): Promise<ApiLearningProgress>;
-  createLearningSnapshot(courseId: string, command: LearningSnapshotCommand): Promise<ApiCreatedLearningSnapshot>;
 };
-export type LearningProgressState = { snapshot: ApiLearningProgress | null; busy: boolean; error: string; snapshotBusy: boolean; snapshotError: string; pendingSnapshot: LearningSnapshotCommand | null; savedSnapshot: ApiCreatedLearningSnapshot | null };
-export const emptyProgress: LearningProgressState = { snapshot: null, busy: false, error: "", snapshotBusy: false, snapshotError: "", pendingSnapshot: null, savedSnapshot: null };
+export type CompletionCommand = {
+  lessonId: string;
+  completed: boolean;
+  courseVersionId: string;
+  generation: number;
+};
+export type CompletionState =
+  | { status: "idle" }
+  | { status: "saving"; command: CompletionCommand }
+  | { status: "saved"; command: CompletionCommand }
+  | { status: "failed"; command: CompletionCommand };
+export type LearningProgressState = {
+  snapshot: ApiLearningProgress | null;
+  busy: boolean;
+  recovery: "none" | "retry-sync" | "reload-course";
+  completion: CompletionState;
+};
+export const emptyProgress: LearningProgressState = { snapshot: null, busy: false, recovery: "none", completion: { status: "idle" } };
 
-// One owner per mounted course: serializes commands and drops responses after disposal.
-export function createLearningProgressController(courseId: string, courseVersion: number, transport: Transport, publish: (state: LearningProgressState) => void) {
+const sameScope = (command: CompletionCommand, snapshot: ApiLearningProgress) => command.courseVersionId === snapshot.courseVersionId && command.generation === snapshot.generation;
+const targetConfirmed = (command: CompletionCommand, snapshot: ApiLearningProgress) => sameScope(command, snapshot) && snapshot.completedLessonIds.includes(command.lessonId) === command.completed;
+
+export function createLearningProgressController(courseId: string, courseVersion: number, transport: Transport, publish: (state: LearningProgressState) => void, host: { reloadCourse(): void }) {
   let state = emptyProgress;
   let disposed = false;
   let queuedVisit: { lessonId: string; courseVersionId: string; generation: number } | null = null;
   let queuedReload = false;
-  let pendingSnapshot: LearningSnapshotCommand | null = null;
-  let snapshotBusy = false;
-  let snapshotError = "";
-  let savedSnapshot: ApiCreatedLearningSnapshot | null = null;
-  function update(next: Pick<LearningProgressState, "snapshot" | "busy" | "error">) {
-    if (disposed) return;
+
+  const courseUpdated = () => state.recovery === "reload-course";
+
+  function update(next: LearningProgressState) {
+    if (disposed || courseUpdated()) return;
     if (next.snapshot && next.snapshot.courseVersion !== courseVersion) {
-      next = { snapshot: null, busy: false, error: "课程已更新，请刷新页面后继续 / Course updated. Reload the page to continue." };
+      queuedVisit = null;
+      queuedReload = false;
+      next = { ...emptyProgress, recovery: "reload-course" };
     }
-    if (next.snapshot && pendingSnapshot && (pendingSnapshot.generation !== next.snapshot.generation || pendingSnapshot.courseVersionId !== next.snapshot.courseVersionId)) {
-      pendingSnapshot = null;
-      snapshotError = "学习轮次已变化。旧快照不会重试到新轮次，请到历史记录中查看 / Learning round changed. The old save will not be retried in this round; check history.";
+    if (next.snapshot && next.completion.status !== "idle") {
+      const command = next.completion.command;
+      if (!sameScope(command, next.snapshot) || (next.completion.status === "saved" && !targetConfirmed(command, next.snapshot))) {
+        next = { ...next, completion: { status: "idle" } };
+      }
     }
-    if (next.snapshot && savedSnapshot && (savedSnapshot.sourceGeneration !== next.snapshot.generation || savedSnapshot.courseVersionId !== next.snapshot.courseVersionId)) savedSnapshot = null;
-    if (!next.snapshot) savedSnapshot = null;
-    state = { ...next, snapshotBusy, snapshotError, pendingSnapshot, savedSnapshot };
+    if (!next.snapshot && next.completion.status === "saved") next = { ...next, completion: { status: "idle" } };
+    state = next;
     publish(state);
   }
   async function reloadNow() {
-    if (disposed) return;
-    update({ ...state, busy: true, error: "" });
+    if (disposed || courseUpdated()) return;
+    update({ ...state, busy: true, recovery: "none" });
     try {
       const snapshot = await transport.learningProgress(courseId);
-      update({ snapshot, busy: false, error: "" });
+      const completion = state.completion.status === "failed" && targetConfirmed(state.completion.command, snapshot)
+        ? { status: "saved" as const, command: state.completion.command }
+        : state.completion;
+      update({ ...state, snapshot, completion, busy: false, recovery: "none" });
     } catch {
-      update({ snapshot: null, busy: false, error: "无法同步学习进度，请重试 / Could not sync progress. Retry." });
+      update({ ...state, busy: false, recovery: "retry-sync" });
     }
   }
   async function drainQueuedWork() {
-    if (disposed || state.busy) return;
+    if (disposed || courseUpdated() || state.busy) return;
     if (queuedReload) {
       queuedReload = false;
       await reloadNow();
@@ -53,79 +75,98 @@ export function createLearningProgressController(courseId: string, courseVersion
     queuedVisit = null;
     const snapshot = state.snapshot;
     if (visit && snapshot?.active && visit.courseVersionId === snapshot.courseVersionId && visit.generation === snapshot.generation) {
-      await write(visit.lessonId);
+      await writeReading(visit.lessonId);
     }
   }
   async function reload() {
-    if (disposed) return;
+    if (disposed || courseUpdated()) return;
     if (state.busy) { queuedReload = true; return; }
     await reloadNow();
     await drainQueuedWork();
   }
-  async function write(lessonId: string, completed?: boolean): Promise<boolean> {
+  async function writeReading(lessonId: string): Promise<boolean> {
     const current = state.snapshot;
-    if (disposed) return false;
+    if (disposed || courseUpdated()) return false;
     if (state.busy) {
-      if (completed === undefined && current) queuedVisit = { lessonId, courseVersionId: current.courseVersionId, generation: current.generation };
+      if (current) queuedVisit = { lessonId, courseVersionId: current.courseVersionId, generation: current.generation };
       return false;
     }
     if (!current?.active) return false;
-    update({ ...state, busy: true, error: "" });
+    update({ ...state, busy: true, recovery: "none" });
     let succeeded = false;
     try {
-      const snapshot = completed === undefined
-        ? await transport.setReadingPosition(courseId, lessonId, current)
-        : await transport.setLessonProgress(courseId, lessonId, current, completed);
+      const snapshot = await transport.setReadingPosition(courseId, lessonId, current);
       if (disposed) return false;
-      update({ snapshot, busy: false, error: "" });
-      succeeded = true;
+      update({ ...state, snapshot, busy: false, recovery: "none" });
+      succeeded = !courseUpdated();
     } catch {
       if (disposed) return false;
-      let snapshot: ApiLearningProgress | null = completed === undefined ? current : null;
+      let snapshot = current;
       try { snapshot = await transport.learningProgress(courseId); } catch {}
-      update({ snapshot, busy: false, error: "保存未确认，请刷新进度后重试；课程更新时请刷新页面 / Save not confirmed. Refresh progress and retry; reload the page if the course changed." });
+      update({ ...state, snapshot, busy: false, recovery: "retry-sync" });
     }
     await drainQueuedWork();
     return succeeded;
   }
-  async function saveSnapshot(): Promise<ApiCreatedLearningSnapshot | null> {
-    if (disposed || snapshotBusy || state.busy || (Boolean(state.error) && !pendingSnapshot) || (!state.snapshot?.active && !pendingSnapshot)) return null;
-    const current = state.snapshot;
-    if (!pendingSnapshot) {
-      if (!current) return null;
-      pendingSnapshot = { requestId: crypto.randomUUID(), generation: current.generation, revision: current.revision, courseVersionId: current.courseVersionId };
-    }
-    const owner = { generation: pendingSnapshot.generation, courseVersionId: pendingSnapshot.courseVersionId };
-    snapshotBusy = true; snapshotError = "";
-    update({ ...state, busy: true });
-    try {
-      const result = await transport.createLearningSnapshot(courseId, pendingSnapshot);
-      if (disposed) return null;
-      pendingSnapshot = null; savedSnapshot = result; snapshotBusy = false;
-      state = { ...state, busy: false };
-      update(state);
-      await drainQueuedWork();
-      if (disposed || state.snapshot?.generation !== owner.generation || state.snapshot?.courseVersionId !== owner.courseVersionId) return null;
-      return result;
-    } catch (caught) {
-      if (disposed) return null;
-      snapshotBusy = false;
-      const conflict = caught instanceof ApiError && caught.status === 409;
-      if (conflict) pendingSnapshot = null;
-      snapshotError = conflict
-        ? "学习进度已更新，请刷新后发起新的保存 / Progress changed. Refresh before starting a new save."
-        : "保存结果未确认。可安全重试同一条快照 / Save outcome is unconfirmed. Retry this same snapshot safely.";
-      if (conflict) {
-        try {
-          const fresh = await transport.learningProgress(courseId);
-          if (!disposed) state = { ...state, snapshot: fresh, busy: false };
-        } catch {}
-      }
-      state = { ...state, busy: false };
-      update(state);
-      await drainQueuedWork();
-      return null;
-    }
+  function finishCompletion(command: CompletionCommand, snapshot: ApiLearningProgress | null) {
+    update({ ...state, snapshot: snapshot ?? state.snapshot, busy: false, recovery: "none", completion: snapshot && targetConfirmed(command, snapshot) ? { status: "saved", command } : { status: "failed", command } });
+    return !disposed && state.completion.status === "saved";
   }
-  return { reload, visit: (id: string) => write(id), setCompleted: (id: string, completed: boolean) => write(id, completed), saveSnapshot, dispose() { disposed = true; queuedVisit = null; queuedReload = false; } };
+  async function sendCompletion(command: CompletionCommand, current: ApiLearningProgress): Promise<boolean> {
+    let snapshot: ApiLearningProgress | null = null;
+    try {
+      snapshot = await transport.setLessonProgress(courseId, command.lessonId, current, command.completed);
+    } catch {
+      if (disposed) return false;
+      try { snapshot = await transport.learningProgress(courseId); } catch {}
+    }
+    if (disposed) return false;
+    const succeeded = finishCompletion(command, snapshot);
+    await drainQueuedWork();
+    return succeeded;
+  }
+  async function setCompleted(lessonId: string, completed: boolean): Promise<boolean> {
+    const current = state.snapshot;
+    if (disposed || courseUpdated() || state.busy || !current?.active) return false;
+    const command = { lessonId, completed, courseVersionId: current.courseVersionId, generation: current.generation };
+    update({ ...state, busy: true, recovery: "none", completion: { status: "saving", command } });
+    return sendCompletion(command, current);
+  }
+  async function retryCompletion(): Promise<boolean> {
+    if (disposed || courseUpdated() || state.busy || state.completion.status !== "failed") return false;
+    const command = state.completion.command;
+    update({ ...state, busy: true, recovery: "none", completion: { status: "saving", command } });
+    let current: ApiLearningProgress;
+    try {
+      current = await transport.learningProgress(courseId);
+    } catch {
+      if (disposed) return false;
+      finishCompletion(command, null);
+      await drainQueuedWork();
+      return false;
+    }
+    if (disposed) return false;
+    if (!current.active || current.courseVersion !== courseVersion || !sameScope(command, current)) {
+      update({ ...state, snapshot: current, busy: false, completion: { status: "idle" } });
+      await drainQueuedWork();
+      return false;
+    }
+    if (targetConfirmed(command, current)) {
+      finishCompletion(command, current);
+      await drainQueuedWork();
+      return true;
+    }
+    return sendCompletion(command, current);
+  }
+  async function recover(lessonId: string): Promise<boolean> {
+    if (disposed || state.busy) return false;
+    if (courseUpdated()) {
+      host.reloadCourse();
+      return false;
+    }
+    if (state.completion.status === "failed" && state.completion.command.lessonId === lessonId) return retryCompletion();
+    if (state.recovery === "retry-sync") await reload();
+    return false;
+  }
+  return { reload, visit: writeReading, setCompleted, recover, dispose() { disposed = true; queuedVisit = null; queuedReload = false; } };
 }
