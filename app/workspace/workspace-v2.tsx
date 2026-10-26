@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { type CSSProperties, type FormEvent, type KeyboardEvent, type PointerEvent as ReactPointerEvent, useCallback, useEffect, useRef, useState } from "react";
+import { type CSSProperties, type FormEvent, type KeyboardEvent, type PointerEvent as ReactPointerEvent, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Check, Maximize2, Minimize2, Send, Wifi, WifiOff } from "lucide-react";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -28,13 +28,14 @@ import { useTutorRequest } from "./use-tutor-request";
 
 type Message = { role: "tutor" | "student"; text: string };
 type WorkspaceTab = "teacher" | "path";
+type WorkspaceLayout = "split" | "maximized" | "minimized";
 
 const initialMessages: Message[] = [
   { role: "tutor", text: "I am ready to help with this course. Tell me what you are trying to do or where the result differs from the learning path." },
 ];
 const widthStorageKey = "aivirteach.lab.v2.leftWidth";
 const floatingPositionStorageKey = "aivirteach.lab.v2.floatingAiPosition";
-const minLeftWidth = 380;
+const minLeftWidth = 450;
 const maxLeftWidth = Number.MAX_SAFE_INTEGER;
 const minVmWidth = 420;
 const floatingButtonSize = 64;
@@ -64,7 +65,7 @@ export function WorkspaceV2() {
   const learningLanguage = useLearningLanguage();
   const t = (english: string, chinese: string) => localize(learningLanguage, english, chinese);
   const shellRef = useRef<HTMLDivElement>(null);
-  const floatingPromptRef = useRef<HTMLInputElement>(null);
+  const floatingPromptRef = useRef<HTMLTextAreaElement>(null);
   const messagesRef = useRef<HTMLDivElement>(null);
   const consoleViewerRef = useRef<ConsoleViewerHandle>(null);
   const floatingWasDraggedRef = useRef(false);
@@ -79,7 +80,7 @@ export function WorkspaceV2() {
   const formatConsolePollError = useCallback((caught: unknown) => caught instanceof Error ? caught.message : "Could not start the remote desktop.", []);
   const [activeTab, setActiveTab] = useState<WorkspaceTab>("path");
   const [leftWidth, setLeftWidth] = useBrowserNumber(widthStorageKey, 680, { min: minLeftWidth, max: maxLeftWidth });
-  const [maximized, setMaximized] = useState(false);
+  const [layout, setLayout] = useState<WorkspaceLayout>("split");
   const [checked, setChecked] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -199,6 +200,13 @@ export function WorkspaceV2() {
     if (floatingPromptOpen) floatingPromptRef.current?.focus();
   }, [floatingPromptOpen]);
 
+  useLayoutEffect(() => {
+    const prompt = floatingPromptRef.current;
+    if (!prompt) return;
+    prompt.style.height = "auto";
+    prompt.style.height = `${prompt.scrollHeight}px`;
+  }, [floatingPrompt, floatingPromptOpen]);
+
   useEffect(() => {
     if (activeTab !== "teacher") return;
     messagesRef.current?.scrollTo({ top: messagesRef.current.scrollHeight, behavior: "smooth" });
@@ -229,7 +237,7 @@ export function WorkspaceV2() {
   }, []);
 
   function startResize(event: ReactPointerEvent<HTMLDivElement>) {
-    if (maximized || event.button !== 0) return;
+    if (layout !== "split" || event.button !== 0) return;
     event.preventDefault();
     const shell = shellRef.current;
     if (!shell) return;
@@ -322,6 +330,12 @@ export function WorkspaceV2() {
     setFloatingPromptOpen(false);
     setFloatingUnreadKey(null);
     void requestTutorResponse(text, true);
+  }
+
+  function handleFloatingPromptKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) return;
+    event.preventDefault();
+    event.currentTarget.form?.requestSubmit();
   }
 
   function handleFloatingButtonClick() {
@@ -429,7 +443,7 @@ export function WorkspaceV2() {
   const panel = vmPanelState(workspace?.status, consoleSession?.state === "ready" && Boolean(consoleSession.data));
 
   return (
-    <div ref={shellRef} className={`lab-v2-shell ${maximized ? "left-maximized" : ""}`} style={frameStyle}>
+    <div ref={shellRef} className={`lab-v2-shell ${layout === "maximized" ? "left-maximized" : layout === "minimized" ? "left-minimized" : ""}`} style={frameStyle}>
       <section className="lab-v2-left" aria-label={t("Learning workspace", "学习工作区")}>
         <header className="lab-v2-header">
           <DropdownMenu>
@@ -447,12 +461,15 @@ export function WorkspaceV2() {
             </DropdownMenuContent>
           </DropdownMenu>
           <div className="lab-v2-tabs" role="tablist" aria-label={t("Learning workspace views", "学习工作区视图")}>
-            <Button variant={activeTab === "teacher" ? "default" : "ghost"} type="button" role="tab" aria-selected={activeTab === "teacher"} onClick={() => setActiveTab("teacher")}>AIVirTeach</Button>
-            <Button variant={activeTab === "path" ? "default" : "ghost"} type="button" role="tab" aria-selected={activeTab === "path"} onClick={() => setActiveTab("path")}>{t("Learning Path", "学习路径")}</Button>
+            <Button variant="ghost" type="button" role="tab" aria-selected={activeTab === "teacher"} onClick={() => setActiveTab("teacher")}>AIVirTeach</Button>
+            <Button variant="ghost" type="button" role="tab" aria-selected={activeTab === "path"} onClick={() => setActiveTab("path")}>{t("Learning Path", "学习路径")}</Button>
           </div>
-          <Button className="lab-v2-expand" variant="outline" size="icon" type="button" onClick={() => setMaximized((current) => !current)} aria-label={maximized ? t("Restore split workspace", "恢复分屏工作区") : t("Maximize learning workspace", "最大化学习工作区")} aria-pressed={maximized} title={maximized ? t("Restore split workspace", "恢复分屏工作区") : t("Maximize learning workspace", "最大化学习工作区")}>
-            {maximized ? <Minimize2 aria-hidden="true" /> : <Maximize2 aria-hidden="true" />}
-          </Button>
+          <div className="lab-v2-window-actions">
+            <Button className="lab-v2-minimize" variant="ghost" size="icon" type="button" onClick={() => setLayout("minimized")} aria-label={t("Minimize learning panel", "收起学习面板")} title={t("Minimize learning panel", "收起学习面板")}><span aria-hidden="true">&lt;</span></Button>
+            <Button className="lab-v2-expand" variant="ghost" size="icon" type="button" onClick={() => setLayout((current) => current === "maximized" ? "split" : "maximized")} aria-label={layout === "maximized" ? t("Restore split workspace", "恢复分屏工作区") : t("Maximize learning workspace", "最大化学习工作区")} aria-pressed={layout === "maximized"} title={layout === "maximized" ? t("Restore split workspace", "恢复分屏工作区") : t("Maximize learning workspace", "最大化学习工作区")}>
+              {layout === "maximized" ? <Minimize2 aria-hidden="true" /> : <Maximize2 aria-hidden="true" />}
+            </Button>
+          </div>
         </header>
 
         {activeTab === "teacher" ? (
@@ -470,9 +487,10 @@ export function WorkspaceV2() {
         )}
       </section>
 
-      {!maximized && <div className="lab-v2-resizer" role="separator" aria-label={t("Resize learning workspace", "调整学习工作区大小")} aria-orientation="vertical" aria-valuemin={minLeftWidth} aria-valuenow={leftWidth} tabIndex={0} onPointerDown={startResize} onKeyDown={resizeWithKeyboard} />}
+      {layout === "split" && <div className="lab-v2-resizer" role="separator" aria-label={t("Resize learning workspace", "调整学习工作区大小")} aria-orientation="vertical" aria-valuemin={minLeftWidth} aria-valuenow={leftWidth} tabIndex={0} onPointerDown={startResize} onKeyDown={resizeWithKeyboard} />}
 
       <main className="lab-v2-vm vm-workspace">
+        {layout === "minimized" && <Button className="lab-v2-restore" variant="outline" size="icon" type="button" onClick={() => setLayout("split")} aria-label={t("Restore learning panel", "恢复学习面板")} title={t("Restore learning panel", "恢复学习面板")}><span aria-hidden="true">&gt;</span></Button>}
         <header className="vm-toolbar"><div><span className="vm-status-dot" aria-hidden="true" /><strong>{t("Learning VM", "学习虚拟机")}</strong></div><div className="lab-v2-vm-status"><small>{workspace?.status === "RUNNING" && consoleSession ? t("Connected workspace", "工作区已连接") : t("Awaiting connection", "等待连接")}</small><span className={`lab-v2-latency ${latency === null ? "is-offline" : ""}`} role="img" aria-label={latency === null ? t("Server connection unavailable", "服务器连接不可用") : t(`Server latency ${latency} milliseconds`, `服务器延迟 ${latency} 毫秒`)} title={latency === null ? t("Server connection unavailable", "服务器连接不可用") : `${latency} ms`}>{latency === null ? <WifiOff aria-hidden="true" /> : <Wifi aria-hidden="true" />}</span>{workspace?.status === "RUNNING" && <Button type="button" variant="destructive" size="xs" className="vm-close-button" onClick={closeEnvironment} disabled={stopping}>{stopping ? t("Closing...", "正在关闭……") : t("Close environment", "关闭环境")}</Button>}</div></header>
         {panel === "console" && consoleSession?.data ? <ConsoleViewer ref={consoleViewerRef} data={consoleSession.data} labId={consoleSession.labId} enrollmentId={enrollment.id} onError={handleConsoleError} /> : panel === "start-console" ? <section className="vm-empty-state" role="status"><span className="vm-display-icon" aria-hidden="true" /><h2>Learning VM</h2>{consoleError && <Alert className="auth-error" variant="destructive">{consoleError}</Alert>}<Button size="lg" type="button" onClick={() => void startConsoleSession()} disabled={consoleLoading || stopping}>{consoleLoading ? "Starting..." : "Start remote desktop"}</Button></section> : panel === "stopped" ? <section className="vm-empty-state" role="status"><span className="vm-display-icon" aria-hidden="true" /><h2>Learning VM</h2><p>Your Learning VM is closed. Resume it to keep working.</p>{resumeError && <Alert className="auth-error" variant="destructive">{resumeError}</Alert>}<Button size="lg" type="button" onClick={resumeWorkspace} disabled={resuming}>{resuming ? "Resuming..." : "Resume learning environment"}</Button></section> : panel === "error" ? <section className="vm-empty-state" role="status"><span className="vm-display-icon" aria-hidden="true" /><h2>Learning VM</h2><p>{workspace?.errorMessage || "Could not start your Learning VM."}</p><Button size="lg" type="button" onClick={retryWorkspace} disabled={retrying}>{retrying ? "Retrying..." : "Retry"}</Button></section> : <section className="vm-empty-state" role="status"><span className="vm-display-icon" aria-hidden="true" /><h2>Learning VM</h2><p>{workspace?.status === "RESETTING" ? t("Clearing the previous Learning VM. This can take a few minutes.", "正在清理之前的学习虚拟机，可能需要几分钟。") : t("Preparing your Learning VM. This can take a few minutes.", "正在准备学习虚拟机，可能需要几分钟。")}</p></section>}
       </main>
@@ -492,8 +510,8 @@ export function WorkspaceV2() {
 
       <div className="floating-ai" style={{ left: floatingPosition.x, top: floatingPosition.y }}>
         {floatingPromptOpen && (
-          <form className="floating-ai-prompt" onSubmit={sendFloatingPrompt}>
-            <input ref={floatingPromptRef} value={floatingPrompt} onChange={(event) => setFloatingPrompt(event.target.value)} placeholder={t("\u00A0\u00A0Ask AIVirTeach...", "\u00A0\u00A0向 AIVirTeach 提问……")} aria-label={t("Ask AIVirTeach", "向 AIVirTeach 提问")} disabled={!chatContext || chat.busy} />
+          <form className={`floating-ai-prompt ${floatingPosition.y < 130 ? "expand-down" : ""}`} onSubmit={sendFloatingPrompt}>
+            <textarea ref={floatingPromptRef} rows={1} value={floatingPrompt} onChange={(event) => setFloatingPrompt(event.target.value)} onKeyDown={handleFloatingPromptKeyDown} placeholder={t("\u00A0\u00A0Ask AIVirTeach...", "\u00A0\u00A0向 AIVirTeach 提问……")} aria-label={t("Ask AIVirTeach", "向 AIVirTeach 提问")} disabled={!chatContext || chat.busy} />
             <Button variant="ghost" size="icon" type="submit" disabled={!floatingPrompt.trim() || !chatContext || chat.busy} aria-label={t("Send prompt", "发送问题")}><Send aria-hidden="true" /></Button>
           </form>
         )}

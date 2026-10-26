@@ -33,15 +33,15 @@ export function CourseLearningPath({ course, copyToVm, session }: {
         </optgroup>)}
       </select>
       <div>
-        <Button variant="outline" size="sm" disabled={index <= 0 || !progress.snapshot?.active} onClick={() => void select(lessons[index - 1].id)}>{t("Previous", "上一节")}</Button>
+        <Button className="learning-path-button" variant="outline" size="sm" disabled={index <= 0 || !progress.snapshot?.active} onClick={() => void select(lessons[index - 1].id)}>{t("Previous", "上一节")}</Button>
         <span>{index < 0 ? 0 : index + 1} / {lessons.length}</span>
-        <Button variant="outline" size="sm" disabled={index < 0 || index >= lessons.length - 1 || !progress.snapshot?.active} onClick={() => void select(lessons[index + 1].id)}>{t("Next", "下一节")}</Button>
+        <Button className="learning-path-button" variant="outline" size="sm" disabled={index < 0 || index >= lessons.length - 1 || !progress.snapshot?.active} onClick={() => void select(lessons[index + 1].id)}>{t("Next", "下一节")}</Button>
       </div>
     </nav>
     <LessonCompletionButton lessonId={selectedId} progress={progress} disabled={state?.status !== "ready" || state.id !== selectedId} />
-    {!lessons.length ? <p className="course-load-status" role="status">课程暂无课时 / No lessons yet</p>
-      : state?.id !== selectedId || state?.status === "loading" || !state ? <p className="course-load-status" role="status">正在加载课时… / Loading lesson…</p>
-      : state.status === "error" ? <div className="course-load-status" role="alert"><p>{state.message}</p><Button onClick={retry}>重试 / Retry</Button></div>
+    {!lessons.length ? <p className="course-load-status" role="status">{t("No lessons yet", "课程暂无课时")}</p>
+      : state?.id !== selectedId || state?.status === "loading" || !state ? <p className="course-load-status" role="status">{t("Loading lesson…", "正在加载课时…")}</p>
+      : state.status === "error" ? <div className="course-load-status" role="alert"><p>{state.message}</p><Button onClick={retry}>{t("Retry", "重试")}</Button></div>
       : <CourseLessonView key={selectedId} mode="learner" title={state.lesson.lesson.title} moduleTitle={state.lesson.module.title} blocks={state.lesson.blocks} assets={state.lesson.assets} copyToVm={copyToVm} />}
   </div>;
 }

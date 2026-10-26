@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useRouter } from "next/navigation";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -16,16 +17,17 @@ import { Select } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  clearUiCustomization,
+  clearStoredUiCustomization,
   defaultUiCustomization,
-  getStoredUiCustomization,
+  clearUiCustomizationDraft,
+  getPreviewUiCustomization,
+  previewDraftUiCustomization,
   previewUiCustomization,
-  removeUiCustomizationPreview,
-  saveUiCustomization,
   type UiCustomization,
 } from "../lib/ui-customization";
-import { applyInterfaceVersion, getServerInterfaceVersion, getStoredInterfaceVersion, subscribeToInterfaceVersion, type InterfaceVersion } from "../lib/interface-version";
-import { applyTheme, getServerTheme, getStoredTheme, subscribeToTheme } from "../lib/theme";
+import { getSavedUiCustomization } from "../lib/site-ui-customization";
+import { clearInterfaceVersionPreview, clearStoredInterfaceVersion, getServerInterfaceVersion, getStoredInterfaceVersion, previewInterfaceVersion, subscribeToInterfaceVersion, type InterfaceVersion } from "../lib/interface-version";
+import { clearStoredTheme, clearThemePreview, getServerTheme, getStoredTheme, previewTheme, subscribeToTheme, type Theme } from "../lib/theme";
 
 type Translate = (english: string, chinese: string) => string;
 
@@ -48,57 +50,111 @@ function RangeControl({ label, value, minimum, maximum, onChange }: { label: str
 }
 
 export function AdvancedUiSettings({ t }: { t: Translate }) {
+  const router = useRouter();
   const [draft, setDraft] = useState(defaultUiCustomization);
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
-  const persistedRef = useRef<UiCustomization | null>(null);
+  const draftRef = useRef(defaultUiCustomization);
   const interfaceVersion = useSyncExternalStore(subscribeToInterfaceVersion, getStoredInterfaceVersion, getServerInterfaceVersion);
   const theme = useSyncExternalStore(subscribeToTheme, getStoredTheme, getServerTheme);
 
   useEffect(() => {
-    const stored = getStoredUiCustomization();
-    persistedRef.current = stored;
     let cancelled = false;
+    if (new URLSearchParams(window.location.search).get("saved") === "1") {
+      queueMicrotask(() => { if (!cancelled) setSaved(true); });
+    }
+    const stored = getPreviewUiCustomization() ?? getSavedUiCustomization();
     if (stored) {
       previewUiCustomization(stored);
       queueMicrotask(() => {
-        if (!cancelled) setDraft(stored);
+        if (!cancelled) {
+          draftRef.current = stored;
+          setDraft(stored);
+        }
       });
     }
     return () => {
       cancelled = true;
-      if (persistedRef.current) previewUiCustomization(persistedRef.current);
-      else removeUiCustomizationPreview();
     };
   }, []);
 
   function update<K extends keyof UiCustomization>(key: K, value: UiCustomization[K]) {
     setSaved(false);
-    setDraft((current) => {
-      const next = { ...current, [key]: value };
-      previewUiCustomization(next);
-      return next;
-    });
+    setSaveError("");
+    const next = { ...draftRef.current, [key]: value };
+    draftRef.current = next;
+    setDraft(next);
+    previewDraftUiCustomization(next);
   }
 
-  function save() {
-    saveUiCustomization(draft);
-    persistedRef.current = draft;
-    setSaved(true);
+  function updateInterfaceVersion(version: InterfaceVersion) {
+    setSaved(false);
+    previewInterfaceVersion(version);
+    previewDraftUiCustomization(draftRef.current);
+  }
+
+  function updateThemeMode(nextTheme: Theme) {
+    setSaved(false);
+    previewTheme(nextTheme);
+    previewDraftUiCustomization(draftRef.current);
+  }
+
+  async function save() {
+    setSaving(true);
+    setSaveError("");
+    try {
+      const response = await fetch("/__dev/ui-customization", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Aivirteach-Theme-Editor": "save" },
+        body: JSON.stringify({ interfaceVersion, theme, ...draftRef.current }),
+      });
+      if (!response.ok) throw new Error("Theme file could not be saved. Start the local development server with npm run dev.");
+      const next = await response.json() as UiCustomization;
+      clearStoredUiCustomization();
+      clearStoredInterfaceVersion();
+      clearStoredTheme();
+      clearUiCustomizationDraft();
+      clearInterfaceVersionPreview();
+      clearThemePreview();
+      previewUiCustomization(next);
+      draftRef.current = next;
+      setDraft(next);
+      setSaved(true);
+      window.location.assign("/settings?tab=advanced&saved=1");
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "Theme file could not be saved.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   function reset() {
-    clearUiCustomization();
-    persistedRef.current = null;
+    draftRef.current = defaultUiCustomization;
     setDraft(defaultUiCustomization);
+    previewInterfaceVersion("neubrutal");
+    previewTheme("light");
+    previewDraftUiCustomization(defaultUiCustomization);
     setSaved(false);
+  }
+
+  function discard() {
+    clearUiCustomizationDraft();
+    clearInterfaceVersionPreview();
+    clearThemePreview();
+    const savedSettings = getSavedUiCustomization() ?? defaultUiCustomization;
+    draftRef.current = savedSettings;
+    setDraft(savedSettings);
+    setSaved(false);
+    setSaveError("");
   }
 
   return (
     <section className="advanced-settings" aria-label={t("Advanced theme settings", "高级主题设置")}>
       <div className="advanced-settings-intro">
         <div><p className="eyebrow">{t("DESIGN SYSTEM", "设计系统")}</p><h2>{t("Site-wide theme editor", "全站主题编辑器")}</h2></div>
-        <p>{t("Preview reusable UI components and customize their shared design tokens. Changes are previewed live and become persistent after you save.", "预览可复用的界面组件并自定义共享设计变量。更改会实时预览，保存后将永久生效。")}</p>
+        <p>{t("Edit the live preview, visit the dashboard to inspect the site, then save your theme to the frontend repo. Commit the JSON file to carry it into your next build.", "实时预览修改，前往仪表板查看网站，然后将主题保存到前端仓库。提交 JSON 文件后，下次构建会沿用这些设置。")}</p>
       </div>
 
       <div className="advanced-settings-layout">
@@ -106,7 +162,7 @@ export function AdvancedUiSettings({ t }: { t: Translate }) {
           <fieldset><legend>{t("Interface style", "界面风格")}</legend>
             <label className="advanced-select-control">
               <span>{t("Visual style", "视觉风格")}</span>
-              <Select value={interfaceVersion} onChange={(event) => applyInterfaceVersion(event.target.value as InterfaceVersion)}>
+              <Select value={interfaceVersion} onChange={(event) => updateInterfaceVersion(event.target.value as InterfaceVersion)}>
                 <option value="v1">{t("Original V1", "原版 V1")}</option>
                 <option value="v2">{t("Modern V2", "现代 V2")}</option>
                 <option value="soft">{t("Soft neumorphism", "柔和新拟态")}</option>
@@ -118,7 +174,7 @@ export function AdvancedUiSettings({ t }: { t: Translate }) {
           </fieldset>
           <fieldset><legend>{t("Theme mode", "主题模式")}</legend>
             <p className="advanced-control-description">{t("Switch modes while editing to preview each palette.", "编辑时切换模式以预览每套配色。")}</p>
-            <Button type="button" variant="outline" onClick={() => applyTheme(theme === "dark" ? "light" : "dark")}>
+            <Button type="button" variant="outline" onClick={() => updateThemeMode(theme === "dark" ? "light" : "dark")}>
               {theme === "dark" ? t("Light", "浅色") : t("Dark", "深色")}
             </Button>
           </fieldset>
@@ -134,6 +190,17 @@ export function AdvancedUiSettings({ t }: { t: Translate }) {
             <RangeControl label={t("Height", "高度")} value={draft.buttonHeight} minimum={28} maximum={72} onChange={(value) => update("buttonHeight", value)} />
             <RangeControl label={t("Font size", "字号")} value={draft.buttonFontSize} minimum={11} maximum={22} onChange={(value) => update("buttonFontSize", value)} />
             <RangeControl label={t("Corner radius", "圆角")} value={draft.buttonRadius} minimum={0} maximum={32} onChange={(value) => update("buttonRadius", value)} />
+          </fieldset>
+          <fieldset><legend>{t("Learning Path buttons", "学习路径按钮")}</legend>
+            <p className="advanced-control-description">{t("Styles Previous, Next, and Mark lesson complete in the Learning Lab.", "设置学习实验室中上一节、下一节和标记本节已学完按钮的样式。")}</p>
+            <ColorControl label={t("Unfocused background", "未聚焦背景色")} value={draft.learningPathButtonBackground} onChange={(value) => update("learningPathButtonBackground", value)} />
+            <ColorControl label={t("Focused / hovered background", "聚焦／悬停背景色")} value={draft.learningPathButtonFocusBackground} onChange={(value) => update("learningPathButtonFocusBackground", value)} />
+            <ColorControl label={t("Text", "文字颜色")} value={draft.learningPathButtonText} onChange={(value) => update("learningPathButtonText", value)} />
+            <ColorControl label={t("Border", "边框颜色")} value={draft.learningPathButtonBorder} onChange={(value) => update("learningPathButtonBorder", value)} />
+            <RangeControl label={t("Height", "高度")} value={draft.learningPathButtonHeight} minimum={32} maximum={72} onChange={(value) => update("learningPathButtonHeight", value)} />
+            <RangeControl label={t("Font size", "字号")} value={draft.learningPathButtonFontSize} minimum={11} maximum={22} onChange={(value) => update("learningPathButtonFontSize", value)} />
+            <RangeControl label={t("Corner radius", "圆角")} value={draft.learningPathButtonRadius} minimum={0} maximum={32} onChange={(value) => update("learningPathButtonRadius", value)} />
+            <label className="advanced-toggle-control"><Checkbox checked={draft.learningPathButtonShadow} onCheckedChange={(checked) => update("learningPathButtonShadow", checked)} /><span>{t("Button shadow/backdrop", "按钮阴影／背景层")}</span></label>
           </fieldset>
           <fieldset><legend>{t("Text fields and selects", "文本框与下拉框")}</legend>
             <ColorControl label={t("Background", "背景色")} value={draft.fieldBackground} onChange={(value) => update("fieldBackground", value)} />
@@ -199,14 +266,18 @@ export function AdvancedUiSettings({ t }: { t: Translate }) {
             </>
           )}
           <div className="advanced-save-actions">
-            <Button type="button" onClick={save}>{t("Save site-wide", "保存到全站")}</Button>
-            <Button type="button" variant="outline" onClick={reset}>{t("Reset custom styles", "重置自定义样式")}</Button>
-            {saved && <span role="status">{t("Saved", "已保存")}</span>}
+            <Button type="button" variant="outline" onClick={() => router.push("/dashboard")}>{t("Preview site", "预览网站")}</Button>
+            <Button type="button" onClick={() => void save()} disabled={saving}>{saving ? t("Saving…", "保存中…") : t("Save site-wide to repo", "保存全站设置到仓库")}</Button>
+            <Button type="button" variant="outline" onClick={reset}>{t("Reset draft to defaults", "将草稿重置为默认值")}</Button>
+            <Button type="button" variant="ghost" onClick={discard}>{t("Discard preview", "放弃预览")}</Button>
+            {saved && <span role="status">{t("Saved to app/lib/site-ui-customization.json. Commit and push this file to share the theme.", "已保存到 app/lib/site-ui-customization.json。提交并推送此文件即可共享主题。")}</span>}
+            {saveError && <span className="advanced-save-error" role="alert">{t(saveError, "无法保存主题文件。请在本地运行 npm run dev 后重试。")}</span>}
           </div>
         </aside>
 
         <div className="component-catalog">
           <Card as="section" className="component-preview-card"><h3>{t("Buttons", "按钮")}</h3><div className="component-preview-row"><Button>{t("Primary", "主要")}</Button><Button variant="secondary">{t("Secondary", "次要")}</Button><Button variant="outline">{t("Outline", "轮廓")}</Button><Button variant="destructive">{t("Delete", "删除")}</Button></div></Card>
+          <Card as="section" className="component-preview-card"><h3>{t("Learning Path buttons", "学习路径按钮")}</h3><p className="advanced-control-description">{t("Hover over or tab to a button to preview its focused color.", "将鼠标悬停在按钮上，或按 Tab 键聚焦按钮，以预览聚焦颜色。")}</p><div className="component-preview-row"><Button className="learning-path-button" variant="outline" type="button">{t("Previous", "上一节")}</Button><Button className="learning-path-button" variant="outline" type="button">{t("Next", "下一节")}</Button><Button className="learning-path-button" variant="outline" type="button">{t("Mark lesson complete", "标记本节已学完")}</Button></div></Card>
           <Card as="section" className="component-preview-card"><h3>{t("Form controls", "表单控件")}</h3><div className="component-preview-form"><Input aria-label={t("Text field preview", "文本框预览")} placeholder={t("Click to test the focus border", "点击测试聚焦边框")} /><Select aria-label={t("Select preview", "下拉框预览")} defaultValue="one"><option value="one">{t("Select option", "选择选项")}</option><option value="two">{t("Another option", "另一个选项")}</option></Select><label><Checkbox defaultChecked /> {t("Checkbox", "复选框")}</label></div></Card>
           <Card as="section" className="component-preview-card"><h3>{t("Status and feedback", "状态与反馈")}</h3><div className="component-preview-row"><Badge>{t("Badge", "徽章")}</Badge><Badge variant="secondary">{t("Secondary", "次要")}</Badge><Avatar><AvatarFallback>AI</AvatarFallback></Avatar></div><Progress value={64} /><Alert><AlertTitle>{t("Alert title", "提醒标题")}</AlertTitle><AlertDescription>{t("Reusable feedback message preview.", "可复用反馈消息预览。")}</AlertDescription></Alert></Card>
           <Card as="section" className="component-preview-card"><h3>{t("Loading states", "加载状态")}</h3><div className="component-skeleton-preview"><Skeleton /><Skeleton /><Skeleton /></div></Card>

@@ -7,6 +7,14 @@ export type UiCustomization = {
   buttonHeight: number;
   buttonFontSize: number;
   buttonRadius: number;
+  learningPathButtonBackground: string;
+  learningPathButtonFocusBackground: string;
+  learningPathButtonText: string;
+  learningPathButtonBorder: string;
+  learningPathButtonHeight: number;
+  learningPathButtonFontSize: number;
+  learningPathButtonRadius: number;
+  learningPathButtonShadow: boolean;
   fieldBackground: string;
   fieldText: string;
   fieldBorder: string;
@@ -61,6 +69,14 @@ export const defaultUiCustomization: UiCustomization = {
   buttonHeight: 42,
   buttonFontSize: 14,
   buttonRadius: 0,
+  learningPathButtonBackground: "#ffe66d",
+  learningPathButtonFocusBackground: "#facc15",
+  learningPathButtonText: "#000000",
+  learningPathButtonBorder: "#000000",
+  learningPathButtonHeight: 42,
+  learningPathButtonFontSize: 14,
+  learningPathButtonRadius: 4,
+  learningPathButtonShadow: true,
   fieldBackground: "#ffffff",
   fieldText: "#000000",
   fieldBorder: "#000000",
@@ -107,12 +123,16 @@ export const defaultUiCustomization: UiCustomization = {
 };
 
 const storageKey = "aivirteach-ui-customization";
+const previewStorageKey = "aivirteach-ui-customization-preview";
 const changeEvent = "aivirteach:ui-customization-change";
 const colorPattern = /^#[0-9a-f]{6}$/i;
-const numberRanges: Record<keyof Pick<UiCustomization, "buttonHeight" | "buttonFontSize" | "buttonRadius" | "fieldHeight" | "fieldFontSize" | "fieldRadius" | "cardRadius" | "cardPadding">, [number, number]> = {
+const numberRanges: Record<keyof Pick<UiCustomization, "buttonHeight" | "buttonFontSize" | "buttonRadius" | "learningPathButtonHeight" | "learningPathButtonFontSize" | "learningPathButtonRadius" | "fieldHeight" | "fieldFontSize" | "fieldRadius" | "cardRadius" | "cardPadding">, [number, number]> = {
   buttonHeight: [28, 72],
   buttonFontSize: [11, 22],
   buttonRadius: [0, 32],
+  learningPathButtonHeight: [32, 72],
+  learningPathButtonFontSize: [11, 22],
+  learningPathButtonRadius: [0, 32],
   fieldHeight: [36, 76],
   fieldFontSize: [12, 22],
   fieldRadius: [0, 32],
@@ -120,9 +140,9 @@ const numberRanges: Record<keyof Pick<UiCustomization, "buttonHeight" | "buttonF
   cardPadding: [8, 48],
 };
 
-function sanitize(candidate: Partial<UiCustomization>): UiCustomization {
+export function sanitizeUiCustomization(candidate: Partial<UiCustomization>): UiCustomization {
   const next = { ...defaultUiCustomization };
-  for (const key of ["accentColor", "menuItemHover", "buttonBackground", "buttonText", "buttonFocusBackground", "fieldBackground", "fieldText", "fieldBorder", "focusBorder", "cardBackground", "cardBorder", "darkBackground", "darkSurface", "darkSurfaceMuted", "darkText", "darkTextMuted", "darkBorder", "darkPrimary", "darkSecondary", "dashboardCourseCard", "dashboardStreakCard", "dashboardPracticeCard", "dashboardSkillsCard", "progressPracticeCard", "progressTasksCard", "progressGoalCard", "progressChartCard", "progressAchievement1", "progressAchievement2", "progressAchievement3", "progressAchievement4", "darkDashboardCourseCard", "darkDashboardStreakCard", "darkDashboardPracticeCard", "darkDashboardSkillsCard", "darkProgressPracticeCard", "darkProgressTasksCard", "darkProgressGoalCard", "darkProgressChartCard", "darkProgressAchievement1", "darkProgressAchievement2", "darkProgressAchievement3", "darkProgressAchievement4"] as const) {
+  for (const key of ["accentColor", "menuItemHover", "buttonBackground", "buttonText", "buttonFocusBackground", "learningPathButtonBackground", "learningPathButtonFocusBackground", "learningPathButtonText", "learningPathButtonBorder", "fieldBackground", "fieldText", "fieldBorder", "focusBorder", "cardBackground", "cardBorder", "darkBackground", "darkSurface", "darkSurfaceMuted", "darkText", "darkTextMuted", "darkBorder", "darkPrimary", "darkSecondary", "dashboardCourseCard", "dashboardStreakCard", "dashboardPracticeCard", "dashboardSkillsCard", "progressPracticeCard", "progressTasksCard", "progressGoalCard", "progressChartCard", "progressAchievement1", "progressAchievement2", "progressAchievement3", "progressAchievement4", "darkDashboardCourseCard", "darkDashboardStreakCard", "darkDashboardPracticeCard", "darkDashboardSkillsCard", "darkProgressPracticeCard", "darkProgressTasksCard", "darkProgressGoalCard", "darkProgressChartCard", "darkProgressAchievement1", "darkProgressAchievement2", "darkProgressAchievement3", "darkProgressAchievement4"] as const) {
     if (typeof candidate[key] === "string" && colorPattern.test(candidate[key])) next[key] = candidate[key];
   }
   for (const key of Object.keys(numberRanges) as (keyof typeof numberRanges)[]) {
@@ -130,6 +150,7 @@ function sanitize(candidate: Partial<UiCustomization>): UiCustomization {
     const [minimum, maximum] = numberRanges[key];
     if (Number.isFinite(value)) next[key] = Math.min(maximum, Math.max(minimum, Math.round(value)));
   }
+  if (typeof candidate.learningPathButtonShadow === "boolean") next.learningPathButtonShadow = candidate.learningPathButtonShadow;
   return next;
 }
 
@@ -138,13 +159,13 @@ export function getStoredUiCustomization(): UiCustomization | null {
   const stored = window.localStorage.getItem(storageKey);
   if (!stored) return null;
   try {
-    return sanitize(JSON.parse(stored) as Partial<UiCustomization>);
+    return sanitizeUiCustomization(JSON.parse(stored) as Partial<UiCustomization>);
   } catch {
     return null;
   }
 }
 
-const cssVariables: Record<keyof UiCustomization, string> = {
+const cssVariables: Record<Exclude<keyof UiCustomization, "learningPathButtonShadow">, string> = {
   accentColor: "--ui-accent",
   menuItemHover: "--ui-menu-item-hover",
   buttonBackground: "--ui-button-bg",
@@ -153,6 +174,13 @@ const cssVariables: Record<keyof UiCustomization, string> = {
   buttonHeight: "--ui-button-height",
   buttonFontSize: "--ui-button-font-size",
   buttonRadius: "--ui-button-radius",
+  learningPathButtonBackground: "--ui-learning-path-button-bg",
+  learningPathButtonFocusBackground: "--ui-learning-path-button-focus-bg",
+  learningPathButtonText: "--ui-learning-path-button-text",
+  learningPathButtonBorder: "--ui-learning-path-button-border",
+  learningPathButtonHeight: "--ui-learning-path-button-height",
+  learningPathButtonFontSize: "--ui-learning-path-button-font-size",
+  learningPathButtonRadius: "--ui-learning-path-button-radius",
   fieldBackground: "--ui-field-bg",
   fieldText: "--ui-field-text",
   fieldBorder: "--ui-field-border",
@@ -198,23 +226,51 @@ const cssVariables: Record<keyof UiCustomization, string> = {
   darkProgressAchievement4: "--ui-dark-progress-achievement-4",
 };
 
-const pixelValues = new Set<keyof UiCustomization>(["buttonHeight", "buttonFontSize", "buttonRadius", "fieldHeight", "fieldFontSize", "fieldRadius", "cardRadius", "cardPadding"]);
+const pixelValues = new Set<keyof UiCustomization>(["buttonHeight", "buttonFontSize", "buttonRadius", "learningPathButtonHeight", "learningPathButtonFontSize", "learningPathButtonRadius", "fieldHeight", "fieldFontSize", "fieldRadius", "cardRadius", "cardPadding"]);
 
 export function previewUiCustomization(settings: UiCustomization) {
   const root = document.documentElement;
   root.dataset.uiCustomized = "true";
-  const safe = sanitize(settings);
-  for (const key of Object.keys(cssVariables) as (keyof UiCustomization)[]) {
+  const safe = sanitizeUiCustomization(settings);
+  for (const key of Object.keys(cssVariables) as (keyof typeof cssVariables)[]) {
     root.style.setProperty(cssVariables[key], `${safe[key]}${pixelValues.has(key) ? "px" : ""}`);
   }
+  root.style.setProperty("--ui-learning-path-button-shadow", safe.learningPathButtonShadow ? "3px 3px 0 var(--ui-learning-path-button-border)" : "none");
   root.style.removeProperty("--primary");
   root.style.setProperty("--ring", safe.focusBorder);
 }
 
 export function saveUiCustomization(settings: UiCustomization) {
-  const safe = sanitize(settings);
+  const safe = sanitizeUiCustomization(settings);
   previewUiCustomization(safe);
   window.localStorage.setItem(storageKey, JSON.stringify(safe));
+  window.dispatchEvent(new Event(changeEvent));
+}
+
+export function clearStoredUiCustomization() {
+  window.localStorage.removeItem(storageKey);
+}
+
+export function getPreviewUiCustomization(): UiCustomization | null {
+  if (typeof window === "undefined") return null;
+  const stored = window.sessionStorage.getItem(previewStorageKey);
+  if (!stored) return null;
+  try {
+    return sanitizeUiCustomization(JSON.parse(stored) as Partial<UiCustomization>);
+  } catch {
+    return null;
+  }
+}
+
+export function previewDraftUiCustomization(settings: UiCustomization) {
+  const safe = sanitizeUiCustomization(settings);
+  window.sessionStorage.setItem(previewStorageKey, JSON.stringify(safe));
+  previewUiCustomization(safe);
+  window.dispatchEvent(new Event(changeEvent));
+}
+
+export function clearUiCustomizationDraft() {
+  window.sessionStorage.removeItem(previewStorageKey);
   window.dispatchEvent(new Event(changeEvent));
 }
 
@@ -222,6 +278,7 @@ export function removeUiCustomizationPreview() {
   const root = document.documentElement;
   delete root.dataset.uiCustomized;
   for (const variable of Object.values(cssVariables)) root.style.removeProperty(variable);
+  root.style.removeProperty("--ui-learning-path-button-shadow");
   root.style.removeProperty("--primary");
   root.style.removeProperty("--ring");
 }
@@ -229,6 +286,7 @@ export function removeUiCustomizationPreview() {
 export function clearUiCustomization() {
   removeUiCustomizationPreview();
   window.localStorage.removeItem(storageKey);
+  window.sessionStorage.removeItem(previewStorageKey);
   window.dispatchEvent(new Event(changeEvent));
 }
 

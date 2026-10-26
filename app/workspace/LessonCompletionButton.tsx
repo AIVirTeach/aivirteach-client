@@ -28,15 +28,18 @@ export function LessonCompletionButton({ lessonId, progress, disabled = false }:
     : t("Mark lesson complete", "标记本节已学完");
   const percent = progress.snapshot?.progressPercent ?? 0;
   const canRecover = courseUpdated || failed || syncFailed;
+  const completionDescription = t("Self-reported progress; assessment results are separate.", "这是学习记录；评测通过由系统单独判定。");
   return <section className="lesson-progress" aria-label={t("Learning progress", "学习进度")}>
     <div className="lesson-progress-heading"><span>{t("Learning progress", "学习进度")}</span><span>{progress.snapshot?.completedLessonIds.length ?? 0} / {progress.snapshot?.totalLessons ?? 0} {t("completed", "已完成")}</span></div>
     <div className="lesson-progress-meter"><progress max={100} value={percent} aria-label={t("Course completion", "课程完成进度")} /><span>{percent}%</span></div>
-    <Button className="lesson-completion-button" variant="outline" type="button" data-completion-state={status} aria-busy={completion.status === "saving"} aria-pressed={canRecover ? undefined : completed} disabled={progress.busy || (!canRecover && (disabled || !lessonId || !progress.snapshot?.active))} title={completed && !canRecover ? t("Click to mark incomplete", "点击取消完成") : undefined} onClick={() => {
-      if (canRecover) void progress.recover(lessonId);
-      else void progress.setCompleted(lessonId, !completed);
-    }}>
-      {completed && !canRecover && completion.status !== "saving" && <span aria-hidden="true">✓</span>}
-      <span role="status" aria-live="polite">{label}</span>
-    </Button>
+    <div className="learning-completion-control" data-tooltip={completionDescription}>
+      <Button className="lesson-completion-button learning-path-button" variant="outline" type="button" data-completion-state={status} aria-busy={completion.status === "saving"} aria-pressed={canRecover ? undefined : completed} aria-description={completionDescription} disabled={progress.busy || (!canRecover && (disabled || !lessonId || !progress.snapshot?.active))} onClick={() => {
+        if (canRecover) void progress.recover(lessonId);
+        else void progress.setCompleted(lessonId, !completed);
+      }}>
+        {completed && !canRecover && completion.status !== "saving" && <span aria-hidden="true">✓</span>}
+        <span role="status" aria-live="polite">{label}</span>
+      </Button>
+    </div>
   </section>;
 }

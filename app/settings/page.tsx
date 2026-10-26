@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useLayoutEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useLayoutEffect, useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Select } from "@/components/ui/select";
@@ -20,6 +20,24 @@ export default function SettingsPage() {
   const learningLanguage = useLearningLanguage();
   const t = (english: string, chinese: string) => localize(learningLanguage, english, chinese);
   const scrollbarPreference = useSyncExternalStore(subscribeToScrollbarPreference, getStoredScrollbarPreference, getServerScrollbarPreference);
+
+  useEffect(() => {
+    let active = true;
+    if (new URLSearchParams(window.location.search).get("tab") === "advanced") {
+      queueMicrotask(() => { if (active) setSettingsTab("advanced"); });
+    }
+    return () => { active = false; };
+  }, []);
+
+  function openAdvanced() {
+    window.history.replaceState(window.history.state, "", "/settings?tab=advanced");
+    setSettingsTab("advanced");
+  }
+
+  function closeAdvanced() {
+    window.history.replaceState(window.history.state, "", "/settings");
+    setSettingsTab("general");
+  }
 
   useLayoutEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -85,7 +103,7 @@ export default function SettingsPage() {
 
           <Card as="article" className="settings-card advanced-settings-card">
             <div><span className="settings-card-icon advanced-setting-icon" aria-hidden="true">⚙</span><div><h2>{t("Advanced theme settings", "高级主题设置")}</h2><p>{t("Choose an interface style and customize shared component colors, sizes, spacing, and focus styles.", "选择界面风格，并自定义共享组件的颜色、尺寸、间距和聚焦样式。")}</p></div></div>
-            <Button variant="outline" type="button" onClick={() => setSettingsTab("advanced")}>{t("Open themes", "打开主题设置")}</Button>
+            <Button variant="outline" type="button" onClick={openAdvanced}>{t("Open themes", "打开主题设置")}</Button>
           </Card>
 
           <Card as="article" className="settings-card">
@@ -103,7 +121,7 @@ export default function SettingsPage() {
             <Button className="logout-button" variant="destructive" type="button" onClick={logOut}>{t("Log out", "退出登录")}</Button>
           </Card>
         </section> : <>
-          <div className="advanced-settings-back"><Button variant="outline" type="button" onClick={() => setSettingsTab("general")}>← {t("Back to settings", "返回设置")}</Button></div>
+          <div className="advanced-settings-back"><Button variant="outline" type="button" onClick={closeAdvanced}>← {t("Back to settings", "返回设置")}</Button></div>
           <AdvancedUiSettings t={t} />
         </>}
       </main>

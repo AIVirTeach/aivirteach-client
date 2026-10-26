@@ -2,6 +2,7 @@ import vinext from "vinext";
 import { defineConfig } from "vite";
 import hostingConfig from "./.openai/hosting.json";
 import { sites } from "./build/sites-vite-plugin";
+import { siteThemeWriter } from "./build/site-theme-writer";
 
 const SITE_CREATOR_PLACEHOLDER_DATABASE_ID =
   "00000000-0000-4000-8000-000000000000";
@@ -47,11 +48,20 @@ export default defineConfig(async () => {
     server: {
       port: 3001,
       strictPort: true,
+      // Keep local API requests same-origin when the frontend runs on a port
+      // that is not in the hosted API's CORS allowlist.
+      proxy: {
+        "/api/v1": {
+          target: "https://aivirteach-server.vercel.app",
+          changeOrigin: true,
+        },
+      },
       ...(isCodexSeatbeltSandbox
         ? { watch: { useFsEvents: false, usePolling: true } }
         : {}),
     },
     plugins: [
+      siteThemeWriter(),
       vinext(),
       sites(),
       cloudflare({
