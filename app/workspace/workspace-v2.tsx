@@ -28,10 +28,12 @@ import { readTutorStream, TutorReplyNotSavedError } from "./read-tutor-stream";
 import { initialTutorReply, replyDraft, type TutorReplyState } from "./tutor-reply-state";
 import { useTutorRequest } from "./use-tutor-request";
 
+type HistoryRefresh = "idle" | "loading" | "loaded" | "failed";
+
 type TutorDisplay =
   | { kind: "active"; key: string; reply: TutorReplyState }
-  | { kind: "interrupted"; key: string }
-  | { kind: "failed"; key: string; message: string };
+  | { kind: "interrupted"; key: string; refresh: HistoryRefresh }
+  | { kind: "failed"; key: string; message: string; refresh: HistoryRefresh };
 
 type Message = { role: "tutor" | "student"; text: string };
 type WorkspaceTab = "teacher" | "path";
@@ -116,7 +118,7 @@ export function WorkspaceV2() {
   const [draggedFloatingPosition, setDraggedFloatingPosition] = useState<FloatingPosition | null>(null);
   const floatingPosition = draggedFloatingPosition ?? savedFloatingPosition;
   const learningSession = useCourseLearningSession(course);
-  const { messages, appendMessage } = useChatMessages(enrollment?.id, learningSession.progress.snapshot?.generation, initialMessages);
+  const { messages, appendMessage, loadMessages } = useChatMessages(enrollment?.id, learningSession.progress.snapshot?.generation, initialMessages);
   const displayedLesson = learningSession.state?.status === "ready" && learningSession.state.id === learningSession.selectedId ? learningSession.state.lesson : null;
   const chatContext = loadedTutorContext(course, learningSession.selectedId, displayedLesson, learningSession.progress.snapshot);
   const tutorVersionMismatch = hasTutorVersionMismatch(course, learningSession.selectedId, displayedLesson, learningSession.progress.snapshot);
@@ -303,6 +305,14 @@ export function WorkspaceV2() {
     });
   }
 
+  async function refreshConversation() {
+    if (!currentTutorDisplay || currentTutorDisplay.kind === "active" || currentTutorDisplay.refresh === "loading") return;
+    const refreshing = { ...currentTutorDisplay, refresh: "loading" as const };
+    setTutorDisplay(refreshing);
+    const loaded = await loadMessages();
+    setTutorDisplay((current) => current === refreshing ? { ...current, refresh: loaded ? "loaded" : "failed" } : current);
+  }
+
   async function requestTutorResponse(text: string, notifyWhenReady: boolean) {
     if (!enrollment || !chatContext) return;
     const request = chat.begin();
@@ -319,7 +329,7 @@ export function WorkspaceV2() {
       });
       if (request.isCurrent()) { appendMessage({ role: "tutor", text: tutorText }); setTutorDisplay(null); }
     } catch (caught) {
-      if (request.isCurrent()) setTutorDisplay({ kind: "failed", key: chatKey, message: caught instanceof TutorReplyNotSavedError ? t("The reply could not be confirmed as saved. Reopen the conversation to check before asking again.", "回复未能确认保存。再次提问前，请重新打开对话确认结果。") : upstreamErrorMessage(caught, { retryable: t("The reply could not be confirmed. Reopen the conversation to check before trying again.", "暂时无法确认回复结果。重试前，请重新打开对话确认。"), unavailable: t("The tutor is unavailable. Please contact support.", "助教服务暂时不可用，请联系客服。") }) });
+      if (request.isCurrent()) setTutorDisplay({ kind: "failed", key: chatKey, refresh: "idle", message: caught instanceof TutorReplyNotSavedError ? t("The reply could not be confirmed as saved. Refresh the conversation to check before asking again.", "回复未能确认保存。再次提问前，请刷新对话确认结果。") : upstreamErrorMessage(caught, { retryable: t("The reply could not be confirmed. Refresh the conversation to check before trying again.", "暂时无法确认回复结果。重试前，请刷新对话确认。"), unavailable: t("The tutor is unavailable. Please contact support.", "助教服务暂时不可用，请联系客服。") }) });
     } finally {
       const isCurrent = request.isCurrent();
       request.finish();
@@ -494,8 +504,13 @@ export function WorkspaceV2() {
         {activeTab === "teacher" ? (
           <div className="lab-v2-teacher" role="tabpanel">
             <header><div className="tutor-heading"><span className="bot-mark">AI</span><div><strong>AIVir Teacher</strong><small><i /> {t("Online", "在线")}</small></div></div><p>{course.title}</p></header>
-            <div ref={messagesRef} className="messages">{messages.map((item, index) => <article className={`message ${item.role}`} key={`${item.role}-${index}`}><div>{item.role === "tutor" ? <TutorMessage text={item.text} /> : <p>{item.text}</p>}<small>{index === messages.length - 1 ? t("Just now", "刚刚") : t("Earlier", "较早")}</small></div></article>)}{pendingReply && <article className="message tutor pending"><div><p role="status">{tutorReplyStatus(pendingReply, t)}</p>{tutorDraft && <TutorMessage text={tutorDraft} />}</div></article>}{currentTutorDisplay?.kind === "failed" && <p role="alert">{currentTutorDisplay.message}</p>}{currentTutorDisplay?.kind === "interrupted" && <p role="status">{t("Stopped receiving this reply. The tutor may continue and save it; reopen the conversation to check.", "已停止接收本次回复。后台可能继续处理并保存，请重新打开对话查看。")}</p>}</div>
-            {chat.busy && <Button variant="outline" type="button" onClick={() => { chat.cancel(); setTutorDisplay({ kind: "interrupted", key: chatKey }); setFloatingOwner(null); }}>{t("Stop receiving", "停止接收")}</Button>}
+            <div ref={messagesRef} className="messages">{messages.map((item, index) => <article className={`message ${item.role}`} key={`${item.role}-${index}`}><div>{item.role === "tutor" ? <TutorMessage text={item.text} /> : <p>{item.text}</p>}<small>{index === messages.length - 1 ? t("Just now", "刚刚") : t("Earlier", "较早")}</small></div></article>)}{pendingReply && <article className="message tutor pending"><div><p role="status">{tutorReplyStatus(pendingReply, t)}</p>{tutorDraft && <TutorMessage text={tutorDraft} />}</div></article>}{currentTutorDisplay?.kind === "failed" && <p role="alert">{currentTutorDisplay.message}</p>}{currentTutorDisplay?.kind === "interrupted" && <p role="status">{t("Stopped receiving this reply. The tutor may continue and save it. Refresh the conversation to check; if the reply is not ready, check again later.", "已停止接收本次回复。后台可能继续处理并保存，请刷新对话查看；若回复尚未保存，请稍后再查看。")}</p>}</div>
+            {(currentTutorDisplay?.kind === "interrupted" || currentTutorDisplay?.kind === "failed") && <div>
+              <Button variant="outline" type="button" disabled={currentTutorDisplay.refresh === "loading"} onClick={() => void refreshConversation()}>{currentTutorDisplay.refresh === "loading" ? t("Refreshing...", "正在刷新……") : t("Refresh conversation", "刷新对话")}</Button>
+              {currentTutorDisplay.refresh === "loaded" && <p role="status">{t("Conversation refreshed. If the reply is not ready, check again later.", "对话已刷新。若回复尚未保存，请稍后再查看。")}</p>}
+              {currentTutorDisplay.refresh === "failed" && <p role="alert">{t("Could not refresh the conversation. Please try again.", "对话刷新失败，请重试。")}</p>}
+            </div>}
+            {chat.busy && <Button variant="outline" type="button" onClick={() => { chat.cancel(); setTutorDisplay({ kind: "interrupted", key: chatKey, refresh: "idle" }); setFloatingOwner(null); }}>{t("Stop receiving", "停止接收")}</Button>}
             {tutorVersionMismatch && <Alert variant="destructive">{t("This lesson does not match the active course version. Reload the course before asking the tutor.", "当前课时与课程版本不匹配，请刷新课程后再向教师提问。")}<Button variant="outline" type="button" onClick={() => window.location.reload()}>{t("Reload course", "刷新课程")}</Button></Alert>}
             <form className="message-form" onSubmit={sendMessage}><Input value={message} onChange={(event) => setMessage(event.target.value)} aria-label={t("Ask AIVir Teacher", "向 AIVir Teacher 提问")} placeholder={t("Ask about this course step...", "询问此课程步骤……")} disabled={!chatContext || chat.busy} /><Button type="submit" disabled={!chatContext || chat.busy}>{chat.busy ? t("Sending...", "发送中……") : t("Send", "发送")}</Button></form>
           </div>

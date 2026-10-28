@@ -139,6 +139,8 @@ describe("V2 tutor stream wiring", () => {
     await act(async () => { run.frame("error", { code: "REPLY_NOT_SAVED" }); });
     expect(host.textContent).not.toContain("Unsaved draft");
     expect(host.querySelector('[role="alert"]')?.textContent).toContain("could not be confirmed as saved");
+    expect(host.querySelector('[role="alert"]')?.textContent).toContain("Refresh the conversation");
+    expect(Array.from(host.querySelectorAll("button")).some(button => button.textContent === "Refresh conversation")).toBe(true);
     expect(host.querySelector(".message.tutor.pending")).toBeNull();
   });
 
@@ -160,6 +162,58 @@ describe("V2 tutor stream wiring", () => {
     expect(host.textContent).toContain("The tutor may continue and save it");
     expect(host.querySelector(".message.tutor.pending")).toBeNull();
     expect(run.response.body?.locked).toBe(false);
+  });
+
+  it("refreshes saved history after stopping without remounting the workspace", async () => {
+    const run = stream(); await submitTeacher(run);
+    await act(async () => {
+      Array.from(host.querySelectorAll("button")).find(button => button.textContent === "Stop receiving")?.click();
+    });
+    expect(host.textContent).toContain("Refresh the conversation to check");
+    vi.mocked(api.chatMessages).mockResolvedValue([
+      { id: "student-1", userId: "user-1", threadId: "thread-1", createdAt: "2026-01-01", role: "student", text: "Help" },
+      { id: "tutor-1", userId: "user-1", threadId: "thread-1", createdAt: "2026-01-01", role: "tutor", text: "Saved after stopping" },
+    ]);
+    const workspaceLoads = vi.mocked(api.workspace).mock.calls.length;
+    await act(async () => {
+      Array.from(host.querySelectorAll("button")).find(button => button.textContent === "Refresh conversation")?.click();
+    });
+    expect(host.textContent).toContain("Saved after stopping");
+    expect(host.textContent).toContain("Conversation refreshed");
+    expect(api.workspace).toHaveBeenCalledTimes(workspaceLoads);
+    expect(api.streamChatMessage).toHaveBeenCalledTimes(1);
+  });
+
+  it("preserves messages on a history refresh failure and allows retry", async () => {
+    const run = stream(); await submitTeacher(run);
+    await act(async () => { run.close(); });
+    vi.mocked(api.chatMessages).mockRejectedValueOnce(new Error("Offline"));
+    await act(async () => {
+      Array.from(host.querySelectorAll("button")).find(button => button.textContent === "Refresh conversation")?.click();
+    });
+    expect(host.textContent).toContain("Could not refresh the conversation");
+    expect(host.querySelector(".message.student")?.textContent).toContain("Help");
+    expect(Array.from(host.querySelectorAll("button")).find(button => button.textContent === "Refresh conversation")?.disabled).toBe(false);
+  });
+
+  it("does not overwrite a new reply when an old history refresh returns", async () => {
+    const run = stream(); await submitTeacher(run);
+    await act(async () => { run.close(); });
+    let resolveHistory!: (messages: Awaited<ReturnType<typeof api.chatMessages>>) => void;
+    vi.mocked(api.chatMessages).mockReturnValueOnce(new Promise(resolve => { resolveHistory = resolve; }));
+    await act(async () => {
+      Array.from(host.querySelectorAll("button")).find(button => button.textContent === "Refresh conversation")?.click();
+    });
+    expect(Array.from(host.querySelectorAll("button")).find(button => button.textContent === "Refreshing...")?.disabled).toBe(true);
+    const next = stream();
+    vi.mocked(api.streamChatMessage).mockResolvedValueOnce(next.response);
+    await act(async () => { enter(host.querySelector<HTMLInputElement>(".message-form input")!, "New question"); });
+    await act(async () => { host.querySelector(".message-form")?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })); });
+    await act(async () => { next.frame("assistant_delta", { type: "progress", event: "assistant_delta", data: { delta: "New reply" } }); });
+    await act(async () => { resolveHistory([]); });
+    expect(host.querySelector(".message.tutor.pending")?.textContent).toContain("New reply");
+    expect(host.textContent).toContain("New question");
+    expect(host.textContent).not.toContain("Could not refresh the conversation");
   });
 
   it("hides and cancels the old draft when the lesson context changes", async () => {
