@@ -24,8 +24,14 @@ import { vmPanelState } from "./vm-panel-state";
 import { hasTutorVersionMismatch, loadedTutorContext, tutorContextKey } from "./tutor-context";
 import { useCourseLearningSession } from "./use-course-learning-session";
 import { useChatMessages } from "./use-chat-messages";
-import { readTutorStream } from "./read-tutor-stream";
+import { readTutorStream, TutorReplyNotSavedError } from "./read-tutor-stream";
+import { initialTutorReply, replyDraft, type TutorReplyState } from "./tutor-reply-state";
 import { useTutorRequest } from "./use-tutor-request";
+
+type TutorDisplay =
+  | { kind: "active"; key: string; reply: TutorReplyState }
+  | { kind: "interrupted"; key: string }
+  | { kind: "failed"; key: string; message: string };
 
 type Message = { role: "tutor" | "student"; text: string };
 type WorkspaceTab = "teacher" | "path";
@@ -116,9 +122,10 @@ export function WorkspaceV2() {
   const tutorVersionMismatch = hasTutorVersionMismatch(course, learningSession.selectedId, displayedLesson, learningSession.progress.snapshot);
   const chatKey = tutorContextKey(enrollment?.id, chatContext);
   const chat = useTutorRequest(chatKey);
-  const [draftState, setDraftState] = useState<{ key: string; text: string } | null>(null);
-  const [tutorPhase, setTutorPhase] = useState<"diagnosis" | "answer">("diagnosis");
-  const tutorDraft = chat.busy && draftState?.key === chatKey ? draftState.text : "";
+  const [tutorDisplay, setTutorDisplay] = useState<TutorDisplay | null>(null);
+  const currentTutorDisplay = tutorDisplay?.key === chatKey ? tutorDisplay : null;
+  const pendingReply = chat.busy && currentTutorDisplay?.kind === "active" ? currentTutorDisplay.reply : null;
+  const tutorDraft = pendingReply ? replyDraft(pendingReply) : "";
   const floatingThinking = floatingOwner?.contextKey === chatKey;
   const floatingUnread = floatingUnreadKey === chatKey;
 
@@ -304,22 +311,17 @@ export function WorkspaceV2() {
     if (floatingOwnerId) setFloatingOwner({ id: floatingOwnerId, contextKey: chatKey });
     appendMessage({ role: "student", text });
     try {
-      setDraftState({ key: chatKey, text: "" });
-      setTutorPhase("diagnosis");
+      setTutorDisplay({ kind: "active", key: chatKey, reply: initialTutorReply });
       const response = await api.streamChatMessage(enrollment.id, { requestId: crypto.randomUUID(), text, context: chatContext }, request.signal);
       const tutorText = await readTutorStream(response, {
         signal: request.signal,
-        onPhase(phase) { if (request.isCurrent()) setTutorPhase(phase); },
-        onDraft(text) {
-          if (request.isCurrent()) setDraftState({ key: chatKey, text });
-        },
+        onState(reply) { if (request.isCurrent()) setTutorDisplay({ kind: "active", key: chatKey, reply }); },
       });
-      if (request.isCurrent()) appendMessage({ role: "tutor", text: tutorText });
+      if (request.isCurrent()) { appendMessage({ role: "tutor", text: tutorText }); setTutorDisplay(null); }
     } catch (caught) {
-      if (request.isCurrent()) appendMessage({ role: "tutor", text: upstreamErrorMessage(caught, { retryable: t("The tutor could not finish replying. Please try again.", "助教暂时没有完成回复，请重试一次。"), unavailable: t("The tutor is unavailable. Please contact support.", "助教服务暂时不可用，请联系客服。") }) });
+      if (request.isCurrent()) setTutorDisplay({ kind: "failed", key: chatKey, message: caught instanceof TutorReplyNotSavedError ? t("The reply could not be confirmed as saved. Reopen the conversation to check before asking again.", "回复未能确认保存。再次提问前，请重新打开对话确认结果。") : upstreamErrorMessage(caught, { retryable: t("The reply could not be confirmed. Reopen the conversation to check before trying again.", "暂时无法确认回复结果。重试前，请重新打开对话确认。"), unavailable: t("The tutor is unavailable. Please contact support.", "助教服务暂时不可用，请联系客服。") }) });
     } finally {
       const isCurrent = request.isCurrent();
-      if (isCurrent) setDraftState(null);
       request.finish();
       if (floatingOwnerId) {
         setFloatingOwner((current) => current?.id === floatingOwnerId ? null : current);
@@ -343,6 +345,8 @@ export function WorkspaceV2() {
     setFloatingPrompt("");
     setFloatingPromptOpen(false);
     setFloatingUnreadKey(null);
+    setActiveTab("teacher");
+    setLayout((current) => current === "minimized" ? "split" : current);
     void requestTutorResponse(text, true);
   }
 
@@ -357,8 +361,9 @@ export function WorkspaceV2() {
       floatingWasDraggedRef.current = false;
       return;
     }
-    if (floatingUnread) {
+    if (floatingUnread || chat.busy) {
       setActiveTab("teacher");
+      setLayout((current) => current === "minimized" ? "split" : current);
       setFloatingUnreadKey(null);
       setFloatingPromptOpen(false);
       return;
@@ -489,7 +494,8 @@ export function WorkspaceV2() {
         {activeTab === "teacher" ? (
           <div className="lab-v2-teacher" role="tabpanel">
             <header><div className="tutor-heading"><span className="bot-mark">AI</span><div><strong>AIVir Teacher</strong><small><i /> {t("Online", "在线")}</small></div></div><p>{course.title}</p></header>
-            <div ref={messagesRef} className="messages">{messages.map((item, index) => <article className={`message ${item.role}`} key={`${item.role}-${index}`}><div>{item.role === "tutor" ? <TutorMessage text={item.text} /> : <p>{item.text}</p>}<small>{index === messages.length - 1 ? t("Just now", "刚刚") : t("Earlier", "较早")}</small></div></article>)}{chat.busy && <article className="message tutor pending"><div>{tutorDraft ? <TutorMessage text={tutorDraft} /> : <p role="status">{tutorPhase === "diagnosis" ? t("Checking your question...", "正在分析问题……") : t("Writing a reply...", "正在生成回复……")}</p>}</div></article>}</div>
+            <div ref={messagesRef} className="messages">{messages.map((item, index) => <article className={`message ${item.role}`} key={`${item.role}-${index}`}><div>{item.role === "tutor" ? <TutorMessage text={item.text} /> : <p>{item.text}</p>}<small>{index === messages.length - 1 ? t("Just now", "刚刚") : t("Earlier", "较早")}</small></div></article>)}{pendingReply && <article className="message tutor pending"><div><p role="status">{tutorReplyStatus(pendingReply, t)}</p>{tutorDraft && <TutorMessage text={tutorDraft} />}</div></article>}{currentTutorDisplay?.kind === "failed" && <p role="alert">{currentTutorDisplay.message}</p>}{currentTutorDisplay?.kind === "interrupted" && <p role="status">{t("Stopped receiving this reply. The tutor may continue and save it; reopen the conversation to check.", "已停止接收本次回复。后台可能继续处理并保存，请重新打开对话查看。")}</p>}</div>
+            {chat.busy && <Button variant="outline" type="button" onClick={() => { chat.cancel(); setTutorDisplay({ kind: "interrupted", key: chatKey }); setFloatingOwner(null); }}>{t("Stop receiving", "停止接收")}</Button>}
             {tutorVersionMismatch && <Alert variant="destructive">{t("This lesson does not match the active course version. Reload the course before asking the tutor.", "当前课时与课程版本不匹配，请刷新课程后再向教师提问。")}<Button variant="outline" type="button" onClick={() => window.location.reload()}>{t("Reload course", "刷新课程")}</Button></Alert>}
             <form className="message-form" onSubmit={sendMessage}><Input value={message} onChange={(event) => setMessage(event.target.value)} aria-label={t("Ask AIVir Teacher", "向 AIVir Teacher 提问")} placeholder={t("Ask about this course step...", "询问此课程步骤……")} disabled={!chatContext || chat.busy} /><Button type="submit" disabled={!chatContext || chat.busy}>{chat.busy ? t("Sending...", "发送中……") : t("Send", "发送")}</Button></form>
           </div>
@@ -538,4 +544,15 @@ export function WorkspaceV2() {
       </div>
     </div>
   );
+}
+
+function tutorReplyStatus(state: TutorReplyState, t: (en: string, zh: string) => string): string {
+  switch (state.kind) {
+    case "diagnosing": return state.activity === "tools" ? t("Checking the learning environment...", "正在检查学习环境……") : state.activity === "validating" ? t("Reviewing the diagnostic evidence...", "正在核对诊断依据……") : t("Checking your question...", "正在分析问题……");
+    case "answering": return t("Writing a reply...", "正在生成回复……");
+    case "fallback": return state.reason === "assessment" ? t("The diagnostic result could not be verified. Waiting for a safe response...", "诊断结果未通过校验，正在等待处理结果……") : t("The detailed reply was interrupted. Preparing a diagnostic summary...", "详细回复生成中断，正在准备诊断摘要……");
+    case "awaiting": return t("Waiting for confirmation...", "正在等待回复确认……");
+    case "saving": return t("Saving the reply...", "正在保存回复……");
+    case "completed": return t("Reply saved.", "回复已保存。");
+  }
 }

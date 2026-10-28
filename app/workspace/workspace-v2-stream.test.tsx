@@ -41,6 +41,7 @@ function stream() {
   const response = new Response(new ReadableStream<Uint8Array>({ start(value) { controller = value; } }));
   return {
     response,
+    close() { controller.close(); },
     frame(event: string, payload: object) {
       controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`));
     },
@@ -102,4 +103,72 @@ describe("V2 tutor stream wiring", () => {
     expect(host.textContent).not.toContain("Partial");
   });
 
+  async function submitTeacher(run: ReturnType<typeof stream>) {
+    vi.spyOn(api, "streamChatMessage").mockResolvedValue(run.response);
+    await act(async () => { host.querySelector<HTMLButtonElement>('[role="tab"][aria-selected="false"]')?.click(); });
+    const form = host.querySelector<HTMLFormElement>(".message-form")!;
+    const input = form.querySelector<HTMLInputElement>("input")!;
+    await act(async () => { enter(input, "Help"); });
+    await act(async () => { form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })); });
+  }
+
+  it("opens the teacher panel immediately after a floating question", async () => {
+    const run = stream();
+    vi.spyOn(api, "streamChatMessage").mockResolvedValue(run.response);
+    await act(async () => { host.querySelector<HTMLButtonElement>(".floating-ai-button")?.click(); });
+    const form = host.querySelector<HTMLFormElement>(".floating-ai-prompt")!;
+    const input = form.querySelector<HTMLTextAreaElement>("textarea")!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set?.call(input, "Help");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => { form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })); });
+    expect(host.querySelector(".lab-v2-teacher")).not.toBeNull();
+    expect(host.querySelector(".floating-ai-prompt")).toBeNull();
+    await act(async () => { run.frame("assistant_delta", { type: "progress", event: "assistant_delta", data: { delta: "Live floating reply" } }); });
+    expect(host.querySelector(".message.tutor.pending")?.textContent).toContain("Live floating reply");
+  });
+
+  it("does not publish an unsaved reply and explains a save failure", async () => {
+    const run = stream(); await submitTeacher(run);
+    await act(async () => {
+      run.frame("assistant_delta", { type: "progress", event: "assistant_delta", data: { delta: "Unsaved draft" } });
+      run.frame("reply_persisting", { type: "progress", event: "reply_persisting", data: {} });
+    });
+    expect(host.querySelector(".message.tutor.pending")?.textContent).toContain("Saving the reply");
+    await act(async () => { run.frame("error", { code: "REPLY_NOT_SAVED" }); });
+    expect(host.textContent).not.toContain("Unsaved draft");
+    expect(host.querySelector('[role="alert"]')?.textContent).toContain("could not be confirmed as saved");
+    expect(host.querySelector(".message.tutor.pending")).toBeNull();
+  });
+
+  it("treats EOF as unconfirmed instead of a completed reply", async () => {
+    const run = stream(); await submitTeacher(run);
+    await act(async () => {
+      run.frame("assistant_delta", { type: "progress", event: "assistant_delta", data: { delta: "Interrupted draft" } });
+      run.close();
+    });
+    expect(host.textContent).not.toContain("Interrupted draft");
+    expect(host.querySelector('[role="alert"]')?.textContent).toContain("could not be confirmed");
+  });
+
+  it("stops receiving without claiming the backend was cancelled", async () => {
+    const run = stream(); await submitTeacher(run);
+    await act(async () => {
+      Array.from(host.querySelectorAll('button')).find(button => button.textContent === 'Stop receiving')?.click();
+    });
+    expect(host.textContent).toContain("The tutor may continue and save it");
+    expect(host.querySelector(".message.tutor.pending")).toBeNull();
+    expect(run.response.body?.locked).toBe(false);
+  });
+
+  it("hides and cancels the old draft when the lesson context changes", async () => {
+    const run = stream(); await submitTeacher(run);
+    await act(async () => { run.frame("assistant_delta", { type: "progress", event: "assistant_delta", data: { delta: "Old lesson draft" } }); });
+    mocks.session.mockReturnValue({ selectedId: "lesson-2", state: { status: "ready", id: "lesson-2", lesson: { ...lesson, lesson: { ...lesson.lesson, id: "lesson-2" } } }, progress: { snapshot: progress }, select: vi.fn(), retry: vi.fn() });
+    await act(async () => { root.render(<WorkspaceV2 />); });
+    expect(host.textContent).not.toContain("Old lesson draft");
+    expect(host.querySelector(".message.tutor.pending")).toBeNull();
+    expect(run.response.body?.locked).toBe(false);
+  });
 });

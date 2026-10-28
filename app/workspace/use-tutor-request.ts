@@ -12,6 +12,7 @@ export function useTutorRequest(contextKey: string) {
   }, [owner, contextKey]);
   return {
     busy: !!contextKey && busyKey === contextKey && owner.isBusy(),
+    cancel() { owner.cancel(); setBusyKey(null); },
     begin() {
       const request = owner.begin();
       if (!request) return null;
