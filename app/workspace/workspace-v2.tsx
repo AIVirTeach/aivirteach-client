@@ -24,6 +24,7 @@ import { vmPanelState } from "./vm-panel-state";
 import { hasTutorVersionMismatch, loadedTutorContext, tutorContextKey } from "./tutor-context";
 import { useCourseLearningSession } from "./use-course-learning-session";
 import { useChatMessages } from "./use-chat-messages";
+import { readTutorStream } from "./read-tutor-stream";
 import { useTutorRequest } from "./use-tutor-request";
 
 type Message = { role: "tutor" | "student"; text: string };
@@ -115,6 +116,9 @@ export function WorkspaceV2() {
   const tutorVersionMismatch = hasTutorVersionMismatch(course, learningSession.selectedId, displayedLesson, learningSession.progress.snapshot);
   const chatKey = tutorContextKey(enrollment?.id, chatContext);
   const chat = useTutorRequest(chatKey);
+  const [draftState, setDraftState] = useState<{ key: string; text: string } | null>(null);
+  const [tutorPhase, setTutorPhase] = useState<"diagnosis" | "answer">("diagnosis");
+  const tutorDraft = chat.busy && draftState?.key === chatKey ? draftState.text : "";
   const floatingThinking = floatingOwner?.contextKey === chatKey;
   const floatingUnread = floatingUnreadKey === chatKey;
 
@@ -210,7 +214,7 @@ export function WorkspaceV2() {
   useEffect(() => {
     if (activeTab !== "teacher") return;
     messagesRef.current?.scrollTo({ top: messagesRef.current.scrollHeight, behavior: "smooth" });
-  }, [activeTab, messages]);
+  }, [activeTab, messages, tutorDraft]);
 
   useEffect(() => {
     let active = true;
@@ -300,12 +304,22 @@ export function WorkspaceV2() {
     if (floatingOwnerId) setFloatingOwner({ id: floatingOwnerId, contextKey: chatKey });
     appendMessage({ role: "student", text });
     try {
-      const response = await api.sendChatMessage(enrollment.id, { requestId: crypto.randomUUID(), text, context: chatContext }, request.signal);
-      if (request.isCurrent()) appendMessage({ role: "tutor", text: response.tutorMessage.text });
+      setDraftState({ key: chatKey, text: "" });
+      setTutorPhase("diagnosis");
+      const response = await api.streamChatMessage(enrollment.id, { requestId: crypto.randomUUID(), text, context: chatContext }, request.signal);
+      const tutorText = await readTutorStream(response, {
+        signal: request.signal,
+        onPhase(phase) { if (request.isCurrent()) setTutorPhase(phase); },
+        onDraft(text) {
+          if (request.isCurrent()) setDraftState({ key: chatKey, text });
+        },
+      });
+      if (request.isCurrent()) appendMessage({ role: "tutor", text: tutorText });
     } catch (caught) {
-      if (request.isCurrent()) appendMessage({ role: "tutor", text: caught instanceof Error ? caught.message : "The tutor is unavailable." });
+      if (request.isCurrent()) appendMessage({ role: "tutor", text: upstreamErrorMessage(caught, { retryable: t("The tutor could not finish replying. Please try again.", "助教暂时没有完成回复，请重试一次。"), unavailable: t("The tutor is unavailable. Please contact support.", "助教服务暂时不可用，请联系客服。") }) });
     } finally {
       const isCurrent = request.isCurrent();
+      if (isCurrent) setDraftState(null);
       request.finish();
       if (floatingOwnerId) {
         setFloatingOwner((current) => current?.id === floatingOwnerId ? null : current);
@@ -475,7 +489,7 @@ export function WorkspaceV2() {
         {activeTab === "teacher" ? (
           <div className="lab-v2-teacher" role="tabpanel">
             <header><div className="tutor-heading"><span className="bot-mark">AI</span><div><strong>AIVir Teacher</strong><small><i /> {t("Online", "在线")}</small></div></div><p>{course.title}</p></header>
-            <div ref={messagesRef} className="messages">{messages.map((item, index) => <article className={`message ${item.role}`} key={`${item.role}-${index}`}><div>{item.role === "tutor" ? <TutorMessage text={item.text} /> : <p>{item.text}</p>}<small>{index === messages.length - 1 ? t("Just now", "刚刚") : t("Earlier", "较早")}</small></div></article>)}</div>
+            <div ref={messagesRef} className="messages">{messages.map((item, index) => <article className={`message ${item.role}`} key={`${item.role}-${index}`}><div>{item.role === "tutor" ? <TutorMessage text={item.text} /> : <p>{item.text}</p>}<small>{index === messages.length - 1 ? t("Just now", "刚刚") : t("Earlier", "较早")}</small></div></article>)}{chat.busy && <article className="message tutor pending"><div>{tutorDraft ? <TutorMessage text={tutorDraft} /> : <p role="status">{tutorPhase === "diagnosis" ? t("Checking your question...", "正在分析问题……") : t("Writing a reply...", "正在生成回复……")}</p>}</div></article>}</div>
             {tutorVersionMismatch && <Alert variant="destructive">{t("This lesson does not match the active course version. Reload the course before asking the tutor.", "当前课时与课程版本不匹配，请刷新课程后再向教师提问。")}<Button variant="outline" type="button" onClick={() => window.location.reload()}>{t("Reload course", "刷新课程")}</Button></Alert>}
             <form className="message-form" onSubmit={sendMessage}><Input value={message} onChange={(event) => setMessage(event.target.value)} aria-label={t("Ask AIVir Teacher", "向 AIVir Teacher 提问")} placeholder={t("Ask about this course step...", "询问此课程步骤……")} disabled={!chatContext || chat.busy} /><Button type="submit" disabled={!chatContext || chat.busy}>{chat.busy ? t("Sending...", "发送中……") : t("Send", "发送")}</Button></form>
           </div>
